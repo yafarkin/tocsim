@@ -28,7 +28,7 @@ export function createPushState(run: RunConfig): EngineState {
     stations: run.resolved.stations.map(station => ({stationId: station.id, operationVersion: 0,
       status: 'idle', reason: 'notStarted', remainingProcessingMs: null})),
     sources: run.resolved.sources.map(source => ({sourceId: source.id, nextOrdinal: 0, pendingQuantity: 0,
-      attempts: 0, releasedQuantity: 0, purchasedCost: 0n, lastAttempt: null})), sourceTransfers: []};
+      attempts: 0, releasedQuantity: 0, purchasedCost: 0n, lastAttempt: null})), sourceTransfers: [], line: null};
 }
 
 /** Fixed source/transfer phases, reusable by the full station cycle in task 16. */
@@ -113,7 +113,7 @@ export function createPushHandlers(run: RunConfig): Required<Pick<EventHandlers,
       runtime.lastAttempt = {timeMs: ctx.timeMs, requestedQuantity: source.quantity, releasedQuantity: 0, blockedBy: []};
       runtime.nextOrdinal = addQuantity(runtime.nextOrdinal, 1);
       const next = sourceAttemptTime(calendar, runtime.nextOrdinal, source.intervalMs);
-      if (next !== null) ctx.schedule({kind: 'source', sourceId: source.id, id: `source:${source.id}:${runtime.nextOrdinal}`, timeMs: next});
+      if (next !== null && (source.availability === 'virtual' || warehouseQuantity(ctx.state, source.materialId) > 0)) ctx.schedule({kind: 'source', sourceId: source.id, id: `source:${source.id}:${runtime.nextOrdinal}`, timeMs: next});
       if (!pending) ctx.schedule({kind: 'transfer', producerId: BATCH_ID, id: BATCH_ID, timeMs: ctx.timeMs});
     },
     transfer: (ctx, event) => {

@@ -148,10 +148,10 @@ describe('virtual purchases, capacity and push schedule', () => {
 
   it('produces identical state by step and advanceTo and independent instances', () => {
     const run = compileConfig(dual()), a = createPushScheduler(run), b = createPushScheduler(run);
-    a.step(); a.step(); a.step(); b.advanceTo(2 * minute);
+    a.step(); a.step(); a.step(); b.advanceTo(a.getSnapshot().timeMs);
     expect(a.getSnapshot()).toEqual(b.getSnapshot());
     expect(Object.isFrozen(a.getSnapshot().sources[0]!.lastAttempt!.blockedBy)).toBe(true);
-    expect(a.getSnapshot().schemaVersion).toBe(3);
+    expect(a.getSnapshot().schemaVersion).toBe(4);
   });
 });
 

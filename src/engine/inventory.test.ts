@@ -239,14 +239,14 @@ describe('range, capacity and transactional failures', () => {
     }
   });
 
-  it('serializes and detaches nested provenance in snapshot schema 3', () => {
+  it('serializes and detaches nested provenance in snapshot schema 4', () => {
     const run = compileConfig(line()); const inventory = empty();
     receive(inventory, q('1'), 7n, {...origin(), defective: true, defectSourceIds: ['bad'], processingMs: {s1: 13n}});
-    const snapshot = createSnapshot(run, {...inventory, timeMs: 10, stations: [], sources: [], sourceTransfers: []});
+    const snapshot = createSnapshot(run, {...inventory, timeMs: 10, stations: [], sources: [], sourceTransfers: [], line: null});
     inventory.stocks[0]!.provenance.processingMs.s1 = 99n;
     inventory.stocks[0]!.provenance.defectSourceIds.push('another');
     const decoded = JSON.parse(JSON.stringify(snapshot));
-    expect(decoded.schemaVersion).toBe(3);
+    expect(decoded.schemaVersion).toBe(4);
     expect(decoded.stocks[0].provenance.processingMs.s1).toBe('13');
     expect(decoded.stocks[0].provenance.defectSourceIds).toEqual(['bad']);
     expect(Object.isFrozen(snapshot.stocks[0]!.provenance.processingMs)).toBe(true);
