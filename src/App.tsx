@@ -45,7 +45,7 @@ export function App() {
   return <main>
     <header className="page-header"><a className="brand" href="#flow">TOC<span>{text.title}</span></a>
       <div className="appearance-controls"><ThemePicker value={theme} onChange={setTheme} text={text}/>
-      <fieldset className="language-picker"><legend>{text.language}</legend><button type="button" lang="ru" aria-pressed={language === 'ru'} onClick={() => setLanguage('ru')}>Русский</button><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button></fieldset></div>
+      <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
