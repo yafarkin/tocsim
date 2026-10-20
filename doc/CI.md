@@ -2,13 +2,15 @@
 
 Инфраструктурная задача № 25 от 2026-10-20. Разработка № 19 не начата. Пользователь явно поручил добавить CI и сразу включить публикацию Pages.
 
+Текущая ветка с 2026-10-21: master, по поручению пользователя в № 34. Workflow и разрешённая ветка среды github-pages переведены на master. Старые записи о первых запусках main ниже являются историческими.
+
 ## Workflow
 
-`.github/workflows/ci-pages.yml` запускается на push в main, pull request в main и вручную. Job check устанавливает Node.js из .nvmrc и npm 12.1.0, выполняет npm ci и npm run ci. Последняя команда включает все тесты, строгий TypeScript через build, production-сборку и проверку автономного артефакта.
+`.github/workflows/ci-pages.yml` запускается на push в master, pull request в master и вручную. Job check устанавливает Node.js из .nvmrc и npm 12.1.0, выполняет npm ci и npm run ci. Последняя команда включает все тесты, строгий TypeScript через build, production-сборку и проверку автономного артефакта.
 
 `tools/check-dist.mjs` проверяет, что в dist только index.html, JS/CSS встроены и нет внешних script, stylesheet/modulepreload и CSS-import. Скрипт выводит размер и SHA-256. Это проверка упаковки, не замена браузерной приёмки всех runtime-путей. Для локального запуска доступны npm run ci и npm run check:dist.
 
-Успешный main загружает только dist как Pages-артефакт. Отдельный deploy-job зависит от check и публикует именно проверенный артефакт. Pull request не публикуется. Build имеет contents: read, deploy дополнительно pages: write и id-token: write. Постоянный токен и отдельная ветка с dist не нужны. Checkout не сохраняет Git credentials. Рабочие main-деплои не отменяются новым push; устаревшие PR-проверки могут отменяться.
+Успешный master загружает только dist как Pages-артефакт. Отдельный deploy-job зависит от check и публикует именно проверенный артефакт. Pull request не публикуется. Build имеет contents: read, deploy дополнительно pages: write и id-token: write. Постоянный токен и отдельная ветка с dist не нужны. Checkout не сохраняет Git credentials. Рабочие master-деплои не отменяются новым push; устаревшие PR-проверки могут отменяться.
 
 Официальные actions закреплены по проверенным SHA: checkout v7.0.1, setup-node v7.1.0, configure-pages v6.0.0, upload-pages-artifact v5.0.0 и deploy-pages v5.0.1. Версии получены из GitHub API перед настройкой. Конфигурация следует [официальной документации custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) и [Pages API](https://docs.github.com/en/rest/pages/pages).
 
@@ -16,7 +18,7 @@
 
 Работающий сайт: [yafarkin.github.io/tocsim](https://yafarkin.github.io/tocsim/). Репозиторий публичный. Pages использует build_type workflow. Публикуется только автономный HTML приложения, не исходники, история Git, документация или node_modules. Vite base остаётся относительным, поэтому тот же файл работает в подкаталоге Pages и локально.
 
-После включения успешный push main автоматически обновляет сайт. Сам по себе локальный коммит по-прежнему не разрешает push; но разрешённый push main теперь включает предусмотренную автоматическую публикацию. Ручной workflow_dispatch на main выполняет те же проверки и деплой.
+После включения успешный push master автоматически обновляет сайт. Сам по себе локальный коммит по-прежнему не разрешает push; но разрешённый push master теперь включает предусмотренную автоматическую публикацию. Ручной workflow_dispatch на master выполняет те же проверки и деплой.
 
 ## Проверки
 
