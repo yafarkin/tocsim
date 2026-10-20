@@ -20,3 +20,46 @@ main {
 h1 {
   line-height: 1.2;
 }
+
+fieldset {
+  display: flex;
+  gap: 0.5rem;
+  width: fit-content;
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border: 1px solid #777;
+}
+
+button {
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #777;
+  border-radius: 4px;
+  background: #fff;
+  color: #242424;
+}
+
+button[aria-pressed='true'] {
+  background: #244d42;
+  color: #fff;
+}
+
+button:focus-visible {
+  outline: 3px solid #2459a6;
+  outline-offset: 3px;
+}
+
+figure {
+  margin: 2rem 0 0;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+figcaption {
+  margin-top: 0.75rem;
+}
