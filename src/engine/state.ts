@@ -2,9 +2,10 @@ import { moneyToJSON } from './arithmetic';
 import { freezeData } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 
-/** Station scheduling and events arrive in later tasks. */
+/** Full station scheduling arrives in task 16. */
 export interface StationState {
   stationId: string;
+  operationVersion: number;
   status: 'idle' | 'processing' | 'blocked';
   reason: 'notStarted' | 'input' | 'output' | 'offShift' | 'lunch' | 'complete' | null;
   remainingProcessingMs: number | null;
@@ -40,7 +41,7 @@ export interface Snapshot {
   rngVersion: string;
   calculationHash: string;
   timeMs: number;
-  stations: StationState[];
+  stations: Omit<StationState, 'operationVersion'>[];
   stocks: (Omit<StockState, 'cost' | 'provenance'> & { cost: string; provenance: Omit<Provenance, 'processingMs'> & { processingMs: Record<string, string> } })[];
 }
 
