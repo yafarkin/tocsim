@@ -8,8 +8,11 @@ import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
 import { exampleIds, exampleRuns } from './ui/preview';
 import type { ExampleId } from './ui/preview';
+import { ThemePicker } from './ui/ThemePicker';
+import { useTheme } from './ui/theme';
 
 export function App() {
+  const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
   const run = exampleRuns[example];
@@ -41,7 +44,8 @@ export function App() {
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
   return <main>
     <header className="page-header"><a className="brand" href="#flow">TOC<span>{text.title}</span></a>
-      <fieldset className="language-picker"><legend>{text.language}</legend><button type="button" lang="ru" aria-pressed={language === 'ru'} onClick={() => setLanguage('ru')}>Русский</button><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button></fieldset>
+      <div className="appearance-controls"><ThemePicker value={theme} onChange={setTheme} text={text}/>
+      <fieldset className="language-picker"><legend>{text.language}</legend><button type="button" lang="ru" aria-pressed={language === 'ru'} onClick={() => setLanguage('ru')}>Русский</button><button type="button" lang="en" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button></fieldset></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>

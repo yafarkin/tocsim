@@ -22,7 +22,7 @@ export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunCo
 }
 function Tokens({quantity, x, y, color}: {quantity: number; x: number; y: number; color: string}) {
   return <g aria-hidden="true">{tokenFills(quantity).map((fill, i) => <g key={i}>
-    <rect x={x} y={y - i * 13} width="30" height="9" rx="2" fill="#fff" stroke={color}/>
+    <rect x={x} y={y - i * 13} width="30" height="9" rx="2" fill="var(--surface)" stroke={color}/>
     <rect x={x} y={y - i * 13} width={30 * fill} height="9" rx="2" fill={color}/>
   </g>)}</g>;
 }
@@ -50,8 +50,8 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
     <div className="diagram-scroll" tabIndex={0} role="region" aria-label={text.diagram}>
       <svg className="flow-svg" viewBox={`0 0 ${width} 480`} style={{minWidth: width}} role="img" aria-labelledby="flow-title flow-description" data-testid="flow-svg">
         <title id="flow-title">{text.diagram}</title><desc id="flow-description">{text.diagramDescription}</desc>
-        <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#65798c"/></marker></defs>
-        <path d={`M 30 215 H ${width - 30}`} stroke="#d8e3ec" strokeWidth="1" strokeDasharray="3 7"/>
+        <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--route)"/></marker></defs>
+        <path d={`M 30 215 H ${width - 30}`} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 7"/>
         <g className="endpoint"><rect x="22" y="147" width="112" height="118" rx="8"/><text x="78" y="173" textAnchor="middle">{text.source}</text>
           <rect x="60" y="193" width="36" height="24" rx="3" fill={materialColor(source.materialId)} stroke="none"/>
           <text x="78" y="242" textAnchor="middle" className="small">{materialName(source.materialId)}</text>
@@ -83,8 +83,8 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
             <circle cx={x + 16} cy="172" r="4" className={`state-dot state-${state.status}`}/>
             <text x={x + 28} y="177" className="state-label">{state.reason === 'notStarted' ? text.notStarted : state.status === 'paused' && state.reason ? text[state.reason === 'input' || state.reason === 'output' ? 'paused' : state.reason] : text[state.status]}</text>
             <text x={x + 14} y="204" className="small">{state.remainingProcessingMs !== null ? `${Math.round((state.progress ?? 0) * 100)}%` : ' '}</text>
-            <rect x={x + 14} y="216" width="148" height="7" rx="3" fill="#e5ebf1"/>
-            <rect x={x + 14} y="216" width={148 * (state.progress ?? 0)} height="7" rx="3" fill="#376c8b"/>
+            <rect x={x + 14} y="216" width="148" height="7" rx="3" fill="var(--track)"/>
+            <rect x={x + 14} y="216" width={148 * (state.progress ?? 0)} height="7" rx="3" fill="var(--progress)"/>
             <text x={x + 14} y="251" className="small">{text.held}: <tspan className="quantity">{quantityText(state.output.heldQuantity)}</tspan></text>
             {state.output.heldQuantity > 0 && <rect x={x + 132} y="239" width="29" height="11" rx="2" fill={outputColor}/>}
             <g className="buffer">
@@ -106,8 +106,8 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           const key = `${transfer.fromId}:${transfer.toId}:${transfer.materialId}:${transfer.kind}`;
           return <g key={`${view.transfers.sequence}:${key}`} className={`transfer-token ${moving ? 'moving' : ''}`} style={{'--from-x': `${start - end}px`} as React.CSSProperties} data-transfer={key}>
             <title>{text.transfer}: {quantityText(transfer.quantity)} {materialName(transfer.materialId)}</title>
-            <circle cx={end} cy="215" r="7" fill={materialColor(transfer.materialId)} stroke="white" strokeWidth="2"/>
-            <rect x={end - 23} y="182" width="46" height="20" rx="5" fill="white" stroke="#b8c9d7"/>
+            <circle cx={end} cy="215" r="7" fill={materialColor(transfer.materialId)} stroke="var(--surface)" strokeWidth="2"/>
+            <rect x={end - 23} y="182" width="46" height="20" rx="5" fill="var(--surface)" stroke="var(--border)"/>
             <text x={end} y="196" textAnchor="middle" className="tiny">{quantityText(transfer.quantity)}</text>
           </g>;
         })}

@@ -2,6 +2,7 @@ export type Language = 'ru' | 'en';
 export const messages = {
   ru: {
     title: 'Производственная линия', subtitle: 'Наблюдайте, как материал проходит через посты и где растёт очередь.',
+    theme: 'Тема', themeSystem: 'Системная', themeDark: 'Тёмная', themeLight: 'Светлая',
     language: 'Язык', diagram: 'Схема потока', diagramDescription: 'Материал движется слева направо. Входные очереди и удерживаемый результат показаны рядом с каждым постом.',
     example: 'Пример', balanced: 'Равномерный поток', queueExample: 'Очередь перед медленным постом', blocking: 'Блокировка буфера',
     balancedHint: 'Все посты: 3 минуты. Материал проходит без растущей очереди.', queueHint: 'Посты: 3 / 8 / 3 минуты. Перед обработкой растёт очередь; вход вмещает 80 деталей.', blockingHint: 'Посты: 3 / 8 / 3 минуты. Входы вмещают одну деталь: заполнение блокирует предыдущий пост.',
@@ -23,6 +24,7 @@ export const messages = {
   },
   en: {
     title: 'Production line', subtitle: 'Follow the material through each station and see where queues grow.',
+    theme: 'Theme', themeSystem: 'System', themeDark: 'Dark', themeLight: 'Light',
     language: 'Language', diagram: 'Material flow', diagramDescription: 'Material moves from left to right. Input queues and held output appear beside each station.',
     example: 'Example', balanced: 'Balanced flow', queueExample: 'Queue before a slow station', blocking: 'Buffer blocking',
     balancedHint: 'Every station takes 3 minutes. Material flows without a growing queue.', queueHint: 'Stations: 3 / 8 / 3 minutes. A queue grows before processing; its input holds 80 parts.', blockingHint: 'Stations: 3 / 8 / 3 minutes. Inputs hold one part: a full input blocks the previous station.',
