@@ -151,7 +151,7 @@ describe('virtual purchases, capacity and push schedule', () => {
     a.step(); a.step(); a.step(); b.advanceTo(a.getSnapshot().timeMs);
     expect(a.getSnapshot()).toEqual(b.getSnapshot());
     expect(Object.isFrozen(a.getSnapshot().sources[0]!.lastAttempt!.blockedBy)).toBe(true);
-    expect(a.getSnapshot().schemaVersion).toBe(4);
+    expect(a.getSnapshot().schemaVersion).toBe(5);
   });
 });
 

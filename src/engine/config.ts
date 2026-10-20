@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.6.0';
+export const ENGINE_VERSION = '0.7.0';
 // No sampling yet. Changing to a real RNG requires a new version.
 export const RNG_VERSION = 'none-1';
 
@@ -297,8 +297,8 @@ export function compileConfig(value: unknown): RunConfig {
     if (toId === 'market' && material(materialId, r).role !== 'finished') r.at('toId').fail('topology', 'На рынок передаются только конечные изделия.', 'Only finished materials can go to market.');
     return {id, fromId, toId, materialId};
   }));
-  // Source fan-out/competition is supported; station chains still have one input route
-  // (except multiple raw sources) and one output route. No assembly or station splitting.
+  // Explicit acyclic routes; multiple producers may supply the same input material.
+  // Assembly of different materials remains unsupported until task 29.
   if (sources.length === 0 || stations.length === 0) root.fail('topology', 'Нужны источники сырья и хотя бы один пост.', 'Raw sources and at least one station are required.');
   for (const source of sources) {
     const siblings = sources.filter(s => s.materialId === source.materialId);
@@ -325,9 +325,11 @@ export function compileConfig(value: unknown): RunConfig {
   for (const station of stations) {
     const outgoing = routes.filter(r => r.fromId === station.id);
     const incoming = routes.filter(r => r.toId === station.id);
-    if (outgoing.length !== 1 || incoming.length === 0
-      || (incoming.length > 1 && incoming.some(r => !sources.some(s => s.id === r.fromId)))) {
-      new Reader('config.stations', station.id).fail('topology', 'Посту нужен один выход и один входной маршрут либо несколько источников того же сырья.', 'A station requires one output and one incoming route, or multiple sources of the same raw material.');
+    if (outgoing.length === 0 || incoming.length === 0) {
+      new Reader('config.stations', station.id).fail('topology', 'Посту нужны входные и выходные маршруты.', 'A station requires incoming and outgoing routes.');
+    }
+    if (outgoing.some(r => r.toId === 'market') && outgoing.some(r => r.toId !== 'market')) {
+      new Reader('config.stations', station.id).fail('topology', 'Нельзя одновременно передавать один выпуск в рынок и на посты.', 'One output cannot go both to market and to stations.');
     }
   }
   if (visited.size !== sources.length + stations.length

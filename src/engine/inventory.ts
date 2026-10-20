@@ -4,7 +4,7 @@ import type { InventoryState, Provenance, StockState } from './state';
 
 export type StockAddress = Pick<StockState, 'ownerId' | 'location'>;
 export interface MaterialAmount { materialId: string; quantity: number }
-export interface StockReceipt extends MaterialAmount { cost: bigint; provenance: Provenance }
+export interface StockReceipt extends MaterialAmount { cost: bigint; provenance: Provenance; readyAtMs?: number }
 type InventoryErrorCode = 'value' | 'range' | 'shortage' | 'capacity' | 'reservation';
 export class InventoryError extends Error {
   constructor(
@@ -64,7 +64,7 @@ function validate(state: InventoryState) {
   let cost = 0n;
   for (const stock of state.stocks) {
     if (!stock.id || ids.has(stock.id) || !stock.materialId) fail('value', stock.id, 'ID запаса должен быть уникальным, материал задан.', 'Stock ID must be unique and material must be specified.');
-    ids.add(stock.id); address(stock); quantity(stock.quantity, stock.id); amount(stock.cost, stock.id); checkProvenance(stock);
+    ids.add(stock.id); address(stock); quantity(stock.quantity, stock.id); quantity(stock.readyAtMs, stock.id, false); amount(stock.cost, stock.id); checkProvenance(stock);
     const key = JSON.stringify([stock.ownerId, stock.location, stock.materialId]);
     const total = (totals.get(key) ?? 0n) + BigInt(stock.quantity);
     if (total > MAX_UNITS) fail('range', stock.ownerId, 'Суммарное количество превышает диапазон.', 'Aggregate quantity exceeds range.');
@@ -146,7 +146,7 @@ function takeFIFO(state: InventoryState, at: StockAddress, materialId: string, r
 
 /** Initial buffer WIP has unknown age; raw warehouse stock is not released yet. */
 export function createInventory(run: RunConfig): InventoryState {
-  const state: InventoryState = {nextStockOrdinal: 0, stocks: run.resolved.initialStocks.map(stock => ({...stock,
+  const state: InventoryState = {nextStockOrdinal: 0, stocks: run.resolved.initialStocks.map(stock => ({...stock, readyAtMs: 0,
     provenance: {origin: stock.location === 'warehouse' ? {kind: 'unreleased'} : {kind: 'unknown'},
       defective: false, defectSourceIds: [], processingMs: {}}}))};
   validate(state);
@@ -161,7 +161,7 @@ export function receiveStock(state: InventoryState, at: StockAddress, receipt: S
     quantity(receipt.quantity, receipt.materialId);
     if (!receipt.materialId) fail('value', at.ownerId, 'Не задан материал.', 'Material is not specified.');
     checkCapacity(draft, at, receipt.materialId, receipt.quantity, capacity);
-    const stock = {id: newId(draft), ...at, ...receipt, provenance: copyProvenance(receipt.provenance)};
+    const stock = {id: newId(draft), ...at, ...receipt, readyAtMs: receipt.readyAtMs ?? 0, provenance: copyProvenance(receipt.provenance)};
     draft.stocks.push(stock);
     return stock;
   });
@@ -176,6 +176,7 @@ export function transferStock(state: InventoryState, from: StockAddress, to: Sto
     checkCapacity(draft, to, materialId, requested, capacity);
     const moved = takeFIFO(draft, from, materialId, requested);
     for (const stock of moved) {
+      if (!(from.ownerId === to.ownerId && from.location === 'held' && to.location === 'output')) stock.readyAtMs = timeMs;
       stock.ownerId = to.ownerId; stock.location = to.location;
       if (stock.provenance.origin.kind === 'unreleased' && to.location !== 'warehouse') stock.provenance.origin = {kind: 'known', startedAtMs: timeMs};
       if (stock.provenance.origin.kind === 'known' && stock.provenance.origin.startedAtMs > timeMs) fail('value', stock.id, 'Перенос не может предшествовать запуску материала.', 'Transfer cannot precede material release.');
@@ -212,10 +213,10 @@ export function reserveInputs(state: InventoryState, stationId: string, inputs: 
 /** Consume the single reserved kit and create one homogeneous output lot on the station.
  * Multiple repetitions and their individual defects must remain separate in future batch work.
  */
-export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number): StockState {
+export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0): StockState {
   return transaction(state, draft => {
     address({ownerId: stationId, location: 'held'});
-    quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId);
+    quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId); quantity(readyAtMs, stationId, false);
     if (!output.materialId || output.quantity % 1_000_000 !== 0) fail('value', stationId, 'Производственный выход должен быть целым положительным числом изделий.', 'Production output must be a positive whole number of items.');
     const inputs = draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
     if (inputs.length === 0 || draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held')) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
@@ -236,7 +237,7 @@ export function completeProduction(state: InventoryState, stationId: string, out
     times.set(stationId, addMoney(times.get(stationId) ?? 0n, BigInt(actualProcessingMs)));
     provenance.processingMs = Object.fromEntries([...times.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
     provenance.defectSourceIds = [...defects].sort();
-    const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId, quantity: output.quantity, cost, provenance};
+    const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId, quantity: output.quantity, cost, readyAtMs, provenance};
     draft.stocks = draft.stocks.filter(stock => !inputs.includes(stock));
     draft.stocks.push(result);
     return result;

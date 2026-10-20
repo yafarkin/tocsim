@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { compileConfig } from '../engine/config';
 import { Runner } from '../runner/runner';
 import { Simulation } from '../engine/simulation';
-import { FIRST_X, NODE_GAP, fillRatio, linearOrder, quantityText, tokenFills } from './diagram';
+import { FIRST_X, NODE_GAP, fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { previewConfig, exampleRuns } from './preview';
 import { labels } from './i18n';
 import { FlowDiagram, stationReason } from './FlowDiagram';
@@ -13,7 +13,7 @@ const previewRun = exampleRuns.blocking;
 describe('diagram derived from configuration and snapshot', () => {
   it('follows route IDs rather than display array order', () => {
     const config = previewConfig(); config.stations.reverse(); config.materials.reverse(); config.routes.reverse();
-    expect(linearOrder(compileConfig(config))).toEqual(['prep', 'work', 'finish']);
+    expect(graphLayout(compileConfig(config)).order).toEqual(['prep', 'work', 'finish']);
   });
   it('bounds queue glyphs while retaining fractions and exact labels', () => {
     expect(tokenFills(0)).toEqual([]); expect(tokenFills(1_500_000)).toEqual([1, 0.5]);
@@ -42,5 +42,49 @@ describe('diagram derived from configuration and snapshot', () => {
     expect(stationReason(model.stations.find(s => s.stationId === 'prep')!, previewRun, labels('en'))).toBe('Input full: Processing');
     expect(stationReason(model.stations.find(s => s.stationId === 'finish')!, previewRun, labels('en'))).toBe('Missing: 1 Processed part');
     expect(model.calculationHash).toBe(hash);
+  });
+});
+
+
+describe('layered flow diagram', () => {
+  it('shows every split route, receiver priority and both blockers in RU/EN', () => {
+    const run = exampleRuns.split, runner = new Runner(run);
+    const simulation = new Simulation(run);
+    let model = simulation.advanceTo(9 * 60_000);
+    // Inspect an actual blocked timestamp in this technical example.
+    while (model.stations.find(s => s.stationId === 'prep')!.status !== 'blocked' && simulation.nextEventTime() !== null) {simulation.step(); model = simulation.getSnapshot();}
+    const view = {...runner.getView(), model, status: 'paused' as const};
+    const layout = graphLayout(run);
+    expect(layout.nodes.get('work')!.x).toBe(layout.nodes.get('finish')!.x);
+    expect(layout.nodes.get('work')!.y).not.toBe(layout.nodes.get('finish')!.y);
+    for (const language of ['ru', 'en'] as const) {
+      const svg = renderToStaticMarkup(<FlowDiagram run={run} view={view} text={labels(language)} reduced/>);
+      for (const route of run.resolved.routes) expect(svg).toContain(`data-route="${route.id}"`);
+      expect(svg).toContain(`${labels(language).priority}: 10`);
+      expect(svg).toContain(`${labels(language).fullInput}: ${labels(language).work}`);
+      expect(svg).toContain(`${labels(language).fullInput}: ${labels(language).finish}`);
+      expect(svg).not.toMatch(/NaN|Infinity/);
+    }
+    runner.dispose();
+  });
+  it('lays out multiple sources and long edges outside station rows, independent of array order', () => {
+    const config = previewConfig('queue');
+    config.sources.push({...config.sources[0]!, id: 'secondSource'});
+    config.routes.push({id: 'secondSourceRoute', fromId: 'secondSource', toId: 'prep', materialId: 'raw'});
+    // Extend one branch so the other market route skips a column.
+    const station = structuredClone(config.stations[0]!); station.id = 'extra'; station.plan[0]!.id = 'extraPlan'; station.plan[0]!.recipeId = 'extraRecipe';
+    config.recipes.push({id: 'extraRecipe', name: 'Extra', kind: 'production', inputs: [{materialId: 'raw', quantity: '1'}], output: {materialId: 'processed', quantity: '1'}});
+    config.stations.push(station);
+    config.routes.push({id: 'toExtra', fromId: 'source', toId: 'extra', materialId: 'raw'}, {id: 'extraFinish', fromId: 'extra', toId: 'finish', materialId: 'processed'});
+    const run = compileConfig(config), layout = graphLayout(run), runner = new Runner(run);
+    const svg = renderToStaticMarkup(<FlowDiagram run={run} view={runner.getView()} text={labels('en')} reduced/>);
+    expect(layout.paths.get('extraFinish')!.path).toContain(' V ');
+    expect(layout.height).toBeGreaterThan(900);
+    expect(layout.nodes.get('secondSource')!.y).not.toBe(layout.nodes.get('source')!.y);
+    for (const node of layout.nodes.values()) {expect(node.x).toBeGreaterThanOrEqual(0); expect(node.y).toBeGreaterThanOrEqual(0);}
+    config.stations.reverse(); config.routes.reverse(); config.sources.reverse();
+    expect(graphLayout(compileConfig(config))).toEqual(layout);
+    expect(svg).toContain('secondSource'); expect(svg).not.toMatch(/NaN|Infinity/);
+    runner.dispose();
   });
 });

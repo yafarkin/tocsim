@@ -25,6 +25,8 @@ export interface StockState {
   materialId: string;
   quantity: number;
   cost: bigint;
+  /** Availability at the current buffer; held → output preserves production readiness. */
+  readyAtMs: number;
   provenance: Provenance;
 }
 export interface InventoryState {
@@ -82,7 +84,7 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion'> 
   progress: number | null;
   input: {materialId: string; quantity: number; missingQuantity: number};
   output: {materialId: string; quantity: number; heldQuantity: number};
-  blockedBy: {stationId: string; location: 'input' | 'output'} | null;
+  blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
 export interface LineSnapshot {
   termination: 'running' | 'horizon' | 'stopped' | 'error';
@@ -98,7 +100,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 4;
+  schemaVersion: 5;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -113,7 +115,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 4,
+    schemaVersion: 5,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -124,14 +126,16 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const count = (location: StockState['location'], materialId: string) => state.stocks.filter(s => s.ownerId === station.stationId && s.location === location && s.materialId === materialId).reduce((sum, stock) => sum + stock.quantity, 0);
       const held = count('held', recipe.output.materialId), input = count('input', recipe.input.materialId);
       const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
-      const route = run.resolved.routes.find(r => r.fromId === station.stationId)!;
+      const routes = run.resolved.routes.filter(r => r.fromId === station.stationId);
+      const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
+        .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
         stationId: station.stationId, status: station.status, reason: station.reason,
         remainingProcessingMs: station.remainingProcessingMs,
         progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / config.timeMs)),
         input: {materialId: recipe.input.materialId, quantity: input, missingQuantity: station.remainingProcessingMs === null ? Math.max(0, recipe.input.quantity - input) : 0},
         output: {materialId: recipe.output.materialId, quantity: count('output', recipe.output.materialId), heldQuantity: held},
-        blockedBy: held > 0 ? {stationId: direct ? route.toId : station.stationId, location: direct ? 'input' as const : 'output' as const} : null,
+        blockedBy: held > 0 ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
     }),
     line: state.line ? {
@@ -153,7 +157,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
     sourceTransfers: state.sourceTransfers.map(transfer => ({...transfer, cost: moneyToJSON(transfer.cost)})),
     stocks: state.stocks.map(stock => ({
       id: stock.id, ownerId: stock.ownerId, location: stock.location,
-      materialId: stock.materialId, quantity: stock.quantity, cost: moneyToJSON(stock.cost),
+      materialId: stock.materialId, quantity: stock.quantity, cost: moneyToJSON(stock.cost), readyAtMs: stock.readyAtMs,
       provenance: {
         origin: {...stock.provenance.origin}, defective: stock.provenance.defective,
         defectSourceIds: [...stock.provenance.defectSourceIds],

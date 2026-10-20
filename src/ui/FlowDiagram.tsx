@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { DeepReadonly, RunConfig } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
 import type { StationSnapshot } from '../engine/state';
-import { FIRST_X, NODE_GAP, fillRatio, linearOrder, quantityText, tokenFills } from './diagram';
+import { fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { nameFor } from './i18n';
 import type { Labels } from './i18n';
 
@@ -14,9 +14,11 @@ export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunCo
     const material = run.source.materials.find(m => m.id === station.input.materialId)!;
     return `${text.needs}: ${quantityText(station.input.missingQuantity)} ${nameFor(material.id, material.name, text)}`;
   }
-  if (station.reason === 'output' && station.blockedBy) {
-    const blocker = run.source.stations.find(s => s.id === station.blockedBy!.stationId);
-    return `${station.blockedBy.location === 'input' ? text.fullInput : text.fullOutput}: ${nameFor(station.blockedBy.stationId, blocker?.name ?? text.market, text)}`;
+  if (station.reason === 'output' && station.blockedBy.length) {
+    return station.blockedBy.map(block => {
+      const blocker = run.source.stations.find(s => s.id === block.stationId);
+      return `${block.location === 'input' ? text.fullInput : text.fullOutput}: ${nameFor(block.stationId, blocker?.name ?? text.market, text)}`;
+    }).join('; ');
   }
   return station.remainingProcessingMs !== null ? `${text.remaining}: ${Math.ceil(station.remainingProcessingMs / 60_000)} ${text.minutes}` : text[station.status];
 }
@@ -27,13 +29,16 @@ function Tokens({quantity, x, y, color}: {quantity: number; x: number; y: number
   </g>)}</g>;
 }
 export function FlowDiagram({run, view, text, reduced}: Props) {
-  const order = linearOrder(run), width = FIRST_X + order.length * NODE_GAP + 130;
-  const xOf = (id: string) => FIRST_X + order.indexOf(id) * NODE_GAP;
-  const source = run.source.sources[0]!, marketX = FIRST_X + order.length * NODE_GAP - 30;
+  const layout = graphLayout(run), {order, width, height} = layout;
+  const xOf = (id: string) => layout.nodes.get(id)!.x;
+  const yOf = (id: string) => layout.nodes.get(id)!.y;
+  const marketX = xOf('market');
+  const isSource = (id: string) => run.resolved.sources.some(s => s.id === id);
+  const objectName = (id: string) => id === 'market' ? text.market : isSource(id) ? `${text.source} (${id})` : stationName(id);
   const materialName = (id: string) => {const m = run.source.materials.find(m => m.id === id)!; return nameFor(id, m.name, text);};
   const materialColor = (id: string) => run.source.materials.find(m => m.id === id)!.color;
   const stationName = (id: string) => nameFor(id, run.source.stations.find(s => s.id === id)!.name, text);
-  const sold = view.model.line!.counters.reduce((sum, c) => sum + c.sold, 0);
+  const sold = view.model.line!.counters.reduce((sum, c) => sum + BigInt(c.sold), 0n).toString();
   const [overlay, setOverlay] = useState({sequence: -1, visible: false});
   const seen = useRef(-1);
   useEffect(() => {
@@ -48,29 +53,27 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
   const moving = view.status === 'running' && view.speed !== 'max' && view.speed <= 300 && !reduced;
   return <>
     <div className="diagram-scroll" tabIndex={0} role="region" aria-label={text.diagram}>
-      <svg className="flow-svg" viewBox={`0 0 ${width} 480`} style={{minWidth: width}} role="img" aria-labelledby="flow-title flow-description" data-testid="flow-svg">
+      <svg className="flow-svg" viewBox={`0 0 ${width} ${height}`} style={{minWidth: width}} role="img" aria-labelledby="flow-title flow-description" data-testid="flow-svg">
         <title id="flow-title">{text.diagram}</title><desc id="flow-description">{text.diagramDescription}</desc>
         <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--route)"/></marker></defs>
         <path d={`M 30 215 H ${width - 30}`} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 7"/>
-        <g className="endpoint"><rect x="22" y="147" width="112" height="118" rx="8"/><text x="78" y="173" textAnchor="middle">{text.source}</text>
+        {run.resolved.sources.map(source => <g key={source.id} className="endpoint" transform={`translate(0 ${yOf(source.id)})`}><rect x="22" y="147" width="112" height="118" rx="8"/><text x="78" y="173" textAnchor="middle">{text.source}</text>
           <rect x="60" y="193" width="36" height="24" rx="3" fill={materialColor(source.materialId)} stroke="none"/>
           <text x="78" y="242" textAnchor="middle" className="small">{materialName(source.materialId)}</text>
-        </g>
-        {run.resolved.routes.map(route => {
-          const from = route.fromId === source.id ? 140 : xOf(route.fromId) + 244;
-          const to = route.toId === 'market' ? marketX - 8 : xOf(route.toId) - 82;
-          return <path key={route.id} d={`M ${from} 215 H ${to}`} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}/>;
-        })}
+          {run.resolved.sources.length > 1 && <text x="78" y="286" textAnchor="middle" className="tiny">{source.id}</text>}
+        </g>)}
+        {run.resolved.routes.map(route => <path key={route.id} d={layout.paths.get(route.id)!.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</title></path>)}
         {order.map((id, index) => {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
           const state = view.model.stations.find(s => s.stationId === id)!, inputColor = materialColor(state.input.materialId), outputColor = materialColor(state.output.materialId);
           const inputFill = fillRatio(state.input.quantity, config.inputBuffer), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
           const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
           const cap = (buffer: typeof config.inputBuffer) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
-          return <g key={id} data-station={id} data-state={state.status}>
+          return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status}>
             <text x={x} y="56" className="station-number">{String(index + 1).padStart(2, '0')}</text>
             <text x={x} y="84" className="station-title">{stationName(id)}</text>
             <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes}</text>
+            <text x={x} y="128" className="tiny">{text.priority}: {config.priority}</text>
             <g className="buffer"><text x={x - 50} y="139" textAnchor="middle" className="small">{text.input}</text>
               <rect x={x - 77} y="150" width="56" height="122" rx="5"/>
               <rect x={x - 73} y="267" width={48 * (inputFill ?? 0)} height="3" fill={inputColor}/>
@@ -101,14 +104,15 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           <text x={marketX + 65} y="220" textAnchor="middle" className="output-total" data-testid="output-total">{quantityText(sold)}</text><text x={marketX + 65} y="246" textAnchor="middle" className="tiny">{text.unit}</text>
         </g>
         {overlay.visible && overlay.sequence === view.transfers.sequence && view.transfers.items.map(transfer => {
-          const start = transfer.fromId === source.id ? 134 : xOf(transfer.fromId) + (transfer.kind === 'buffer' ? 160 : 244);
-          const end = transfer.toId === 'market' ? marketX - 14 : transfer.kind === 'buffer' ? xOf(transfer.toId) + 210 : xOf(transfer.toId) - 86;
+          const edge = transfer.kind === 'buffer' ? null : run.resolved.routes.find(route => route.fromId === transfer.fromId && route.toId === transfer.toId && route.materialId === transfer.materialId);
+          const geometry = edge ? layout.paths.get(edge.id)! : {path: `M ${xOf(transfer.fromId) + 160} ${yOf(transfer.fromId) + 215} H ${xOf(transfer.fromId) + 210}`, x: xOf(transfer.fromId) + 210, y: yOf(transfer.fromId) + 215};
           const key = `${transfer.fromId}:${transfer.toId}:${transfer.materialId}:${transfer.kind}`;
-          return <g key={`${view.transfers.sequence}:${key}`} className={`transfer-token ${moving ? 'moving' : ''}`} style={{'--from-x': `${start - end}px`} as React.CSSProperties} data-transfer={key}>
+          return <g key={`${view.transfers.sequence}:${key}`} className={`transfer-token ${moving ? 'moving' : ''}`} transform={moving ? undefined : `translate(${geometry.x} ${geometry.y})`} data-transfer={key}>
+            {moving && <animateMotion dur="0.5s" path={geometry.path} fill="freeze"/>}
             <title>{text.transfer}: {quantityText(transfer.quantity)} {materialName(transfer.materialId)}</title>
-            <circle cx={end} cy="215" r="7" fill={materialColor(transfer.materialId)} stroke="var(--surface)" strokeWidth="2"/>
-            <rect x={end - 23} y="182" width="46" height="20" rx="5" fill="var(--surface)" stroke="var(--border)"/>
-            <text x={end} y="196" textAnchor="middle" className="tiny">{quantityText(transfer.quantity)}</text>
+            <circle cx="0" cy="0" r="7" fill={materialColor(transfer.materialId)} stroke="var(--surface)" strokeWidth="2"/>
+            <rect x="-23" y="-33" width="46" height="20" rx="5" fill="var(--surface)" stroke="var(--border)"/>
+            <text x="0" y="-19" textAnchor="middle" className="tiny">{quantityText(transfer.quantity)}</text>
           </g>;
         })}
       </svg>
@@ -118,7 +122,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.held}</th></tr></thead><tbody>
         {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{quantityText(state.input.quantity)} {materialName(state.input.materialId)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}</td></tr>;})}
       </tbody></table></div>
-      <ul>{run.resolved.routes.map(route => <li key={route.id}>{route.fromId === source.id ? text.source : stationName(route.fromId)} → {route.toId === 'market' ? text.market : stationName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
+      <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
     </details>
   </>;
 }

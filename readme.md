@@ -60,7 +60,7 @@ Dev-сервер доступен только локально. Адрес вы
 | `npm run check:dist` | Проверка однофайлового артефакта и SHA-256 |
 | `npm run ci` | Тесты, типы, сборка и проверка артефакта |
 
-Команда `npm test` выполняет 257 тестов движка, runner и схемы. Точная арифметика описана в [doc/ARITHMETIC.md](doc/ARITHMETIC.md), формат конфигурации в [doc/CONFIGURATION.md](doc/CONFIGURATION.md), материальный учёт в [doc/INVENTORY.md](doc/INVENTORY.md), календарь в [doc/CALENDAR.md](doc/CALENDAR.md), событийная основа в [doc/EVENTS.md](doc/EVENTS.md), источники в [doc/SOURCES.md](doc/SOURCES.md), работающая линия в [doc/SIMULATION.md](doc/SIMULATION.md), управление прогоном в [doc/RUNNER.md](doc/RUNNER.md), схема и браузерная приёмка в [doc/FLOW_SCHEME_CHECK.md](doc/FLOW_SCHEME_CHECK.md).
+Команда `npm test` выполняет 270 тестов движка, runner и схемы. Точная арифметика описана в [doc/ARITHMETIC.md](doc/ARITHMETIC.md), формат конфигурации в [doc/CONFIGURATION.md](doc/CONFIGURATION.md), материальный учёт в [doc/INVENTORY.md](doc/INVENTORY.md), календарь в [doc/CALENDAR.md](doc/CALENDAR.md), событийная основа в [doc/EVENTS.md](doc/EVENTS.md), источники в [doc/SOURCES.md](doc/SOURCES.md), работающая линия в [doc/SIMULATION.md](doc/SIMULATION.md), управление прогоном в [doc/RUNNER.md](doc/RUNNER.md), схема и браузерная приёмка в [doc/FLOW_SCHEME_CHECK.md](doc/FLOW_SCHEME_CHECK.md).
 
 Для получения HTML выполнить `npm ci`, затем `npm run build` и открыть `dist/index.html`. При распространении достаточно одного файла. Хранение данных для текущей страницы не требуется.
 
@@ -75,3 +75,5 @@ GitHub Actions проверяет pull request и master. Успешный maste
 В № 19 полная панель и три примера проверены в Chrome по HTTP в подкаталоге. Пользователь подтвердил итоговый file:// без сети. Первая очередь этапов 1–4 завершена; предложение следующей очереди находится в [doc/COMPLETE_EXAMPLE_CHECK.md](doc/COMPLETE_EXAMPLE_CHECK.md).
 
 В шапке доступен выбор системной, тёмной и светлой темы с иконкой. Выбор запоминается при доступном localStorage; без сохранения приложение продолжает работать. Тема не меняет прогон. Проверки и ограничения описаны в [doc/THEME_CHECK.md](doc/THEME_CHECK.md).
+
+В № 28 добавлены разделение потока, несколько производителей одного материала и схема с ветвями. Пример "Разделение потока" показывает распределение по приоритетам и заполнение входов. Движок 0.7.0, снимок 5; проверки в [doc/ROUTING.md](doc/ROUTING.md). В шапке тема и язык переключаются циклическими кнопками. Работа ведётся только в master; заголовки и описания коммитов пишутся на английском. Следующая задача № 29 добавит сборку. Подсветка критического пути и узла записана на потом в № 36, графики WIP и выпуска в № 37.

@@ -98,12 +98,12 @@ describe('buffer blocking and fractional material', () => {
       checkBalance(run, sim.getSnapshot()); return sim.getSnapshot();
     };
     const zero = execute('0'), three = execute('3');
-    expect(zero.stations[0]).toMatchObject({status: 'blocked', reason: 'output', output: {heldQuantity: q(1)}, blockedBy: {stationId: 'p1', location: 'input'}});
+    expect(zero.stations[0]).toMatchObject({status: 'blocked', reason: 'output', output: {heldQuantity: q(1)}, blockedBy: [{stationId: 'p1', location: 'input'}]});
     expect(zero.stations[1]!.input.quantity).toBe(q(2));
     expect(zero.line!.counters.find(c => c.materialId === 'm1')!.produced).toBe(q(4));
     expect(three.line!.counters.find(c => c.materialId === 'm1')!.produced).toBe(q(7));
     expect(three.stations[0]!.output.quantity).toBe(q(3));
-    expect(three.stations[0]!.blockedBy).toEqual({stationId: 'p0', location: 'output'});
+    expect(three.stations[0]!.blockedBy).toEqual([{stationId: 'p0', location: 'output'}]);
   });
 
   it('V05: transfers six out of ten, retains four, then frees the producer', () => {
@@ -244,7 +244,7 @@ describe('sources, termination and snapshot diagnostics', () => {
     sim.advanceTo(5 * minute); expect(old.stations[0]!.progress).toBeCloseTo(0.4);
     expect(sim.getSnapshot().line!.transfers[0]).toMatchObject({kind: 'sale', quantity: q(1), cost: '10000000'});
     expect(Object.isFrozen(sim.getSnapshot().line!.counters)).toBe(true);
-    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(4);
+    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(5);
   });
 
   it('reports an error separately from a user stop and keeps the last consistent time', () => {

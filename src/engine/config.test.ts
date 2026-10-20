@@ -28,7 +28,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffer: {quantity: 2_000_000}, outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffer).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.6.0');
+    expect(run.engineVersion).toBe('0.7.0');
     expect(run.rngVersion).toBe('none-1');
     expect(run.schemaVersion).toBe(1);
   });
@@ -173,7 +173,7 @@ describe('invalid and unsupported configurations', () => {
     expect(failure(cyclicPlan).code).toBe('unsupported');
   });
 
-  it('rejects branching, duplicate routes and disconnected stations', () => {
+  it('rejects duplicate routes and disconnected stations', () => {
     const branching = line(); branching.routes.push({id: 'extraRoute', fromId: 's1', toId: 's2', materialId: 'part'});
     expect(failure(branching).code).toBe('topology');
     const disconnected = line(); disconnected.routes.splice(1, 1);
@@ -251,7 +251,7 @@ describe('independent JSON-compatible snapshots', () => {
     const state: EngineState = {
       timeMs: 10, nextStockOrdinal: 0, sources: [], sourceTransfers: [], line: null,
       stations: [{stationId: 's1', operationVersion: 0, status: 'processing', reason: null, remainingProcessingMs: 100}],
-      stocks: [{id: 'lot', ownerId: 's1', location: 'reserved', materialId: 'raw', quantity: 300_000, cost: 9_007_199_254_740_991n, provenance: {origin: {kind: 'unknown'}, defective: false, defectSourceIds: [], processingMs: {}}}],
+      stocks: [{readyAtMs: 0, id: 'lot', ownerId: 's1', location: 'reserved', materialId: 'raw', quantity: 300_000, cost: 9_007_199_254_740_991n, provenance: {origin: {kind: 'unknown'}, defective: false, defectSourceIds: [], processingMs: {}}}],
     };
     const snapshot = createSnapshot(run, state);
     state.timeMs = 20; state.stations[0]!.remainingProcessingMs = 90; state.stocks[0]!.quantity = 0;

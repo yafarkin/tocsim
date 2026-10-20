@@ -1,18 +1,5 @@
 import type { DeepReadonly, ResolvedBuffer, RunConfig } from '../engine/config';
 export const NODE_GAP = 350, FIRST_X = 235;
-export function linearOrder(run: RunConfig): string[] {
-  if (run.resolved.sources.length !== 1) throw new Error('Linear view requires one source');
-  const result: string[] = [], seen = new Set<string>();
-  let from = run.resolved.sources[0]!.id;
-  while (from !== 'market') {
-    const routes = run.resolved.routes.filter(r => r.fromId === from);
-    if (routes.length !== 1 || seen.has(from)) throw new Error('Linear view requires a single chain');
-    seen.add(from); from = routes[0]!.toId;
-    if (from !== 'market') result.push(from);
-  }
-  if (result.length !== run.resolved.stations.length) throw new Error('Disconnected linear view');
-  return result;
-}
 export function quantityText(value: number | string): string {
   const units = BigInt(value), whole = units / 1_000_000n;
   const fraction = (units % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
@@ -24,4 +11,46 @@ export function tokenFills(quantity: number): number[] {
 }
 export function fillRatio(quantity: number, capacity: DeepReadonly<ResolvedBuffer>): number | null {
   return capacity.kind === 'infinite' || capacity.quantity === 0 ? null : Math.min(1, quantity / capacity.quantity);
+}
+
+export interface DiagramNode {x: number; y: number; depth: number}
+/** Stable layers for an acyclic network. Coordinates never affect model order. */
+export function graphLayout(run: RunConfig) {
+  const ids = [...run.resolved.sources.map(s => s.id), ...run.resolved.stations.map(s => s.id), 'market'];
+  const depths = new Map<string, number>();
+  const pending = new Set(ids);
+  while (pending.size) {
+    const ready = [...pending].filter(id => run.resolved.routes.filter(r => r.toId === id).every(r => depths.has(r.fromId))).sort();
+    if (!ready.length) throw new Error('Diagram requires an acyclic network');
+    for (const id of ready) {
+      const incoming = run.resolved.routes.filter(r => r.toId === id);
+      depths.set(id, incoming.length ? Math.max(...incoming.map(r => depths.get(r.fromId)!)) + 1 : 0);
+      pending.delete(id);
+    }
+  }
+  // Every final output shares one market column, including shorter branches.
+  depths.set('market', Math.max(...run.resolved.stations.map(s => depths.get(s.id)!)) + 1);
+  const nodes = new Map<string, DiagramNode>();
+  let rows = 1;
+  for (let depth = 0; depth <= depths.get('market')!; depth++) {
+    const priority = (id: string) => run.resolved.stations.find(s => s.id === id)?.priority ?? 0;
+    const layer = ids.filter(id => depths.get(id) === depth).sort((a, b) => priority(b) - priority(a) || (a < b ? -1 : a > b ? 1 : 0));
+    rows = Math.max(rows, layer.length);
+    layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * NODE_GAP - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * NODE_GAP, y: row * 420}));
+  }
+  const baseHeight = rows * 420 + 60;
+  const paths = new Map<string, {path: string; x: number; y: number}>();
+  let lanes = 0;
+  for (const route of run.resolved.routes) {
+    const from = nodes.get(route.fromId)!, to = nodes.get(route.toId)!;
+    const x1 = from.x + (from.depth === 0 ? 118 : 244), y1 = from.y + 215;
+    const x2 = to.x - (route.toId === 'market' ? 8 : 82), y2 = to.y + 215;
+    const middle = (x1 + x2) / 2;
+    const path = to.depth - from.depth > 1
+      ? `M ${x1} ${y1} H ${x1 + 12} V ${baseHeight - 30 + lanes++ * 26} H ${x2 - 12} V ${y2} H ${x2}`
+      : y1 === y2 ? `M ${x1} ${y1} H ${x2}` : `M ${x1} ${y1} H ${middle} V ${y2} H ${x2}`;
+    paths.set(route.id, {path, x: x2, y: y2});
+  }
+  const order = run.resolved.stations.map(s => s.id).sort((a, b) => nodes.get(a)!.depth - nodes.get(b)!.depth || nodes.get(a)!.y - nodes.get(b)!.y);
+  return {nodes, paths, order, width: nodes.get('market')!.x + 160, height: baseHeight + lanes * 26};
 }

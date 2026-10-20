@@ -71,12 +71,13 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     if (due <= BigInt(calendar.endTimeMs)) ctx.schedule({kind: 'completion', stationId: id,
       operationVersion: station.operationVersion, id: `completion:${id}:${station.operationVersion}`, timeMs: Number(due)});
   }
-  function deliver(ctx: EventContext, config: Station, location: 'held' | 'output'): boolean {
-    const recipe = recipeOf(config), available = count(ctx.state, config.id, location, recipe.output.materialId);
+  function deliver(ctx: EventContext, config: Station, location: 'held' | 'output', limit: number): boolean {
+    const recipe = recipeOf(config);
+    let available = Math.min(limit, count(ctx.state, config.id, location, recipe.output.materialId));
     if (available === 0) return false;
-    const route = run.resolved.routes.find(r => r.fromId === config.id)!;
+    const routes = run.resolved.routes.filter(r => r.fromId === config.id);
     const from = {ownerId: config.id, location};
-    if (route.toId === 'market') {
+    if (routes.some(route => route.toId === 'market')) {
       const portions = consumeStock(ctx.state, from, recipe.output.materialId, available);
       const counter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
       for (const part of portions) {
@@ -87,13 +88,38 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       }
       return true;
     }
-    const target = run.resolved.stations.find(s => s.id === route.toId)!;
-    const quantity = Math.min(available, free(target.inputBuffer, count(ctx.state, target.id, 'input', route.materialId)));
-    if (quantity <= 0) return false;
-    const moved = transferStock(ctx.state, from, {ownerId: target.id, location: 'input'}, route.materialId, quantity, target.inputBuffer, ctx.timeMs);
-    ctx.state.line!.transfers.push({fromId: config.id, toId: target.id, fromLocation: location, materialId: route.materialId,
-      quantity, cost: moved.reduce((sum, s) => addMoney(sum, s.cost), 0n), kind: 'route'});
-    return true;
+    let movedAny = false;
+    for (const target of stations.filter(station => routes.some(route => route.toId === station.id))) {
+      const quantity = Math.min(available, free(target.inputBuffer, count(ctx.state, target.id, 'input', recipe.output.materialId)));
+      if (quantity <= 0) continue;
+      const moved = transferStock(ctx.state, from, {ownerId: target.id, location: 'input'}, recipe.output.materialId, quantity, target.inputBuffer, ctx.timeMs);
+      ctx.state.line!.transfers.push({fromId: config.id, toId: target.id, fromLocation: location, materialId: recipe.output.materialId,
+        quantity, cost: moved.reduce((sum, s) => addMoney(sum, s.cost), 0n), kind: 'route'});
+      available -= quantity; movedAny = true;
+      if (available === 0) break;
+    }
+    return movedAny;
+  }
+  // Only each buffer's FIFO head competes. Rebuild heads after each move so
+  // no producer can drain newer lots ahead of older output from another.
+  function distribute(ctx: EventContext): boolean {
+    let movedAny = false;
+    while (true) {
+      const heads = new Map<string, StockState>();
+      for (const stock of ctx.state.stocks) {
+        const config = stations.find(s => s.id === stock.ownerId);
+        if (!config || !(stock.location === 'output' || (stock.location === 'held' && config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0))) continue;
+        const key = JSON.stringify([stock.ownerId, stock.location]);
+        if (!heads.has(key)) heads.set(key, stock);
+      }
+      const candidates = [...heads.values()].sort((a, b) => a.readyAtMs - b.readyAtMs
+        || (a.ownerId < b.ownerId ? -1 : a.ownerId > b.ownerId ? 1 : 0)
+        || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      const moved = candidates.some(stock => deliver(ctx, stations.find(s => s.id === stock.ownerId)!, stock.location as 'held' | 'output', stock.quantity));
+      if (!moved) break;
+      movedAny = true;
+    }
+    return movedAny;
   }
   return {
     integrate: (state, from, to) => {
@@ -123,7 +149,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
       if (station.remainingProcessingMs !== 0) throw new EventError('value', event.stationId, {ru: 'Операция ещё не завершена.', en: 'Operation is not complete yet.'});
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(config);
-      completeProduction(ctx.state, config.id, recipe.output, config.timeMs);
+      completeProduction(ctx.state, config.id, recipe.output, config.timeMs, ctx.timeMs);
       const inputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.input.materialId)!;
       const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
       inputCounter.consumed = addQuantity(inputCounter.consumed, recipe.input.quantity);
@@ -135,12 +161,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       if (event.producerId === '@sources') {push.transfer(ctx, event); wakeTransfer(ctx); return;}
       if (event.producerId !== WAKE) throw new EventError('value', event.id, {ru: 'Неизвестная передача линии.', en: 'Unknown line transfer.'});
       ctx.state.line!.transferPending = false;
-      let moved = false;
+      let moved = distribute(ctx);
       for (const config of stations) {
-        moved = deliver(ctx, config, 'output') || moved;
         const material = recipeOf(config).output.materialId;
-        if (config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0) moved = deliver(ctx, config, 'held') || moved;
-        else {
+        if (!(config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0)) {
           const quantity = Math.min(count(ctx.state, config.id, 'held', material), free(config.outputBuffer, count(ctx.state, config.id, 'output', material)));
           if (quantity > 0) {
             const parts = transferStock(ctx.state, {ownerId: config.id, location: 'held'}, {ownerId: config.id, location: 'output'}, material, quantity, config.outputBuffer, ctx.timeMs);
@@ -148,7 +172,6 @@ function createLineHandlers(run: RunConfig): EventHandlers {
               cost: parts.reduce((sum, part) => addMoney(sum, part.cost), 0n), kind: 'buffer'});
             moved = true;
           }
-          moved = deliver(ctx, config, 'output') || moved;
         }
       }
       refresh(ctx);

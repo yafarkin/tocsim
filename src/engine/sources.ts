@@ -80,7 +80,7 @@ export function createPushHandlers(run: RunConfig): Required<Pick<EventHandlers,
         const remainder = purchaseRemainders.get(source.id)!;
         const split = splitCost(remainder.cost, remainder.quantity, quantity);
         cost = split.takenCost; remainder.cost = split.remainingCost; remainder.quantity -= quantity;
-        receiveStock(state, target, {materialId: source.materialId, quantity, cost,
+        receiveStock(state, target, {materialId: source.materialId, quantity, cost, readyAtMs: ctx.timeMs,
           provenance: {origin: {kind: 'known', startedAtMs: ctx.timeMs}, defective: false, defectSourceIds: [], processingMs: {}}}, station.inputBuffer);
         runtime.purchasedCost = addMoney(runtime.purchasedCost, cost);
       }

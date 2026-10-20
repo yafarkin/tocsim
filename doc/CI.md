@@ -27,3 +27,5 @@
 Первый [запуск Actions 39471152621](https://github.com/yafarkin/tocsim/actions/runs/39471152621) для коммита 89d402e завершился success: check и deploy прошли. Сайт вернул HTTP 200 по HTTPS, опубликованный HTML побайтно совпал с локальным dist/index.html и указанной SHA-256. Pages настроена через workflow, HTTPS enforced включён. Код приложения не менялся, № 19 не начиналась.
 
 Финальный документальный коммит 9df04dc также прошёл [CI и deploy 39471470686](https://github.com/yafarkin/tocsim/actions/runs/39471470686). При последующем bfe этот success подтверждён повторно. Сам bfe сохранён локально без push и не запускает новую публикацию.
+
+Переход № 34 от 2026-10-21 завершён: единственная удалённая ветка master, GitHub default master, origin/HEAD → origin/master. Коммит 3c75ebe прошёл [CI и Pages 39507562430](https://github.com/yafarkin/tocsim/actions/runs/39507562430). Прежняя master 4e2fdcc и main 7f00cef проверены через merge-base --is-ancestor и входят в новую master; force push и переписывание истории не применялись. Среда github-pages разрешает только master. Код незавершённой на тот момент № 28 в этот push не входил.

@@ -43,7 +43,7 @@ describe('technical examples', () => {
     expect(balanced.stations.every(s => s.input.quantity === 0 && s.output.heldQuantity === 0)).toBe(true);
     expect(queue.stations.find(s => s.stationId === 'work')!.input.quantity).toBeGreaterThan(at('queue', 20).stations.find(s => s.stationId === 'work')!.input.quantity);
     expect(queue.stations.find(s => s.stationId === 'prep')!.status).toBe('processing');
-    expect(blocked.stations.find(s => s.stationId === 'prep')).toMatchObject({status: 'blocked', reason: 'output', blockedBy: {stationId: 'work', location: 'input'}});
+    expect(blocked.stations.find(s => s.stationId === 'prep')).toMatchObject({status: 'blocked', reason: 'output', blockedBy: [{stationId: 'work', location: 'input'}]});
     expect(blocked.stations.find(s => s.stationId === 'work')!.input.quantity).toBe(1_000_000);
   });
 });
