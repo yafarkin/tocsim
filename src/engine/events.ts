@@ -78,6 +78,10 @@ export class EventScheduler {
   }
   getSnapshot(): DeepReadonly<Snapshot> { return this.snapshot; }
   getFailure(): unknown { return this.failure?.error ?? null; }
+  nextEventTime(): number | null {
+    this.ensureAvailable();
+    return this.queue[0]?.timeMs ?? null;
+  }
 
   private ensureAvailable() {
     if (this.busy) fail('order', 'scheduler', 'Внутри шага используйте только контекст обработчика.', 'Use only handler context during a step.');

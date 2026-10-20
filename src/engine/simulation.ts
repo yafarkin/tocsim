@@ -195,6 +195,7 @@ export class Simulation {
     this.scheduler.schedule({kind: 'calendar', boundary: 'close', stationId: null, id: '@calendar', timeMs: boundary});
   }
   getSnapshot(): DeepReadonly<Snapshot> { return this.terminal ?? this.scheduler.getSnapshot(); }
+  nextEventTime(): number | null { return this.terminal ? null : this.scheduler.nextEventTime(); }
   private markTerminal(termination: 'stopped' | 'error'): DeepReadonly<Snapshot> {
     const snapshot = this.scheduler.getSnapshot();
     this.terminal = freezeData({...snapshot, line: {...snapshot.line!, termination}});
