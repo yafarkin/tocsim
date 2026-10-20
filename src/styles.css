@@ -17,3 +17,5 @@
 
 .theme-picker{justify-content:center;width:38px;min-height:38px;padding:8px;border-color:transparent;background:transparent;color:var(--muted)}
 .language-toggle{font-size:14px;font-weight:600;min-width:42px;min-height:38px;padding:7px;border-color:transparent;background:transparent}
+
+.seed-input{width:105px;min-height:42px;border:1px solid var(--control-border);border-radius:6px;background:var(--surface);color:var(--text);padding:8px}.seed-input:disabled{opacity:.55}.variability-note{margin:14px 22px 0;color:var(--muted);font-size:12px;max-width:110ch}

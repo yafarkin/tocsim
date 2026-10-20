@@ -72,11 +72,11 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
           const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
           const cap = (buffer: DeepReadonly<ResolvedBuffer>) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
-          return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status}>
+          return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status} data-duration-ms={state.operationDurationMs ?? undefined}>
             <text x={x} y="56" className="station-number">{String(index + 1).padStart(2, '0')}</text>
             <text x={x} y="84" className="station-title">{stationName(id)}</text>
-            <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes}</text>
-            <text x={x} y="128" className="tiny">{text.priority}: {config.priority}</text>
+            <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes}{config.cv > 0 && ` (${text.mean})`}</text>
+            <text x={x} y="128" className="tiny">{text.priority}: {config.priority}{config.cv > 0 && ` · CV ${config.cv}`}</text>
             {state.inputs.length === 1 ? <>
             <g className="buffer"><text x={x - 50} y="139" textAnchor="middle" className="small">{text.input}</text>
               <rect x={x - 77} y="150" width="56" height="122" rx="5"/>

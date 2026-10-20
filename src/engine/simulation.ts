@@ -4,6 +4,7 @@ import { freezeData, inputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
+import { processingDuration, RandomError } from './random';
 import { completeProduction, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import type { EngineState, Snapshot, StockState } from './state';
@@ -149,14 +150,14 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
       if (station.remainingProcessingMs !== 0) throw new EventError('value', event.stationId, {ru: 'Операция ещё не завершена.', en: 'Operation is not complete yet.'});
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(config);
-      completeProduction(ctx.state, config.id, recipe.output, config.timeMs, ctx.timeMs);
+      completeProduction(ctx.state, config.id, recipe.output, station.operationDurationMs!, ctx.timeMs);
       for (const input of recipe.inputs) {
         const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
         inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity);
       }
       const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
       outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity);
-      station.remainingProcessingMs = null;
+      station.remainingProcessingMs = null; station.operationDurationMs = null;
       wakeTransfer(ctx);
     },
     transfer: (ctx, event) => {
@@ -193,7 +194,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) continue;
         if (recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
         reserveInputs(ctx.state, config.id, recipe.inputs);
-        station.remainingProcessingMs = config.timeMs; station.status = 'processing'; station.reason = null;
+        if (station.operationOrdinal === Number.MAX_SAFE_INTEGER) throw new RandomError({ru: 'Исчерпан счётчик операций.', en: 'Operation counter is exhausted.'});
+        station.operationDurationMs = processingDuration(config.timeMs, config.cv, run.resolved.seed, config.id, config.recipeId, station.operationOrdinal++);
+        station.remainingProcessingMs = station.operationDurationMs; station.status = 'processing'; station.reason = null;
         ctx.invalidateOperation(config.id); planCompletion(ctx, config.id); started = true;
       }
       refresh(ctx);

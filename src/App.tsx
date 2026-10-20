@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { clockAt, calendarForDuration } from './engine/calendar';
+import { compileConfig } from './engine/config';
 import type { DeepReadonly } from './engine/config';
 import { Runner } from './runner/runner';
-import type { RunnerView } from './runner/runner';
+import type { PlaybackSpeed, RunnerView } from './runner/runner';
 import { FlowDiagram } from './ui/FlowDiagram';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
-import { exampleIds, exampleRuns } from './ui/preview';
+import { exampleIds, previewConfig } from './ui/preview';
 import type { ExampleId } from './ui/preview';
 import { ThemePicker } from './ui/ThemePicker';
 import { useTheme } from './ui/theme';
@@ -15,10 +16,14 @@ export function App() {
   const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
-  const run = exampleRuns[example];
+  const [cv, setCv] = useState(0), [seedText, setSeedText] = useState('42');
+  const seedValid = /^\d+$/.test(seedText) && Number(seedText) <= 0xffffffff;
+  const seed = seedValid ? Number(seedText) : 42;
+  const run = useMemo(() => compileConfig(previewConfig(example, cv, seed)), [example, cv, seed]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
+  const preferredSpeed = useRef<PlaybackSpeed>(60);
   const runner = useRef<Runner | null>(null), text = labels(language);
   useEffect(() => {
     document.documentElement.lang = language; document.title = `TOC | ${text.title}`;
@@ -33,7 +38,7 @@ export function App() {
   }, []);
   useEffect(() => {
     const current = new Runner(run, setView, {now: () => performance.now(), request: callback => requestAnimationFrame(callback), cancel: id => cancelAnimationFrame(id as number)});
-    runner.current = current; current.setSpeed(60); setView(current.getView());
+    runner.current = current; current.setSpeed(preferredSpeed.current); setView(current.getView());
     return () => {current.dispose(); runner.current = null;};
   }, [run, generation]);
   const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
@@ -51,14 +56,18 @@ export function App() {
     <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <section id="flow" className="diagram-panel" aria-label={text.diagram} data-time-ms={view?.model.timeMs ?? 0} data-playback={status} data-speed={view?.speed ?? 60} data-reduced={manualReduced || systemReduced}>
       <div className="diagram-controls">
-        <div className="playback-buttons"><button className="play-button" type="button" disabled={!view || terminal} onClick={() => {if (status === 'ready') runner.current?.start(); else if (status === 'running') runner.current?.pause(); else runner.current?.resume();}}>{playLabel}</button>
-          <button type="button" disabled={!view || terminal} onClick={() => runner.current?.step()}>{text.step}</button>
+        <div className="playback-buttons"><button className="play-button" type="button" disabled={!view || terminal || !seedValid} onClick={() => {if (status === 'ready') runner.current?.start(); else if (status === 'running') runner.current?.pause(); else runner.current?.resume();}}>{playLabel}</button>
+          <button type="button" disabled={!view || terminal || !seedValid} onClick={() => runner.current?.step()}>{text.step}</button>
           <button type="button" disabled={!view || terminal || status === 'ready'} onClick={() => runner.current?.stop()}>{text.stop}</button>
           <button type="button" disabled={!view || !locked} onClick={reset}>{text.newRun}</button>
-          <label className="speed-picker">{text.speed}<select aria-label={text.speed} value={view?.speed ?? 60} onChange={event => runner.current?.setSpeed(event.target.value === 'max' ? 'max' : Number(event.target.value))}><option value="60">{text.speed60}</option><option value="300">{text.speed300}</option><option value="1800">{text.speed1800}</option><option value="max">{text.max}</option></select></label>
+          <label className="speed-picker">{text.speed}<select aria-label={text.speed} value={view?.speed ?? 60} onChange={event => {preferredSpeed.current = event.target.value === 'max' ? 'max' : Number(event.target.value); runner.current?.setSpeed(preferredSpeed.current);}}><option value="60">{text.speed60}</option><option value="300">{text.speed300}</option><option value="1800">{text.speed1800}</option><option value="max">{text.max}</option></select></label>
+          <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>
+          <label className="speed-picker">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
         </div>
         <div className="model-clock"><span>{text.day} {time.dayIndex + 1}</span><strong>{clock}</strong><span className={`playback-state playback-${status}`}>{status === 'paused' ? text.pausedView : status === 'running' ? text.running : status === 'finished' ? text.finished : status === 'error' ? text.error : status === 'stopped' ? text.stopped : text.ready}</span></div>
       </div>
+      {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
+      <p className="variability-note">{text.cvHelp}</p>
       <div className="diagram-context"><p>{example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
       <p className="scroll-note">{text.scroll}</p>

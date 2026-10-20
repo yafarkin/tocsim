@@ -2,9 +2,9 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.8.0';
-// No sampling yet. Changing to a real RNG requires a new version.
-export const RNG_VERSION = 'none-1';
+export const ENGINE_VERSION = '0.9.0';
+import { RNG_VERSION } from './random';
+export { RNG_VERSION } from './random';
 
 export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
@@ -55,7 +55,7 @@ export interface ResolvedConfig {
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
-    id: string; priority: number; planId: string; recipeId: string; timeMs: number;
+    id: string; priority: number; planId: string; recipeId: string; timeMs: number; cv: number;
     inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
   }[];
@@ -277,7 +277,8 @@ export function compileConfig(value: unknown): RunConfig {
     const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv']);
     pr.at('processing').at('mode').literal(processing.mode, 'sequential');
     pr.at('processing').at('repetitions').literal(processing.repetitions, 1);
-    pr.at('processing').at('cv').literal(processing.cv, 0);
+    const cv = processing.cv;
+    if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
     r.at('setupMs').literal(station.setupMs, 0);
     const maintenance = r.at('maintenance').object(station.maintenance, ['enabled']);
     r.at('maintenance').at('enabled').literal(maintenance.enabled, false);
@@ -306,7 +307,7 @@ export function compileConfig(value: unknown): RunConfig {
       if (capacity.kind === 'quantity' && capacity.quantity < input.quantity) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект рецепта.`, `Input buffer ${input.materialId} cannot hold a complete recipe kit.`);
     }
     return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), planId, recipeId,
-      timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), inputBuffers,
+      timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number, inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};
   }));
