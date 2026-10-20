@@ -4,7 +4,7 @@ import type { EditorConfig } from './config';
 export function line(): EditorConfig {
   return {
     schemaVersion: 1, id: 'line', name: 'Линия', language: 'ru',
-    seed: 42, durationMs: 86_400_000, policy: 'push',
+    seed: 42, durationMs: 32_400_000, policy: 'push',
     calendar: {shiftStartMs: 28_800_000, lunchStartMs: 43_200_000, lunchEndMs: 46_800_000, shiftEndMs: 61_200_000},
     materials: [
       {id: 'raw', name: 'Сырьё', color: '#ccc', role: 'raw', purchasePrice: '10'},

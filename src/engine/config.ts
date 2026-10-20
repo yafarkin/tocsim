@@ -1,7 +1,8 @@
 import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arithmetic';
+import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.2.0';
+export const ENGINE_VERSION = '0.3.0';
 // No sampling yet. Changing to a real RNG requires a new version.
 export const RNG_VERSION = 'none-1';
 
@@ -214,6 +215,10 @@ export function compileConfig(value: unknown): RunConfig {
   };
   if (!(calendar.shiftStartMs < calendar.lunchStartMs && calendar.lunchStartMs < calendar.lunchEndMs && calendar.lunchEndMs < calendar.shiftEndMs)) {
     calReader.fail('value', 'Обед должен находиться строго внутри одной смены.', 'Lunch must be strictly inside a single shift.');
+  }
+  try { calendarForDuration(calendar, durationMs); } catch (error) {
+    if (!(error instanceof CalendarError)) throw error;
+    root.at('durationMs').fail('value', error.messages.ru, error.messages.en);
   }
   const materials = byId(entries('materials', ['id', 'name', 'color', 'role', 'purchasePrice', 'salePrice']).map(({object: m, reader: r, id}) => {
     r.at('name').text(m.name); r.at('color').text(m.color);

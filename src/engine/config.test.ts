@@ -28,7 +28,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffer: {quantity: 2_000_000}, outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffer).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.2.0');
+    expect(run.engineVersion).toBe('0.3.0');
     expect(run.rngVersion).toBe('none-1');
     expect(run.schemaVersion).toBe(1);
   });
@@ -67,7 +67,7 @@ describe('immutable normalized RunConfig', () => {
   });
 
   it.each([
-    ['seed', 43], ['durationMs', 86_400_001], ['calendar.lunchEndMs', 46_800_001],
+    ['seed', 43], ['durationMs', 118_800_000], ['calendar.lunchEndMs', 46_800_001],
     ['stations.0.priority', 1], ['stations.0.plan.0.processing.timeMs', 60_001],
     ['stations.0.plan.0.id', 'newPlan'], ['stations.0.inputBuffer.quantity', '2.000001'],
     ['stations.0.outputBuffer.quantity', '0.000001'], ['stations.0.costs.perShift', '6'],
