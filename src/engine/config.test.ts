@@ -3,34 +3,8 @@ import { compileConfig, ConfigError } from './config';
 import type { EditorConfig } from './config';
 import { createSnapshot } from './state';
 import type { EngineState } from './state';
+import { line } from './test-fixtures';
 
-function line(): EditorConfig {
-  return {
-    schemaVersion: 1, id: 'line', name: 'Линия', language: 'ru',
-    seed: 42, durationMs: 86_400_000, policy: 'push',
-    calendar: {shiftStartMs: 28_800_000, lunchStartMs: 43_200_000, lunchEndMs: 46_800_000, shiftEndMs: 61_200_000},
-    materials: [
-      {id: 'raw', name: 'Сырьё', color: '#ccc', role: 'raw', purchasePrice: '10'},
-      {id: 'part', name: 'Деталь', color: '#aaa', role: 'intermediate'},
-      {id: 'product', name: 'Изделие', color: '#000', role: 'finished', salePrice: '30'},
-    ],
-    recipes: [
-      {id: 'cut', name: 'Раскрой', kind: 'production', inputs: [{materialId: 'raw', quantity: '0.3'}], output: {materialId: 'part', quantity: '10'}},
-      {id: 'finish', name: 'Отделка', kind: 'production', inputs: [{materialId: 'part', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
-    ],
-    stations: [
-      {id: 's1', name: 'Первый', priority: 0, plan: [{id: 'plan1', recipeId: 'cut', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 60_000, cv: 0}}], inputBuffer: {kind: 'quantity', quantity: '2'}, outputBuffer: {kind: 'quantity', quantity: '0'}, setupMs: 0, maintenance: {enabled: false}, lunchReplacement: false, costs: {perShift: '5', perLunchHour: '0', capital: '100'}},
-      {id: 's2', name: 'Второй', priority: 0, plan: [{id: 'plan2', recipeId: 'finish', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 90_000, cv: 0}}], inputBuffer: {kind: 'quantity', quantity: '6'}, outputBuffer: {kind: 'quantity', quantity: '2'}, setupMs: 0, maintenance: {enabled: false}, lunchReplacement: false, costs: {perShift: '5', perLunchHour: '0', capital: '100'}},
-    ],
-    sources: [{id: 'source', name: 'Источник', materialId: 'raw', availability: 'virtual', quantity: '1', intervalMs: 60_000}],
-    routes: [
-      {id: 'r1', fromId: 'source', toId: 's1', materialId: 'raw'},
-      {id: 'r2', fromId: 's1', toId: 's2', materialId: 'part'},
-      {id: 'r3', fromId: 's2', toId: 'market', materialId: 'product'},
-    ],
-    initialStocks: [{id: 'initial', ownerId: 's1', location: 'input', materialId: 'raw', quantity: '0.5', cost: '5'}],
-  };
-}
 
 function set(config: EditorConfig, path: string, value: unknown) {
   const keys = path.split('.');
@@ -54,7 +28,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffer: {quantity: 2_000_000}, outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffer).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.1.0');
+    expect(run.engineVersion).toBe('0.2.0');
     expect(run.rngVersion).toBe('none-1');
     expect(run.schemaVersion).toBe(1);
   });
@@ -275,9 +249,9 @@ describe('independent JSON-compatible snapshots', () => {
   it('copies mutable state and serializes costs without exposing engine references', () => {
     const run = compileConfig(line());
     const state: EngineState = {
-      timeMs: 10,
+      timeMs: 10, nextStockOrdinal: 0,
       stations: [{stationId: 's1', status: 'processing', reason: null, remainingProcessingMs: 100}],
-      stocks: [{id: 'lot', ownerId: 's1', location: 'reserved', materialId: 'raw', quantity: 300_000, cost: 9_007_199_254_740_991n}],
+      stocks: [{id: 'lot', ownerId: 's1', location: 'reserved', materialId: 'raw', quantity: 300_000, cost: 9_007_199_254_740_991n, provenance: {origin: {kind: 'unknown'}, defective: false, defectSourceIds: [], processingMs: {}}}],
     };
     const snapshot = createSnapshot(run, state);
     state.timeMs = 20; state.stations[0]!.remainingProcessingMs = 90; state.stocks[0]!.quantity = 0;
