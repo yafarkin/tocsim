@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { collectTransfers } from './transfers';
 import type { TransferSummary } from './transfers';
 import { Simulation } from '../engine/simulation';
-import { previewRun } from '../ui/preview';
+import { exampleRuns } from '../ui/preview';
+const previewRun = exampleRuns.queue;
 import { Runner } from './runner';
 import type { RunnerHost } from './runner';
 

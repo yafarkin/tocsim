@@ -4,9 +4,11 @@ import { compileConfig } from '../engine/config';
 import { Runner } from '../runner/runner';
 import { Simulation } from '../engine/simulation';
 import { FIRST_X, NODE_GAP, fillRatio, linearOrder, quantityText, tokenFills } from './diagram';
-import { previewConfig, previewRun } from './preview';
+import { previewConfig, exampleRuns } from './preview';
 import { labels } from './i18n';
 import { FlowDiagram, stationReason } from './FlowDiagram';
+
+const previewRun = exampleRuns.blocking;
 
 describe('diagram derived from configuration and snapshot', () => {
   it('follows route IDs rather than display array order', () => {

@@ -3,6 +3,9 @@ export const messages = {
   ru: {
     title: 'Производственная линия', subtitle: 'Наблюдайте, как материал проходит через посты и где растёт очередь.',
     language: 'Язык', diagram: 'Схема потока', diagramDescription: 'Материал движется слева направо. Входные очереди и удерживаемый результат показаны рядом с каждым постом.',
+    example: 'Пример', balanced: 'Равномерный поток', queueExample: 'Очередь перед медленным постом', blocking: 'Блокировка буфера',
+    balancedHint: 'Все посты: 3 минуты. Материал проходит без растущей очереди.', queueHint: 'Посты: 3 / 8 / 3 минуты. Перед обработкой растёт очередь; вход вмещает 80 деталей.', blockingHint: 'Посты: 3 / 8 / 3 минуты. Входы вмещают одну деталь: заполнение блокирует предыдущий пост.',
+    stop: 'Остановить', newRun: 'Новый прогон', locked: 'Пример зафиксирован. Для выбора другого создайте новый прогон.',
     start: 'Запустить', pause: 'Пауза', resume: 'Продолжить', step: 'Одна отметка', finished: 'Завершено', speed: 'Скорость', max: 'Максимум',
     speed60: '1 мин/с', speed300: '5 мин/с', speed1800: '30 мин/с', lessMotion: 'Меньше движения', systemMotion: 'Включено в настройках устройства',
     day: 'День', source: 'Сырьё', market: 'Готовая продукция', sold: 'Выпущено', input: 'Вход', output: 'Выход',
@@ -21,6 +24,9 @@ export const messages = {
   en: {
     title: 'Production line', subtitle: 'Follow the material through each station and see where queues grow.',
     language: 'Language', diagram: 'Material flow', diagramDescription: 'Material moves from left to right. Input queues and held output appear beside each station.',
+    example: 'Example', balanced: 'Balanced flow', queueExample: 'Queue before a slow station', blocking: 'Buffer blocking',
+    balancedHint: 'Every station takes 3 minutes. Material flows without a growing queue.', queueHint: 'Stations: 3 / 8 / 3 minutes. A queue grows before processing; its input holds 80 parts.', blockingHint: 'Stations: 3 / 8 / 3 minutes. Inputs hold one part: a full input blocks the previous station.',
+    stop: 'Stop', newRun: 'New run', locked: 'Example locked. Create a new run to select another example.',
     start: 'Start', pause: 'Pause', resume: 'Resume', step: 'One timestamp', finished: 'Finished', speed: 'Speed', max: 'Maximum',
     speed60: '1 min/s', speed300: '5 min/s', speed1800: '30 min/s', lessMotion: 'Reduce motion', systemMotion: 'Enabled by device preferences',
     day: 'Day', source: 'Raw material', market: 'Finished goods', sold: 'Output', input: 'Input', output: 'Output',
