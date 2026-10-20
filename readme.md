@@ -53,6 +53,8 @@ Dev-сервер доступен только локально. Адрес вы
 | `npm run test:watch` | Vitest с повторным запуском при изменениях |
 | `npm run build` | Проверка типов и production-сборка в `dist/` |
 | `npm run preview` | Локальный просмотр уже собранного `dist/` |
+| `npm run check:dist` | Проверка однофайлового артефакта и SHA-256 |
+| `npm run ci` | Тесты, типы, сборка и проверка артефакта |
 
 Команда `npm test` выполняет 244 теста движка, runner и схемы. Точная арифметика описана в [doc/ARITHMETIC.md](doc/ARITHMETIC.md), формат конфигурации в [doc/CONFIGURATION.md](doc/CONFIGURATION.md), материальный учёт в [doc/INVENTORY.md](doc/INVENTORY.md), календарь в [doc/CALENDAR.md](doc/CALENDAR.md), событийная основа в [doc/EVENTS.md](doc/EVENTS.md), источники в [doc/SOURCES.md](doc/SOURCES.md), работающая линия в [doc/SIMULATION.md](doc/SIMULATION.md), управление прогоном в [doc/RUNNER.md](doc/RUNNER.md), схема и браузерная приёмка в [doc/FLOW_SCHEME_CHECK.md](doc/FLOW_SCHEME_CHECK.md).
 
@@ -61,3 +63,7 @@ Dev-сервер доступен только локально. Адрес вы
 В № 9 проверены TypeScript, production-сборка и работа HTML в Google Chrome через `file://` без сети и HTTP в подкаталоге. Подробности, версия браузера и ограничения находятся в [doc/AUTONOMOUS_BUILD_CHECK.md](doc/AUTONOMOUS_BUILD_CHECK.md).
 
 В № 18 готовая схема проверена в подключённом Chrome по HTTP в подкаталоге; автономное открытие file:// без сети с запуском, паузой и RU/EN подтверждено пользователем вручную. Автоматический инструмент блокирует этот протокол; это ограничение не обходилось.
+
+## CI и публикация
+
+GitHub Actions проверяет pull request и main. Успешный main автоматически публикует проверенный dist/index.html на GitHub Pages. Первая публикация настраивается; протокол и команды в [doc/CI.md](doc/CI.md).
