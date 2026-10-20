@@ -2,17 +2,20 @@ import { freezeData } from '../engine/config';
 import type { DeepReadonly, RunConfig } from '../engine/config';
 import { Simulation } from '../engine/simulation';
 import type { Snapshot } from '../engine/state';
+import { collectTransfers } from './transfers';
+import type { TransferBatch, TransferSummary } from './transfers';
 import { ArithmeticError } from '../engine/arithmetic';
 
 export type PlaybackSpeed = number | 'max';
 export type PlaybackStatus = 'ready' | 'running' | 'paused' | 'finished' | 'stopped' | 'error' | 'disposed';
 export interface RunnerFailure { code: string; messages: {ru: string; en: string} }
 export interface RunnerView {
-  schemaVersion: 1;
+  schemaVersion: 2;
   status: PlaybackStatus;
   speed: PlaybackSpeed;
   model: DeepReadonly<Snapshot>;
   error: RunnerFailure | null;
+  transfers: DeepReadonly<TransferBatch>;
 }
 /** request must defer execution and yield to the main event loop, never call inline. */
 export interface RunnerHost {
@@ -63,6 +66,16 @@ export class Runner {
   private anchorMs: number | null = null;
   private observedClockMs: number | null = null;
   private targetMs = 0;
+  private transferSequence = 0;
+  private transfers: TransferBatch = {sequence: 0, fromTimeMs: 0, toTimeMs: 0, items: []};
+  private clearTransfers() {
+    const time = this.simulation.getSnapshot().timeMs;
+    this.transfers = {sequence: ++this.transferSequence, fromTimeMs: time, toTimeMs: time, items: []};
+  }
+  private finishTransfers(items: Map<string, TransferSummary>, fromTimeMs: number, force = false) {
+    if (items.size || force) this.transfers = {sequence: ++this.transferSequence, fromTimeMs,
+      toTimeMs: this.simulation.getSnapshot().timeMs, items: [...items.values()]};
+  }
   constructor(public readonly runConfig: RunConfig,
     private readonly onUpdate?: (view: DeepReadonly<RunnerView>) => void,
     private readonly host: RunnerHost = defaultHost) {
@@ -83,7 +96,7 @@ export class Runner {
     return now;
   }
   private makeView(): DeepReadonly<RunnerView> {
-    return freezeData({schemaVersion: 1, status: this.status, speed: this.speed,
+    return freezeData({schemaVersion: 2, transfers: this.transfers, status: this.status, speed: this.speed,
       model: this.simulation.getSnapshot(), error: this.failure ? failureData(this.failure.error) : null});
   }
   private publish(): DeepReadonly<RunnerView> {
@@ -120,6 +133,8 @@ export class Runner {
   }
   private turn() {
     if (this.status !== 'running') return;
+    const transfers = new Map<string, TransferSummary>();
+    const fromTimeMs = this.simulation.getSnapshot().timeMs;
     try {
       const started = this.now();
       this.accumulate(started);
@@ -131,6 +146,7 @@ export class Runner {
         const next = this.simulation.nextEventTime();
         if (next !== null && next <= target) {
           this.simulation.step(); timestamps++;
+          collectTransfers(transfers, this.simulation.getSnapshot());
           this.updateTermination();
         } else {
           if (this.simulation.getSnapshot().timeMs < target) this.simulation.advanceTo(target);
@@ -141,6 +157,7 @@ export class Runner {
     } catch (error) {
       this.failure = {error}; this.status = 'error';
     }
+    this.finishTransfers(transfers, fromTimeMs);
     // Queue before notifying: a pause in onUpdate can cancel it immediately.
     this.requestTurn();
     this.publish();
@@ -163,16 +180,21 @@ export class Runner {
   resume(): DeepReadonly<RunnerView> {
     this.ensureAlive();
     if (this.status !== 'paused') return this.view;
-    this.anchorMs = this.now(); this.status = 'running'; this.requestTurn();
+    this.anchorMs = this.now(); this.clearTransfers(); this.status = 'running'; this.requestTurn();
     return this.publish();
   }
   step(): DeepReadonly<RunnerView> {
     this.ensureAlive();
     if (['finished', 'stopped', 'error'].includes(this.status)) return this.view;
     this.cancelTurn(); this.status = 'paused'; this.anchorMs = null;
-    try {this.simulation.step(); this.updateTermination();}
+    const transfers = new Map<string, TransferSummary>(), fromTimeMs = this.simulation.getSnapshot().timeMs;
+    try {
+      if (this.simulation.step() !== null) collectTransfers(transfers, this.simulation.getSnapshot());
+      this.updateTermination();
+    }
     catch (error) {this.failure = {error}; this.status = 'error';}
     this.targetMs = this.simulation.getSnapshot().timeMs;
+    this.finishTransfers(transfers, fromTimeMs, true);
     return this.publish();
   }
   setSpeed(speed: PlaybackSpeed): DeepReadonly<RunnerView> {
@@ -183,6 +205,7 @@ export class Runner {
       if (speed === 'max' || this.speed === 'max') this.targetMs = this.simulation.getSnapshot().timeMs;
     }
     this.speed = speed;
+    if (this.status === 'running') this.clearTransfers();
     return this.publish();
   }
   stop(): DeepReadonly<RunnerView> {
@@ -195,7 +218,7 @@ export class Runner {
   repeat(): DeepReadonly<RunnerView> {
     this.ensureAlive(); this.cancelTurn();
     const now = this.now();
-    this.simulation = new Simulation(this.runConfig); this.failure = null;
+    this.simulation = new Simulation(this.runConfig); this.failure = null; this.clearTransfers();
     this.anchorMs = now; this.targetMs = 0; this.status = 'running'; this.requestTurn();
     return this.publish();
   }
