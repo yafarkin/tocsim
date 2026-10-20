@@ -24,11 +24,11 @@ function failure(config: unknown): ConfigError {
 describe('immutable normalized RunConfig', () => {
   it('resolves exact quantities, costs, multi-unit outputs and explicit small buffers', () => {
     const run = compileConfig(line());
-    expect(run.resolved.recipes.find(r => r.id === 'cut')).toMatchObject({input: {quantity: 300_000}, output: {quantity: 10_000_000}});
-    expect(run.resolved.stations[0]).toMatchObject({inputBuffer: {quantity: 2_000_000}, outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
-    expect(run.resolved.stations[1]!.inputBuffer).toEqual({kind: 'quantity', quantity: 6_000_000});
+    expect(run.resolved.recipes.find(r => r.id === 'cut')).toMatchObject({inputs: [{quantity: 300_000}], output: {quantity: 10_000_000}});
+    expect(run.resolved.stations[0]).toMatchObject({inputBuffers: [{materialId: 'raw', capacity: {quantity: 2_000_000}}], outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
+    expect(run.resolved.stations[1]!.inputBuffers[0]!.capacity).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.7.0');
+    expect(run.engineVersion).toBe('0.8.0');
     expect(run.rngVersion).toBe('none-1');
     expect(run.schemaVersion).toBe(1);
   });
@@ -87,7 +87,7 @@ describe('immutable normalized RunConfig', () => {
     config.sources[0]!.availability = 'warehouse';
     config.initialStocks.push({id: 'warehouseStock', ownerId: 'warehouse', location: 'warehouse', materialId: 'raw', quantity: '5', cost: '50'});
     const run = compileConfig(config);
-    expect(run.resolved.stations[0]!.inputBuffer).toEqual({kind: 'infinite'});
+    expect(run.resolved.stations[0]!.inputBuffers[0]!.capacity).toEqual({kind: 'infinite'});
     expect(run.resolved.initialStocks.find(s => s.id === 'warehouseStock')!.quantity).toBe(5_000_000);
   });
 
@@ -166,9 +166,9 @@ describe('invalid and unsupported configurations', () => {
     }
   });
 
-  it('rejects assembly and multi-row plans explicitly', () => {
+  it('rejects an input equal to its output and still rejects multi-row plans', () => {
     const assembly = line(); assembly.recipes[0]!.inputs.push({materialId: 'part', quantity: '1'});
-    expect(failure(assembly).code).toBe('unsupported');
+    expect(failure(assembly).code).toBe('topology');
     const cyclicPlan = line(); cyclicPlan.stations[0]!.plan.push(structuredClone(cyclicPlan.stations[0]!.plan[0]!));
     expect(failure(cyclicPlan).code).toBe('unsupported');
   });

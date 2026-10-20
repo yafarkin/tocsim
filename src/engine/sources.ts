@@ -1,5 +1,6 @@
 import { addMoney, addQuantity, MAX_UNITS, purchaseCost, splitCost } from './arithmetic';
 import { calendarForDuration, sourceAttemptTime } from './calendar';
+import { inputCapacity } from './config';
 import type { RunConfig } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers } from './events';
@@ -15,7 +16,8 @@ function inputQuantity(state: EngineState, station: string, material: string): b
     .reduce((sum, s) => sum + BigInt(s.quantity), 0n);
 }
 function freeSpace(state: EngineState, station: Station, material: string): number {
-  const limit = station.inputBuffer.kind === 'infinite' ? MAX_UNITS : BigInt(station.inputBuffer.quantity);
+  const capacity = inputCapacity(station, material);
+  const limit = capacity.kind === 'infinite' ? MAX_UNITS : BigInt(capacity.quantity);
   return Number(limit - inputQuantity(state, station.id, material));
 }
 function warehouseQuantity(state: EngineState, material: string): number {
@@ -74,14 +76,14 @@ export function createPushHandlers(run: RunConfig): Required<Pick<EventHandlers,
       let cost: bigint;
       if (source.availability === 'warehouse') {
         const portions = transferStock(state, {ownerId: 'warehouse', location: 'warehouse'}, target,
-          source.materialId, quantity, station.inputBuffer, ctx.timeMs);
+          source.materialId, quantity, inputCapacity(station, source.materialId), ctx.timeMs);
         cost = portions.reduce((sum, stock) => addMoney(sum, stock.cost), 0n);
       } else {
         const remainder = purchaseRemainders.get(source.id)!;
         const split = splitCost(remainder.cost, remainder.quantity, quantity);
         cost = split.takenCost; remainder.cost = split.remainingCost; remainder.quantity -= quantity;
         receiveStock(state, target, {materialId: source.materialId, quantity, cost, readyAtMs: ctx.timeMs,
-          provenance: {origin: {kind: 'known', startedAtMs: ctx.timeMs}, defective: false, defectSourceIds: [], processingMs: {}}}, station.inputBuffer);
+          provenance: {origin: {kind: 'known', startedAtMs: ctx.timeMs}, defective: false, defectSourceIds: [], processingMs: {}}}, inputCapacity(station, source.materialId));
         runtime.purchasedCost = addMoney(runtime.purchasedCost, cost);
       }
       runtime.pendingQuantity -= quantity;

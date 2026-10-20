@@ -88,3 +88,28 @@ describe('layered flow diagram', () => {
     runner.dispose();
   });
 });
+
+
+describe('assembly diagram', () => {
+  it('shows both material queues, exact missing components and reserved quantities in RU/EN', () => {
+    const run = exampleRuns.assembly, simulation = new Simulation(run), runner = new Runner(run);
+    const waiting = simulation.advanceTo(8 * 60_000), layout = graphLayout(run);
+    const station = waiting.stations.find(s => s.stationId === 'assembly')!;
+    expect(station.status).toBe('starved');
+    expect(station.inputs.find(input => input.materialId === 'processed')!.missingQuantity).toBe(1_000_000);
+    expect(layout.paths.get('prep-assembly')!.y).not.toBe(layout.paths.get('work-assembly')!.y);
+    for (const language of ['ru', 'en'] as const) {
+      const text = labels(language), reason = stationReason(station, run, text);
+      expect(reason).toBe(`${text.needs}: 1 ${text.processed}`);
+      const svg = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model: waiting, status: 'paused'}} text={text} reduced/>);
+      expect(svg).toContain('data-input-material="prepared"'); expect(svg).toContain('data-input-material="processed"');
+      expect(svg).toContain(text.assembly); expect(svg).toContain(text.reserved);
+      expect(svg).not.toMatch(/NaN|Infinity/);
+    }
+    const started = simulation.advanceTo(16 * 60_000);
+    const inputs = started.stations.find(s => s.stationId === 'assembly')!.inputs;
+    expect(inputs.find(input => input.materialId === 'prepared')!.reservedQuantity).toBe(1_000_000);
+    expect(inputs.find(input => input.materialId === 'processed')!.reservedQuantity).toBe(2_000_000);
+    runner.dispose();
+  });
+});

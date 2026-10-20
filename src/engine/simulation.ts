@@ -1,6 +1,6 @@
 import { addMoney, addQuantity, MAX_UNITS } from './arithmetic';
 import { activeWorkMs, calendarForDuration, canStart, DAY_MS } from './calendar';
-import { freezeData } from './config';
+import { freezeData, inputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
@@ -13,7 +13,7 @@ type Station = RunConfig['resolved']['stations'][number];
 function count(state: EngineState, owner: string, location: StockState['location'], materialId: string): number {
   return state.stocks.filter(s => s.ownerId === owner && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + s.quantity, 0);
 }
-function free(capacity: Station['inputBuffer'], occupied: number): number {
+function free(capacity: Station['outputBuffer'], occupied: number): number {
   return Number((capacity.kind === 'infinite' ? MAX_UNITS : BigInt(capacity.quantity)) - BigInt(occupied));
 }
 function createLineHandlers(run: RunConfig): EventHandlers {
@@ -45,7 +45,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(config);
         if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) {station.status = 'blocked'; station.reason = 'output';}
-        else if (count(ctx.state, config.id, 'input', recipe.input.materialId) < recipe.input.quantity) {station.status = 'starved'; station.reason = 'input';}
+        else if (recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) {station.status = 'starved'; station.reason = 'input';}
         else {station.status = 'idle'; station.reason = null;}
       }
     }
@@ -90,9 +90,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     }
     let movedAny = false;
     for (const target of stations.filter(station => routes.some(route => route.toId === station.id))) {
-      const quantity = Math.min(available, free(target.inputBuffer, count(ctx.state, target.id, 'input', recipe.output.materialId)));
+      const quantity = Math.min(available, free(inputCapacity(target, recipe.output.materialId), count(ctx.state, target.id, 'input', recipe.output.materialId)));
       if (quantity <= 0) continue;
-      const moved = transferStock(ctx.state, from, {ownerId: target.id, location: 'input'}, recipe.output.materialId, quantity, target.inputBuffer, ctx.timeMs);
+      const moved = transferStock(ctx.state, from, {ownerId: target.id, location: 'input'}, recipe.output.materialId, quantity, inputCapacity(target, recipe.output.materialId), ctx.timeMs);
       ctx.state.line!.transfers.push({fromId: config.id, toId: target.id, fromLocation: location, materialId: recipe.output.materialId,
         quantity, cost: moved.reduce((sum, s) => addMoney(sum, s.cost), 0n), kind: 'route'});
       available -= quantity; movedAny = true;
@@ -150,9 +150,11 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       if (station.remainingProcessingMs !== 0) throw new EventError('value', event.stationId, {ru: 'Операция ещё не завершена.', en: 'Operation is not complete yet.'});
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(config);
       completeProduction(ctx.state, config.id, recipe.output, config.timeMs, ctx.timeMs);
-      const inputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.input.materialId)!;
+      for (const input of recipe.inputs) {
+        const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
+        inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity);
+      }
       const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
-      inputCounter.consumed = addQuantity(inputCounter.consumed, recipe.input.quantity);
       outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity);
       station.remainingProcessingMs = null;
       wakeTransfer(ctx);
@@ -189,8 +191,8 @@ function createLineHandlers(run: RunConfig): EventHandlers {
           continue;
         }
         if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) continue;
-        if (count(ctx.state, config.id, 'input', recipe.input.materialId) < recipe.input.quantity) continue;
-        reserveInputs(ctx.state, config.id, [recipe.input]);
+        if (recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
+        reserveInputs(ctx.state, config.id, recipe.inputs);
         station.remainingProcessingMs = config.timeMs; station.status = 'processing'; station.reason = null;
         ctx.invalidateOperation(config.id); planCompletion(ctx, config.id); started = true;
       }

@@ -9,6 +9,7 @@ export const messages = {
     stop: 'Остановить', newRun: 'Новый прогон', locked: 'Пример зафиксирован. Для выбора другого создайте новый прогон.',
     start: 'Запустить', pause: 'Пауза', resume: 'Продолжить', step: 'Одна отметка', finished: 'Завершено', speed: 'Скорость', max: 'Максимум',
     speed60: '1 мин/с', speed300: '5 мин/с', speed1800: '30 мин/с', lessMotion: 'Меньше движения', systemMotion: 'Включено в настройках устройства',
+    assembly: 'Сборка', assemblyExample: 'Сборка двух материалов', assemblyHint: 'Сборка требует одну деталь и две обработанные детали. Подготовка делает деталь за 3 минуты, обработка — обработанную деталь за 8 минут. Без полного комплекта сборка ждёт; все компоненты изымаются вместе.', reserved: 'В работе',
     priority: 'Приоритет', split: 'Разделение потока', splitHint: 'Один материал идёт на два поста. Обработка получает его первой (приоритет 10); когда её вход заполнен, материал получает отделка (приоритет 0). Входы вмещают по одной детали.',
     day: 'День', source: 'Сырьё', market: 'Готовая продукция', sold: 'Выпущено', input: 'Вход', output: 'Выход',
     direct: 'Без буфера', directLong: 'Прямая передача, без выходного буфера', held: 'На посту', unit: 'шт.', minutes: 'мин',
@@ -32,6 +33,7 @@ export const messages = {
     stop: 'Stop', newRun: 'New run', locked: 'Example locked. Create a new run to select another example.',
     start: 'Start', pause: 'Pause', resume: 'Resume', step: 'One timestamp', finished: 'Finished', speed: 'Speed', max: 'Maximum',
     speed60: '1 min/s', speed300: '5 min/s', speed1800: '30 min/s', lessMotion: 'Reduce motion', systemMotion: 'Enabled by device preferences',
+    assembly: 'Assembly', assemblyExample: 'Two-material assembly', assemblyHint: 'Assembly needs one part and two processed parts. Preparation makes a part in 3 minutes; processing makes a processed part in 8 minutes. Assembly waits for a complete kit and reserves all components together.', reserved: 'In work',
     priority: 'Priority', split: 'Split flow', splitHint: 'One material feeds two stations. Processing receives it first (priority 10); when its input is full, finishing receives it (priority 0). Each input holds one part.',
     day: 'Day', source: 'Raw material', market: 'Finished goods', sold: 'Output', input: 'Input', output: 'Output',
     direct: 'No buffer', directLong: 'Direct transfer, no output buffer', held: 'Held', unit: 'units', minutes: 'min',
@@ -50,5 +52,5 @@ export const messages = {
 export type Labels = typeof messages.ru;
 export function labels(language: Language): Labels {return messages[language];}
 export function nameFor(id: string, fallback: string, text: Labels): string {
-  return ['source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof Labels] : fallback;
+  return ['assembly', 'source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof Labels] : fallback;
 }

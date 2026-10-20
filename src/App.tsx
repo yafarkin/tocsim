@@ -48,7 +48,7 @@ export function App() {
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <section id="flow" className="diagram-panel" aria-label={text.diagram} data-time-ms={view?.model.timeMs ?? 0} data-playback={status} data-speed={view?.speed ?? 60} data-reduced={manualReduced || systemReduced}>
       <div className="diagram-controls">
         <div className="playback-buttons"><button className="play-button" type="button" disabled={!view || terminal} onClick={() => {if (status === 'ready') runner.current?.start(); else if (status === 'running') runner.current?.pause(); else runner.current?.resume();}}>{playLabel}</button>
@@ -59,7 +59,7 @@ export function App() {
         </div>
         <div className="model-clock"><span>{text.day} {time.dayIndex + 1}</span><strong>{clock}</strong><span className={`playback-state playback-${status}`}>{status === 'paused' ? text.pausedView : status === 'running' ? text.running : status === 'finished' ? text.finished : status === 'error' ? text.error : status === 'stopped' ? text.stopped : text.ready}</span></div>
       </div>
-      <div className="diagram-context"><p>{example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <div className="diagram-context"><p>{example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
       <p className="scroll-note">{text.scroll}</p>
       <div className="material-key" aria-label={text.material}>{run.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>

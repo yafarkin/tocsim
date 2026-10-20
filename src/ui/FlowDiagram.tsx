@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { DeepReadonly, RunConfig } from '../engine/config';
+import { inputCapacity } from '../engine/config';
+import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
 import type { StationSnapshot } from '../engine/state';
-import { fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
+import { fillRatio, graphLayout, quantityText, tokenFills, multiInputY, stationReasonY, stationReasonHeight } from './diagram';
 import { nameFor } from './i18n';
 import type { Labels } from './i18n';
 
@@ -11,8 +12,10 @@ export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunCo
   if (station.reason === 'notStarted') return text.notStarted;
   if (station.reason === 'lunch' || station.reason === 'offShift' || station.reason === 'horizon') return text[station.reason];
   if (station.reason === 'input') {
-    const material = run.source.materials.find(m => m.id === station.input.materialId)!;
-    return `${text.needs}: ${quantityText(station.input.missingQuantity)} ${nameFor(material.id, material.name, text)}`;
+    return `${text.needs}: ` + station.inputs.filter(input => input.missingQuantity > 0).map(input => {
+      const material = run.source.materials.find(m => m.id === input.materialId)!;
+      return `${quantityText(input.missingQuantity)} ${nameFor(material.id, material.name, text)}`;
+    }).join(', ');
   }
   if (station.reason === 'output' && station.blockedBy.length) {
     return station.blockedBy.map(block => {
@@ -65,23 +68,41 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
         {run.resolved.routes.map(route => <path key={route.id} d={layout.paths.get(route.id)!.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</title></path>)}
         {order.map((id, index) => {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
-          const state = view.model.stations.find(s => s.stationId === id)!, inputColor = materialColor(state.input.materialId), outputColor = materialColor(state.output.materialId);
-          const inputFill = fillRatio(state.input.quantity, config.inputBuffer), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
+          const state = view.model.stations.find(s => s.stationId === id)!, input = state.inputs[0]!, inputColor = materialColor(input.materialId), outputColor = materialColor(state.output.materialId);
+          const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
           const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
-          const cap = (buffer: typeof config.inputBuffer) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
+          const cap = (buffer: DeepReadonly<ResolvedBuffer>) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
           return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status}>
             <text x={x} y="56" className="station-number">{String(index + 1).padStart(2, '0')}</text>
             <text x={x} y="84" className="station-title">{stationName(id)}</text>
             <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes}</text>
             <text x={x} y="128" className="tiny">{text.priority}: {config.priority}</text>
+            {state.inputs.length === 1 ? <>
             <g className="buffer"><text x={x - 50} y="139" textAnchor="middle" className="small">{text.input}</text>
               <rect x={x - 77} y="150" width="56" height="122" rx="5"/>
               <rect x={x - 73} y="267" width={48 * (inputFill ?? 0)} height="3" fill={inputColor}/>
-              <Tokens quantity={state.input.quantity} x={x - 64} y={244} color={inputColor}/>{state.input.quantity > 6_000_000 && <text x={x - 49} y="166" textAnchor="middle" className="tiny">+</text>}
-              <text x={x - 49} y="295" textAnchor="middle" className="quantity">{quantityText(state.input.quantity)}</text>
-              <text x={x - 49} y="314" textAnchor="middle" className="tiny">/ {cap(config.inputBuffer)}</text>
+              <Tokens quantity={input.quantity} x={x - 64} y={244} color={inputColor}/>{input.quantity > 6_000_000 && <text x={x - 49} y="166" textAnchor="middle" className="tiny">+</text>}
+              <text x={x - 49} y="295" textAnchor="middle" className="quantity">{quantityText(input.quantity)}</text>
+              <text x={x - 49} y="314" textAnchor="middle" className="tiny">/ {cap(inputCapacity(config, input.materialId))}</text>
             </g>
             <path d={`M ${x - 17} 215 H ${x - 3}`} className="route-arrow" markerEnd="url(#flow-arrow)"/>
+            </> : <>
+              <text x={x - 52} y="139" textAnchor="middle" className="small">{text.input}</text>
+              {state.inputs.map((entry, inputIndex) => {
+                const y = 148 + inputIndex * 86, capacity = inputCapacity(config, entry.materialId), fill = fillRatio(entry.quantity, capacity);
+                const name = materialName(entry.materialId), color = materialColor(entry.materialId);
+                return <g key={entry.materialId} className="buffer" data-input-material={entry.materialId}>
+                  <title>{name}: {quantityText(entry.quantity)} / {cap(capacity)}; {text.reserved}: {quantityText(entry.reservedQuantity)}</title>
+                  <rect x={x - 92} y={y} width="80" height="78" rx="5"/>
+                  <text x={x - 52} y={y + 17} textAnchor="middle" className="tiny">{name.length > 12 ? `${name.slice(0, 11)}…` : name}</text>
+                  <text x={x - 52} y={y + 38} textAnchor="middle" className="small">{quantityText(entry.quantity)} / {cap(capacity)}</text>
+                  <text x={x - 52} y={y + 57} textAnchor="middle" className="tiny">{text.reserved}: {quantityText(entry.reservedQuantity)}</text>
+                  <rect x={x - 86} y={y + 68} width="68" height="4" rx="2" fill="var(--track)"/>
+                  <rect x={x - 86} y={y + 68} width={68 * (fill ?? 0)} height="4" rx="2" fill={color}/>
+                  <path d={`M ${x - 8} ${multiInputY(inputIndex)} H ${x - 4} V 215 H ${x - 3}`} className="route-arrow" markerEnd="url(#flow-arrow)"/>
+                </g>;
+              })}
+            </>}
             <rect x={x} y="150" width="176" height="122" rx="8" className={`station-body state-${state.status}`}/>
             <circle cx={x + 16} cy="172" r="4" className={`state-dot state-${state.status}`}/>
             <text x={x + 28} y="177" className="state-label">{state.reason === 'notStarted' ? text.notStarted : state.status === 'paused' && state.reason ? text[state.reason === 'input' || state.reason === 'output' ? 'paused' : state.reason] : text[state.status]}</text>
@@ -97,7 +118,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                   <rect x={x + 194} y="267" width={46 * (outputFill ?? 0)} height="3" fill={outputColor}/>
                   <text x={x + 217} y="295" textAnchor="middle" className="quantity">{quantityText(state.output.quantity)}</text><text x={x + 217} y="314" textAnchor="middle" className="tiny">/ {cap(config.outputBuffer)}</text></>}
             </g>
-            <foreignObject x={x - 5} y="339" width="252" height="80"><div className={`reason reason-${state.status}`}>{stationReason(state, run, text)}</div></foreignObject>
+            <foreignObject x={x - 5} y={stationReasonY(state.inputs.length)} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.blockedBy.length))}><div className={`reason reason-${state.status}`}>{stationReason(state, run, text)}</div></foreignObject>
           </g>;
         })}
         <g className="endpoint"><rect x={marketX} y="147" width="130" height="118" rx="8"/><text x={marketX + 65} y="173" textAnchor="middle" className="small">{text.market}</text>
@@ -120,7 +141,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
     <p className="flow-note">{text.note}</p>
     <details className="text-view"><summary>{text.textView}</summary>
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.held}</th></tr></thead><tbody>
-        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{quantityText(state.input.quantity)} {materialName(state.input.materialId)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}</td></tr>;})}
+        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}</td></tr>;})}
       </tbody></table></div>
       <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
     </details>

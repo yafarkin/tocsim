@@ -44,7 +44,7 @@ function checkBalance(run: RunConfig, snapshot: DeepReadonly<Snapshot>) {
   for (const stock of snapshot.stocks) {expect(stock.quantity).toBeGreaterThan(0); expect(BigInt(stock.cost)).toBeGreaterThanOrEqual(0n);}
   for (const station of run.resolved.stations) {
     for (const location of ['input', 'output'] as const) {
-      const capacity = location === 'input' ? station.inputBuffer : station.outputBuffer;
+      const capacity = location === 'input' ? station.inputBuffers[0]!.capacity : station.outputBuffer;
       if (capacity.kind === 'quantity') {
         const occupied = snapshot.stocks.filter(s => s.ownerId === station.id && s.location === location).reduce((sum, s) => sum + s.quantity, 0);
         expect(occupied).toBeLessThanOrEqual(capacity.quantity);
@@ -67,7 +67,7 @@ describe('analytic deterministic line', () => {
     sim.advanceTo(14 * minute - 1); expect(sold(sim.getSnapshot())).toBe(0);
     expect(sold(sim.advanceTo(14 * minute))).toBe(q(1));
     expect(sold(sim.advanceTo(240 * minute))).toBe(q(29));
-    expect(sim.getSnapshot().stations.find(s => s.stationId === 'p1')!.input.quantity).toBeGreaterThan(0);
+    expect(sim.getSnapshot().stations.find(s => s.stationId === 'p1')!.inputs[0]!.quantity).toBeGreaterThan(0);
   });
 
   it.each([3, 4, 5, 6])('connects %i stations and first output occurs after their sum', count => {
@@ -99,7 +99,7 @@ describe('buffer blocking and fractional material', () => {
     };
     const zero = execute('0'), three = execute('3');
     expect(zero.stations[0]).toMatchObject({status: 'blocked', reason: 'output', output: {heldQuantity: q(1)}, blockedBy: [{stationId: 'p1', location: 'input'}]});
-    expect(zero.stations[1]!.input.quantity).toBe(q(2));
+    expect(zero.stations[1]!.inputs[0]!.quantity).toBe(q(2));
     expect(zero.line!.counters.find(c => c.materialId === 'm1')!.produced).toBe(q(4));
     expect(three.line!.counters.find(c => c.materialId === 'm1')!.produced).toBe(q(7));
     expect(three.stations[0]!.output.quantity).toBe(q(3));
@@ -113,7 +113,7 @@ describe('buffer blocking and fractional material', () => {
     const run = compileConfig(config), sim = new Simulation(run);
     sim.advanceTo(minute);
     expect(sim.getSnapshot().stations[0]!.output.heldQuantity).toBe(q(4));
-    expect(sim.getSnapshot().stations[1]!.input.quantity).toBe(q(6));
+    expect(sim.getSnapshot().stations[1]!.inputs[0]!.quantity).toBe(q(6));
     expect(sim.getSnapshot().line!.transfers.some(t => t.fromId === 'p0' && t.toId === 'p1' && t.quantity === q(6))).toBe(true);
     sim.advanceTo(40 * minute); expect(sim.getSnapshot().stations[0]!.output.heldQuantity).toBe(0);
     sim.advanceTo(110 * minute); expect(sold(sim.getSnapshot())).toBe(q(11)); checkBalance(run, sim.getSnapshot());
@@ -124,7 +124,7 @@ describe('buffer blocking and fractional material', () => {
     config.recipes[0]!.inputs[0]!.quantity = '0.3';
     const run = compileConfig(config), sim = new Simulation(run); sim.runToEnd();
     expect(sold(sim.getSnapshot())).toBe(q(3));
-    expect(sim.getSnapshot().stations[0]!.input.quantity).toBe(q(0.1));
+    expect(sim.getSnapshot().stations[0]!.inputs[0]!.quantity).toBe(q(0.1));
     expect(sim.getSnapshot().line!.flow).toBe('missingInput'); checkBalance(run, sim.getSnapshot());
   });
 
@@ -173,7 +173,7 @@ describe('calendar pausing, stale completions and limits', () => {
     const config = production([480]); config.sources[0]!.quantity = '2';
     const sim = new Simulation(compileConfig(config)); const result = sim.runToEnd();
     expect(sold(result)).toBe(q(1)); expect(result.line!.termination).toBe('horizon');
-    expect(result.stations[0]!.input.quantity).toBe(q(1));
+    expect(result.stations[0]!.inputs[0]!.quantity).toBe(q(1));
     expect(result.stations[0]!.remainingProcessingMs).toBeNull();
     expect(sim.step()).toBeNull(); expect(sim.stop().line!.termination).toBe('horizon');
   });
@@ -231,7 +231,7 @@ describe('sources, termination and snapshot diagnostics', () => {
     const empty = production(); empty.sources[0]!.availability = 'warehouse';
     const noStock = new Simulation(compileConfig(empty)); noStock.advanceTo(0);
     expect(noStock.getSnapshot().line).toMatchObject({termination: 'running', flow: 'exhausted'});
-    expect(noStock.getSnapshot().stations[0]).toMatchObject({status: 'starved', reason: 'input', input: {missingQuantity: q(1)}});
+    expect(noStock.getSnapshot().stations[0]).toMatchObject({status: 'starved', reason: 'input', inputs: [{missingQuantity: q(1)}]});
     expect(noStock.runToEnd().line).toMatchObject({termination: 'horizon', flow: 'exhausted'});
   });
 
@@ -244,7 +244,7 @@ describe('sources, termination and snapshot diagnostics', () => {
     sim.advanceTo(5 * minute); expect(old.stations[0]!.progress).toBeCloseTo(0.4);
     expect(sim.getSnapshot().line!.transfers[0]).toMatchObject({kind: 'sale', quantity: q(1), cost: '10000000'});
     expect(Object.isFrozen(sim.getSnapshot().line!.counters)).toBe(true);
-    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(5);
+    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(6);
   });
 
   it('reports an error separately from a user stop and keeps the last consistent time', () => {

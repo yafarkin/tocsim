@@ -82,7 +82,7 @@ export interface LineState {
 }
 export interface StationSnapshot extends Omit<StationState, 'operationVersion'> {
   progress: number | null;
-  input: {materialId: string; quantity: number; missingQuantity: number};
+  inputs: {materialId: string; quantity: number; missingQuantity: number; reservedQuantity: number}[];
   output: {materialId: string; quantity: number; heldQuantity: number};
   blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
@@ -100,7 +100,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 5;
+  schemaVersion: 6;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -115,7 +115,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 5,
+    schemaVersion: 6,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -124,7 +124,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const config = run.resolved.stations.find(s => s.id === station.stationId)!;
       const recipe = run.resolved.recipes.find(r => r.id === config.recipeId)!;
       const count = (location: StockState['location'], materialId: string) => state.stocks.filter(s => s.ownerId === station.stationId && s.location === location && s.materialId === materialId).reduce((sum, stock) => sum + stock.quantity, 0);
-      const held = count('held', recipe.output.materialId), input = count('input', recipe.input.materialId);
+      const held = count('held', recipe.output.materialId);
       const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
       const routes = run.resolved.routes.filter(r => r.fromId === station.stationId);
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
@@ -133,7 +133,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         stationId: station.stationId, status: station.status, reason: station.reason,
         remainingProcessingMs: station.remainingProcessingMs,
         progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / config.timeMs)),
-        input: {materialId: recipe.input.materialId, quantity: input, missingQuantity: station.remainingProcessingMs === null ? Math.max(0, recipe.input.quantity - input) : 0},
+        inputs: recipe.inputs.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null ? Math.max(0, input.quantity - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: recipe.output.materialId, quantity: count('output', recipe.output.materialId), heldQuantity: held},
         blockedBy: held > 0 ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
@@ -141,8 +141,8 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
     line: state.line ? {
       termination: state.timeMs === run.resolved.durationMs ? 'horizon' : 'running',
       flow: state.stations.some(s => s.remainingProcessingMs !== null) || run.resolved.stations.some(s => {
-        const input = run.resolved.recipes.find(r => r.id === s.recipeId)!.input;
-        return state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity;
+        const inputs = run.resolved.recipes.find(r => r.id === s.recipeId)!.inputs;
+        return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity);
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',

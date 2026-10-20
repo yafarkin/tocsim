@@ -1,6 +1,6 @@
 import { compileConfig } from '../engine/config';
 import type { EditorConfig } from '../engine/config';
-export const exampleIds = ['balanced', 'queue', 'blocking', 'split'] as const;
+export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly'] as const;
 export type ExampleId = typeof exampleIds[number];
 export function previewConfig(example: ExampleId = 'queue'): EditorConfig {
   const materialIds = ['raw', 'prepared', 'processed', 'product'];
@@ -39,6 +39,25 @@ export function previewConfig(example: ExampleId = 'queue'): EditorConfig {
       {id: 'prep-finish', fromId: 'prep', toId: 'finish', materialId: 'prepared'},
       {id: 'work-market', fromId: 'work', toId: 'market', materialId: 'product'},
       {id: 'finish-market', fromId: 'finish', toId: 'market', materialId: 'product'},
+    ];
+  }
+  if (example === 'assembly') {
+    config.recipes.find(recipe => recipe.id === 'recipe-work')!.inputs = [{materialId: 'raw', quantity: '1'}];
+    config.recipes.find(recipe => recipe.id === 'recipe-finish')!.inputs = [{materialId: 'prepared', quantity: '1'}, {materialId: 'processed', quantity: '2'}];
+    const assembly = config.stations.find(station => station.id === 'finish')!;
+    assembly.id = 'assembly'; assembly.name = 'Сборка';
+    config.stations.forEach(station => {station.inputBuffer = {kind: 'quantity', quantity: '1'};});
+    assembly.inputBuffer = {kind: 'materials', materials: [
+      {materialId: 'prepared', capacity: {kind: 'quantity', quantity: '2'}},
+      {materialId: 'processed', capacity: {kind: 'quantity', quantity: '4'}},
+    ]};
+    config.sources.push({...config.sources[0]!, id: 'source2'});
+    config.routes = [
+      {id: 'source-prep', fromId: 'source', toId: 'prep', materialId: 'raw'},
+      {id: 'source-work', fromId: 'source2', toId: 'work', materialId: 'raw'},
+      {id: 'prep-assembly', fromId: 'prep', toId: 'assembly', materialId: 'prepared'},
+      {id: 'work-assembly', fromId: 'work', toId: 'assembly', materialId: 'processed'},
+      {id: 'assembly-market', fromId: 'assembly', toId: 'market', materialId: 'product'},
     ];
   }
   return config;

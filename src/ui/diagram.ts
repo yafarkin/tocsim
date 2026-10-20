@@ -13,6 +13,9 @@ export function fillRatio(quantity: number, capacity: DeepReadonly<ResolvedBuffe
   return capacity.kind === 'infinite' || capacity.quantity === 0 ? null : Math.min(1, quantity / capacity.quantity);
 }
 
+export const multiInputY = (index: number) => 187 + index * 86;
+export const stationReasonHeight = (lines: number) => Math.max(80, lines * 30);
+export const stationReasonY = (inputs: number) => Math.max(339, inputs > 1 ? 148 + (inputs - 1) * 86 + 78 + 25 : 339);
 export interface DiagramNode {x: number; y: number; depth: number}
 /** Stable layers for an acyclic network. Coordinates never affect model order. */
 export function graphLayout(run: RunConfig) {
@@ -30,21 +33,29 @@ export function graphLayout(run: RunConfig) {
   }
   // Every final output shares one market column, including shorter branches.
   depths.set('market', Math.max(...run.resolved.stations.map(s => depths.get(s.id)!)) + 1);
+  const rowPitch = Math.max(420, ...run.resolved.stations.map(station => {
+    const count = run.resolved.recipes.find(recipe => recipe.id === station.recipeId)!.inputs.length;
+    const lines = Math.max(count, run.resolved.routes.filter(route => route.fromId === station.id).length);
+    return stationReasonY(count) + stationReasonHeight(lines) + 1;
+  }));
   const nodes = new Map<string, DiagramNode>();
   let rows = 1;
   for (let depth = 0; depth <= depths.get('market')!; depth++) {
     const priority = (id: string) => run.resolved.stations.find(s => s.id === id)?.priority ?? 0;
     const layer = ids.filter(id => depths.get(id) === depth).sort((a, b) => priority(b) - priority(a) || (a < b ? -1 : a > b ? 1 : 0));
     rows = Math.max(rows, layer.length);
-    layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * NODE_GAP - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * NODE_GAP, y: row * 420}));
+    layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * NODE_GAP - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * NODE_GAP, y: row * rowPitch}));
   }
-  const baseHeight = rows * 420 + 60;
+  const baseHeight = rows * rowPitch + 60;
   const paths = new Map<string, {path: string; x: number; y: number}>();
   let lanes = 0;
   for (const route of run.resolved.routes) {
     const from = nodes.get(route.fromId)!, to = nodes.get(route.toId)!;
     const x1 = from.x + (from.depth === 0 ? 118 : 244), y1 = from.y + 215;
-    const x2 = to.x - (route.toId === 'market' ? 8 : 82), y2 = to.y + 215;
+    const station = run.resolved.stations.find(station => station.id === route.toId);
+    const inputs = station ? run.resolved.recipes.find(recipe => recipe.id === station.recipeId)!.inputs : [];
+    const multiple = inputs.length > 1;
+    const x2 = to.x - (route.toId === 'market' ? 8 : multiple ? 96 : 82), y2 = to.y + (multiple ? multiInputY(inputs.findIndex(input => input.materialId === route.materialId)) : 215);
     const middle = (x1 + x2) / 2;
     const path = to.depth - from.depth > 1
       ? `M ${x1} ${y1} H ${x1 + 12} V ${baseHeight - 30 + lanes++ * 26} H ${x2 - 12} V ${y2} H ${x2}`

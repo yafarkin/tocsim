@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.7.0';
+export const ENGINE_VERSION = '0.8.0';
 // No sampling yet. Changing to a real RNG requires a new version.
 export const RNG_VERSION = 'none-1';
 
@@ -10,6 +10,7 @@ export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
 
 export type BufferConfig = { kind: 'quantity'; quantity: string } | { kind: 'infinite' };
+export type InputBufferConfig = BufferConfig | {kind: 'materials'; materials: {materialId: string; capacity: BufferConfig}[]};
 export interface MaterialConfig {
   id: string; name: string; color: string;
   role: 'raw' | 'intermediate' | 'finished';
@@ -26,7 +27,7 @@ export interface StationConfig {
     id: string; recipeId: string; batches: number;
     processing: { mode: 'sequential'; repetitions: number; timeMs: number; cv: number };
   }[];
-  inputBuffer: BufferConfig; outputBuffer: BufferConfig;
+  inputBuffer: InputBufferConfig; outputBuffer: BufferConfig;
   setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
   costs: { perShift: string; perLunchHour: string; capital: string };
 }
@@ -52,16 +53,22 @@ export type ResolvedBuffer = { kind: 'quantity'; quantity: number } | { kind: 'i
 export interface ResolvedConfig {
   seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
-  recipes: { id: string; input: { materialId: string; quantity: number }; output: { materialId: string; quantity: number } }[];
+  recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
     id: string; priority: number; planId: string; recipeId: string; timeMs: number;
-    inputBuffer: ResolvedBuffer; outputBuffer: ResolvedBuffer;
+    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
   }[];
   sources: { id: string; materialId: string; availability: SourceConfig['availability']; quantity: number; intervalMs: number }[];
   routes: RouteConfig[];
   initialStocks: { id: string; ownerId: string; location: InitialStockConfig['location']; materialId: string; quantity: number; cost: bigint }[];
 }
+export function inputCapacity(station: DeepReadonly<ResolvedConfig['stations'][number]>, materialId: string): DeepReadonly<ResolvedBuffer> {
+  const buffer = station.inputBuffers.find(buffer => buffer.materialId === materialId);
+  if (!buffer) throw new Error(`Input capacity is not configured: ${station.id}/${materialId}`);
+  return buffer.capacity;
+}
+
 export interface RunConfig {
   readonly schemaVersion: 1;
   readonly engineVersion: string;
@@ -237,18 +244,24 @@ export function compileConfig(value: unknown): RunConfig {
   }
   const recipes = byId(entries('recipes', ['id', 'name', 'kind', 'inputs', 'output']).map(({object: recipe, reader: r, id}) => {
     r.at('name').text(recipe.name); r.at('kind').literal(recipe.kind, 'production');
-    const inputs = r.at('inputs').array(recipe.inputs);
-    if (inputs.length !== 1) r.at('inputs').fail('unsupported', 'Сейчас поддерживается ровно один вход рецепта.', 'Exactly one recipe input is currently supported.');
-    const input = r.at('inputs').at(0).object(inputs[0], ['materialId', 'quantity']);
+    const inputReader = r.at('inputs');
+    const rows = inputReader.array(recipe.inputs);
+    if (rows.length === 0) inputReader.fail('value', 'Рецепту нужен хотя бы один вход.', 'A recipe requires at least one input.');
     const output = r.at('output').object(recipe.output, ['materialId', 'quantity']);
-    const inputMaterial = material(input.materialId, r.at('inputs').at(0).at('materialId'));
     const outputMaterial = material(output.materialId, r.at('output').at('materialId'));
-    if (outputMaterial.role === 'raw' || inputMaterial.role === 'finished' || inputMaterial.id === outputMaterial.id) {
-      r.fail('topology', 'Производство должно вести от сырья через полуфабрикаты к конечному изделию.', 'Production must lead from raw material through intermediates to a finished material.');
-    }
+    if (outputMaterial.role === 'raw') r.at('output').fail('topology', 'Производство не может выпускать сырьё.', 'Production cannot output raw material.');
+    const seenInputs = new Set<string>();
+    const inputs = rows.map((value, index) => {
+      const ir = inputReader.at(index), input = ir.object(value, ['materialId', 'quantity']);
+      const inputMaterial = material(input.materialId, ir.at('materialId'));
+      if (inputMaterial.role === 'finished' || inputMaterial.id === outputMaterial.id) ir.fail('topology', 'Производство должно вести от сырья через полуфабрикаты к конечному изделию.', 'Production must lead from raw material through intermediates to a finished material.');
+      if (seenInputs.has(inputMaterial.id)) ir.at('materialId').fail('reference', 'Материал повторяется во входах рецепта.', 'Duplicate input material in recipe.');
+      seenInputs.add(inputMaterial.id);
+      return {materialId: inputMaterial.id, quantity: ir.at('quantity').quantity(input.quantity, true)};
+    }).sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
     const outputQuantity = r.at('output').at('quantity').quantity(output.quantity, true);
     if (outputQuantity % 1_000_000 !== 0) r.at('output').at('quantity').fail('value', 'Выход рецепта должен быть целым положительным числом.', 'Recipe output must be a positive whole number.');
-    return {id, input: {materialId: inputMaterial.id, quantity: r.at('inputs').at(0).at('quantity').quantity(input.quantity, true)}, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
+    return {id, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
   }));
   const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'setupMs', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
     r.at('name').text(station.name);
@@ -270,10 +283,30 @@ export function compileConfig(value: unknown): RunConfig {
     r.at('maintenance').at('enabled').literal(maintenance.enabled, false);
     r.at('lunchReplacement').literal(station.lunchReplacement, false);
     const costs = r.at('costs').object(station.costs, ['perShift', 'perLunchHour', 'capital']);
-    const inputBuffer = r.at('inputBuffer').buffer(station.inputBuffer);
-    if (inputBuffer.kind === 'quantity' && inputBuffer.quantity < recipe!.input.quantity) r.at('inputBuffer').fail('capacity', 'Входной буфер не вмещает полный комплект рецепта.', 'Input buffer cannot hold a complete recipe kit.');
+    const br = r.at('inputBuffer');
+    let inputBuffers: {materialId: string; capacity: ResolvedBuffer}[];
+    if (station.inputBuffer && typeof station.inputBuffer === 'object' && 'kind' in station.inputBuffer && station.inputBuffer.kind === 'materials') {
+      const object = br.object(station.inputBuffer, ['kind', 'materials']);
+      const seenMaterials = new Set<string>();
+      inputBuffers = br.at('materials').array(object.materials).map((value, index) => {
+        const mr = br.at('materials').at(index), entry = mr.object(value, ['materialId', 'capacity']);
+        const materialId = mr.at('materialId').text(entry.materialId);
+        if (!recipe!.inputs.some(input => input.materialId === materialId) || seenMaterials.has(materialId)) mr.at('materialId').fail('reference', 'Ёмкости должны соответствовать уникальным входам рецепта.', 'Capacities must match unique recipe inputs.');
+        seenMaterials.add(materialId);
+        return {materialId, capacity: mr.at('capacity').buffer(entry.capacity)};
+      });
+      if (inputBuffers.length !== recipe!.inputs.length) br.fail('capacity', 'Нужна ёмкость для каждого входного материала.', 'Every input material requires a capacity.');
+      inputBuffers.sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
+    } else {
+      const capacity = br.buffer(station.inputBuffer);
+      inputBuffers = recipe!.inputs.map(input => ({materialId: input.materialId, capacity: {...capacity}}));
+    }
+    for (const input of recipe!.inputs) {
+      const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
+      if (capacity.kind === 'quantity' && capacity.quantity < input.quantity) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект рецепта.`, `Input buffer ${input.materialId} cannot hold a complete recipe kit.`);
+    }
     return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), planId, recipeId,
-      timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), inputBuffer,
+      timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};
   }));
@@ -293,12 +326,12 @@ export function compileConfig(value: unknown): RunConfig {
     if (!consumer && toId !== 'market') r.at('toId').fail('reference', `Получатель ${toId} не найден.`, `Consumer ${toId} was not found.`);
     const producedMaterial = 'materialId' in producer! ? producer.materialId : recipes.find(p => p.id === producer!.recipeId)!.output.materialId;
     if (producedMaterial !== materialId) r.at('materialId').fail('reference', 'Производитель не выпускает указанный материал.', 'Producer does not output this material.');
-    if (consumer && recipes.find(p => p.id === consumer.recipeId)!.input.materialId !== materialId) r.at('materialId').fail('reference', 'Получатель не использует указанный материал.', 'Consumer does not use this material.');
+    if (consumer && !recipes.find(p => p.id === consumer.recipeId)!.inputs.some(input => input.materialId === materialId)) r.at('materialId').fail('reference', 'Получатель не использует указанный материал.', 'Consumer does not use this material.');
     if (toId === 'market' && material(materialId, r).role !== 'finished') r.at('toId').fail('topology', 'На рынок передаются только конечные изделия.', 'Only finished materials can go to market.');
     return {id, fromId, toId, materialId};
   }));
   // Explicit acyclic routes; multiple producers may supply the same input material.
-  // Assembly of different materials remains unsupported until task 29.
+  // Each required component has its own input capacity and explicit route.
   if (sources.length === 0 || stations.length === 0) root.fail('topology', 'Нужны источники сырья и хотя бы один пост.', 'Raw sources and at least one station are required.');
   for (const source of sources) {
     const siblings = sources.filter(s => s.materialId === source.materialId);
@@ -325,6 +358,9 @@ export function compileConfig(value: unknown): RunConfig {
   for (const station of stations) {
     const outgoing = routes.filter(r => r.fromId === station.id);
     const incoming = routes.filter(r => r.toId === station.id);
+    for (const input of recipes.find(recipe => recipe.id === station.recipeId)!.inputs) {
+      if (!incoming.some(route => route.materialId === input.materialId)) new Reader('config.stations', station.id).fail('topology', `Нет маршрута для входа ${input.materialId}.`, `No route for required input ${input.materialId}.`);
+    }
     if (outgoing.length === 0 || incoming.length === 0) {
       new Reader('config.stations', station.id).fail('topology', 'Посту нужны входные и выходные маршруты.', 'A station requires incoming and outgoing routes.');
     }
@@ -349,16 +385,19 @@ export function compileConfig(value: unknown): RunConfig {
       const station = stations.find(s => s.id === ownerId);
       if (!station) r.at('ownerId').fail('reference', `Пост ${ownerId} не найден.`, `Station ${ownerId} was not found.`);
       const recipe = recipes.find(p => p.id === station!.recipeId)!;
-      const expected = location === 'input' ? recipe.input.materialId : recipe.output.materialId;
-      if (materialId !== expected) r.at('materialId').fail('reference', 'Материал не соответствует буферу поста.', 'Material does not match the station buffer.');
+      const matches = location === 'input' ? recipe.inputs.some(input => input.materialId === materialId) : materialId === recipe.output.materialId;
+      if (!matches) r.at('materialId').fail('reference', 'Материал не соответствует буферу поста.', 'Material does not match the station buffer.');
     }
     return {id, ownerId, location, materialId, quantity, cost};
   }));
   for (const station of stations) {
+    const recipe = recipes.find(recipe => recipe.id === station.recipeId)!;
     for (const location of ['input', 'output'] as const) {
-      const buffer = location === 'input' ? station.inputBuffer : station.outputBuffer;
-      const total = initialStocks.filter(s => s.ownerId === station.id && s.location === location).reduce((sum, s) => sum + BigInt(s.quantity), 0n);
-      if (total > BigInt(Number.MAX_SAFE_INTEGER) || (buffer.kind === 'quantity' && total > BigInt(buffer.quantity))) new Reader('config.initialStocks', station.id).fail('capacity', 'Сумма начальных запасов превышает ёмкость буфера или диапазон.', 'Total initial stock exceeds buffer capacity or range.');
+      for (const materialId of location === 'input' ? recipe.inputs.map(input => input.materialId) : [recipe.output.materialId]) {
+        const buffer = location === 'input' ? inputCapacity(station, materialId) : station.outputBuffer;
+        const total = initialStocks.filter(s => s.ownerId === station.id && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + BigInt(s.quantity), 0n);
+        if (total > BigInt(Number.MAX_SAFE_INTEGER) || (buffer.kind === 'quantity' && total > BigInt(buffer.quantity))) new Reader('config.initialStocks', station.id).fail('capacity', `Запас ${materialId} превышает ёмкость буфера или диапазон.`, `Stock ${materialId} exceeds buffer capacity or range.`);
+      }
     }
   }
   for (const material of materials.filter(m => m.role === 'raw')) {

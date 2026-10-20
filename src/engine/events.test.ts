@@ -118,7 +118,7 @@ describe('timestamp ordering and stable snapshots', () => {
 describe('completion tokens and calendar boundaries', () => {
   it('does not issue output twice for two completions with the same operation version', () => {
     const state = initial(); const config = run();
-    reserveInputs(state, 's1', [config.resolved.recipes.find(r => r.id === 'cut')!.input]);
+    reserveInputs(state, 's1', config.resolved.recipes.find(r => r.id === 'cut')!.inputs);
     const loop = new EventScheduler(config, state, {completion: ctx => {
       completeProduction(ctx.state, 's1', config.resolved.recipes.find(r => r.id === 'cut')!.output, 10);
     }});
@@ -134,7 +134,7 @@ describe('completion tokens and calendar boundaries', () => {
     const minute = 60_000, start = 230 * minute, close = 240 * minute, open = 300 * minute;
     state.timeMs = start;
     state.stations[0]!.remainingProcessingMs = 20 * minute;
-    reserveInputs(state, 's1', [config.resolved.recipes.find(r => r.id === 'cut')!.input]);
+    reserveInputs(state, 's1', config.resolved.recipes.find(r => r.id === 'cut')!.inputs);
     const loop = new EventScheduler(config, state, {
       integrate: (draft, from, to) => {
         const station = draft.stations[0]!;
@@ -196,7 +196,7 @@ describe('completion tokens and calendar boundaries', () => {
 describe('diagnostics and atomic timestamp failures', () => {
   it('rolls back a failed timestamp, including valid output before a later error', () => {
     const state = initial(), config = run();
-    reserveInputs(state, 's1', [config.resolved.recipes.find(r => r.id === 'cut')!.input]);
+    reserveInputs(state, 's1', config.resolved.recipes.find(r => r.id === 'cut')!.inputs);
     const problem = new Error('test failure');
     const loop = new EventScheduler(config, state, {
       completion: ctx => {completeProduction(ctx.state, 's1', config.resolved.recipes.find(r => r.id === 'cut')!.output, 10);},

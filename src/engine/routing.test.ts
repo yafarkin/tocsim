@@ -35,22 +35,22 @@ describe('explicit branching routes', () => {
     const run = compileConfig(split()), snapshot = new Simulation(run).advanceTo(minute);
     expect(snapshot.line!.transfers.filter(t => t.kind === 'route').map(t => [t.toId, t.quantity])).toEqual([['s3', q(10)]]);
     expect(snapshot.stations.find(s => s.stationId === 's2')!.status).toBe('starved');
-    expect(snapshot.stations.find(s => s.stationId === 's3')!.input.quantity).toBe(q(9));
+    expect(snapshot.stations.find(s => s.stationId === 's3')!.inputs[0]!.quantity).toBe(q(9));
     balance(run, snapshot);
   });
   it('breaks equal priorities by receiver ID and never takes allocated input back', () => {
     const config = split(); config.stations.find(s => s.id === 's3')!.priority = 0;
     const snapshot = new Simulation(compileConfig(config)).advanceTo(2 * minute);
-    expect(snapshot.stations.find(s => s.stationId === 's2')!.input.quantity).toBe(q(9));
-    expect(snapshot.stations.find(s => s.stationId === 's3')!.input.quantity).toBe(0);
+    expect(snapshot.stations.find(s => s.stationId === 's2')!.inputs[0]!.quantity).toBe(q(9));
+    expect(snapshot.stations.find(s => s.stationId === 's3')!.inputs[0]!.quantity).toBe(0);
   });
   it.each(['0', '2'])('partially transfers through output capacity %s and names all blockers', outputCapacity => {
     const config = split(); config.stations[0]!.outputBuffer = {kind: 'quantity', quantity: outputCapacity};
     config.stations.find(s => s.id === 's2')!.inputBuffer = {kind: 'quantity', quantity: '2'};
     config.stations.find(s => s.id === 's3')!.inputBuffer = {kind: 'quantity', quantity: '2'};
     const run = compileConfig(config), simulation = new Simulation(run), snapshot = simulation.advanceTo(minute);
-    expect(snapshot.stations.find(s => s.stationId === 's2')!.input.quantity).toBe(q(2));
-    expect(snapshot.stations.find(s => s.stationId === 's3')!.input.quantity).toBe(q(2));
+    expect(snapshot.stations.find(s => s.stationId === 's2')!.inputs[0]!.quantity).toBe(q(2));
+    expect(snapshot.stations.find(s => s.stationId === 's3')!.inputs[0]!.quantity).toBe(q(2));
     const producer = snapshot.stations.find(s => s.stationId === 's1')!;
     expect(producer.output.heldQuantity + producer.output.quantity).toBe(q(4));
     expect(producer.blockedBy).toEqual(outputCapacity === '0' ? [{stationId: 's3', location: 'input'}, {stationId: 's2', location: 'input'}] : [{stationId: 's1', location: 'output'}]);
