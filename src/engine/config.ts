@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.4.0';
+export const ENGINE_VERSION = '0.5.0';
 // No sampling yet. Changing to a real RNG requires a new version.
 export const RNG_VERSION = 'none-1';
 
@@ -297,24 +297,44 @@ export function compileConfig(value: unknown): RunConfig {
     if (toId === 'market' && material(materialId, r).role !== 'finished') r.at('toId').fail('topology', 'На рынок передаются только конечные изделия.', 'Only finished materials can go to market.');
     return {id, fromId, toId, materialId};
   }));
-  // A single connected chain; no branching, joining, cycles or unused objects.
-  if (sources.length !== 1 || stations.length < 1) root.fail('topology', 'Сейчас нужна одна линейная цепочка с одним источником и хотя бы одним постом.', 'A single linear chain with one source and at least one station is currently required.');
-  const visited = new Set<string>();
-  let current: string = sources[0]!.id;
-  while (current !== 'market') {
-    if (visited.has(current)) root.at('routes').fail('topology', 'Обнаружен цикл маршрутов.', 'A route cycle was found.');
-    visited.add(current);
-    const next = routes.filter(route => route.fromId === current);
-    if (next.length !== 1) root.at('routes').fail('topology', `У ${current} должен быть ровно один исходящий маршрут.`, `${current} must have exactly one outgoing route.`);
-    current = next[0]!.toId;
+  // Source fan-out/competition is supported; station chains still have one input route
+  // (except multiple raw sources) and one output route. No assembly or station splitting.
+  if (sources.length === 0 || stations.length === 0) root.fail('topology', 'Нужны источники сырья и хотя бы один пост.', 'Raw sources and at least one station are required.');
+  for (const source of sources) {
+    const siblings = sources.filter(s => s.materialId === source.materialId);
+    if (siblings.some(s => s.availability !== source.availability)) new Reader('config.sources', source.id).fail('value', 'Все источники одного сырья должны использовать один вид доступности.', 'All sources of the same raw material must use the same availability kind.');
   }
-  if (visited.size !== stations.length + 1 || routes.length !== stations.length + 1
+  const routeKeys = new Set<string>();
+  for (const route of routes) {
+    const key = JSON.stringify([route.fromId, route.toId, route.materialId]);
+    if (routeKeys.has(key)) new Reader('config.routes', route.id).fail('topology', 'Повторный маршрут между теми же объектами.', 'Duplicate route between the same objects.');
+    routeKeys.add(key);
+  }
+  for (const source of sources) {
+    if (!routes.some(r => r.fromId === source.id)) new Reader('config.sources', source.id).fail('topology', 'Источник должен иметь маршрут к посту.', 'Source must have a route to a station.');
+  }
+  const visited = new Set<string>(), visiting = new Set<string>();
+  function visit(id: string) {
+    if (visiting.has(id)) root.at('routes').fail('topology', 'Обнаружен цикл маршрутов.', 'A route cycle was found.');
+    if (id === 'market' || visited.has(id)) return;
+    visiting.add(id);
+    for (const route of routes.filter(r => r.fromId === id)) visit(route.toId);
+    visiting.delete(id); visited.add(id);
+  }
+  for (const source of sources) visit(source.id);
+  for (const station of stations) {
+    const outgoing = routes.filter(r => r.fromId === station.id);
+    const incoming = routes.filter(r => r.toId === station.id);
+    if (outgoing.length !== 1 || incoming.length === 0
+      || (incoming.length > 1 && incoming.some(r => !sources.some(s => s.id === r.fromId)))) {
+      new Reader('config.stations', station.id).fail('topology', 'Посту нужен один выход и один входной маршрут либо несколько источников того же сырья.', 'A station requires one output and one incoming route, or multiple sources of the same raw material.');
+    }
+  }
+  if (visited.size !== sources.length + stations.length
     || new Set(stations.map(s => s.recipeId)).size !== recipes.length
-    || new Set([sources[0]!.materialId, ...recipes.map(r => r.output.materialId)]).size !== materials.length) {
-    root.fail('topology', 'Цепочка должна использовать все посты, рецепты и материалы без слияний и лишних маршрутов.', 'Chain must use all stations, recipes and materials without joins or extra routes.');
+    || new Set([...sources.map(s => s.materialId), ...recipes.map(r => r.output.materialId)]).size !== materials.length) {
+    root.fail('topology', 'Сеть должна использовать все посты, рецепты и материалы.', 'Network must use all stations, recipes and materials.');
   }
-  // Reusing an intermediate at a later stage would implicitly create a loop in material routing.
-  if (materials.length !== recipes.length + 1 || recipes.length !== stations.length) root.fail('topology', 'Материалы и рецепты должны образовывать простую цепочку.', 'Materials and recipes must form a simple chain.');
   const initialStocks = byId(entries('initialStocks', ['id', 'ownerId', 'location', 'materialId', 'quantity', 'cost']).map(({object: stock, reader: r, id}) => {
     const ownerId = r.at('ownerId').text(stock.ownerId);
     const location = r.at('location').choice(stock.location, ['warehouse', 'input', 'output']);
@@ -322,7 +342,7 @@ export function compileConfig(value: unknown): RunConfig {
     const quantity = r.at('quantity').quantity(stock.quantity, true);
     const cost = r.at('cost').money(stock.cost);
     if (location === 'warehouse') {
-      if (ownerId !== 'warehouse' || materialId !== sources[0]!.materialId || sources[0]!.availability !== 'warehouse') r.fail('reference', 'Запас склада должен соответствовать конечному сырьевому складу источника.', 'Warehouse stock must match the source finite raw warehouse.');
+      if (ownerId !== 'warehouse' || !sources.some(source => source.materialId === materialId && source.availability === 'warehouse')) r.fail('reference', 'Запас склада должен соответствовать конечному сырьевому складу источника.', 'Warehouse stock must match the source finite raw warehouse.');
     } else {
       const station = stations.find(s => s.id === ownerId);
       if (!station) r.at('ownerId').fail('reference', `Пост ${ownerId} не найден.`, `Station ${ownerId} was not found.`);
@@ -339,8 +359,10 @@ export function compileConfig(value: unknown): RunConfig {
       if (total > BigInt(Number.MAX_SAFE_INTEGER) || (buffer.kind === 'quantity' && total > BigInt(buffer.quantity))) new Reader('config.initialStocks', station.id).fail('capacity', 'Сумма начальных запасов превышает ёмкость буфера или диапазон.', 'Total initial stock exceeds buffer capacity or range.');
     }
   }
-  const warehouseTotal = initialStocks.filter(s => s.location === 'warehouse').reduce((sum, s) => sum + BigInt(s.quantity), 0n);
-  if (warehouseTotal > BigInt(Number.MAX_SAFE_INTEGER)) root.at('initialStocks').fail('capacity', 'Складской запас превышает диапазон количества.', 'Warehouse stock exceeds quantity range.');
+  for (const material of materials.filter(m => m.role === 'raw')) {
+    const warehouseTotal = initialStocks.filter(s => s.location === 'warehouse' && s.materialId === material.id).reduce((sum, s) => sum + BigInt(s.quantity), 0n);
+    if (warehouseTotal > BigInt(Number.MAX_SAFE_INTEGER)) root.at('initialStocks').fail('capacity', 'Складской запас превышает диапазон количества.', 'Warehouse stock exceeds quantity range.');
+  }
   const totalCost = initialStocks.reduce((sum, s) => sum + s.cost, 0n);
   if (totalCost > BigInt(Number.MAX_SAFE_INTEGER)) root.at('initialStocks').fail('value', 'Суммарная стоимость запасов превышает диапазон.', 'Total initial stock cost exceeds range.');
   if (config.displayOrder !== undefined) {

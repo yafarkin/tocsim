@@ -31,24 +31,51 @@ export interface InventoryState {
   stocks: StockState[];
   nextStockOrdinal: number;
 }
+export interface SourceAttempt {
+  timeMs: number;
+  requestedQuantity: number;
+  releasedQuantity: number;
+  blockedBy: ('capacity' | 'stock')[];
+}
+export interface SourceState {
+  sourceId: string;
+  nextOrdinal: number;
+  pendingQuantity: number;
+  attempts: number;
+  releasedQuantity: number;
+  purchasedCost: bigint;
+  lastAttempt: SourceAttempt | null;
+}
+export interface SourceTransfer {
+  timeMs: number;
+  sourceId: string;
+  stationId: string;
+  materialId: string;
+  quantity: number;
+  cost: bigint;
+}
 export interface EngineState extends InventoryState {
   timeMs: number;
   stations: StationState[];
+  sources: SourceState[];
+  sourceTransfers: SourceTransfer[];
 }
 export interface Snapshot {
-  schemaVersion: 2;
+  schemaVersion: 3;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
   timeMs: number;
   stations: Omit<StationState, 'operationVersion'>[];
+  sources: (Omit<SourceState, 'nextOrdinal' | 'pendingQuantity' | 'purchasedCost'> & {purchasedCost: string})[];
+  sourceTransfers: (Omit<SourceTransfer, 'cost'> & {cost: string})[];
   stocks: (Omit<StockState, 'cost' | 'provenance'> & { cost: string; provenance: Omit<Provenance, 'processingMs'> & { processingMs: Record<string, string> } })[];
 }
 
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 2,
+    schemaVersion: 3,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -57,6 +84,12 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       stationId: station.stationId, status: station.status,
       reason: station.reason, remainingProcessingMs: station.remainingProcessingMs,
     })),
+    sources: state.sources.map(source => ({
+      sourceId: source.sourceId, attempts: source.attempts, releasedQuantity: source.releasedQuantity,
+      purchasedCost: moneyToJSON(source.purchasedCost),
+      lastAttempt: source.lastAttempt ? {...source.lastAttempt, blockedBy: [...source.lastAttempt.blockedBy]} : null,
+    })),
+    sourceTransfers: state.sourceTransfers.map(transfer => ({...transfer, cost: moneyToJSON(transfer.cost)})),
     stocks: state.stocks.map(stock => ({
       id: stock.id, ownerId: stock.ownerId, location: stock.location,
       materialId: stock.materialId, quantity: stock.quantity, cost: moneyToJSON(stock.cost),
