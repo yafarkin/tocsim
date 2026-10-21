@@ -7,7 +7,7 @@ import type { PlaybackSpeed, RunnerView } from './runner/runner';
 import { FlowDiagram } from './ui/FlowDiagram';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
-import { exampleIds, previewConfig } from './ui/preview';
+import { defaultBatchProfiles, exampleIds, previewConfig } from './ui/preview';
 import type { ExampleId } from './ui/preview';
 import { ThemePicker } from './ui/ThemePicker';
 import { useTheme } from './ui/theme';
@@ -16,10 +16,11 @@ export function App() {
   const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
+  const [batchProfiles, setBatchProfiles] = useState(() => structuredClone(defaultBatchProfiles));
   const [cv, setCv] = useState(0), [seedText, setSeedText] = useState('42');
   const seedValid = /^\d+$/.test(seedText) && Number(seedText) <= 0xffffffff;
   const seed = seedValid ? Number(seedText) : 42;
-  const run = useMemo(() => compileConfig(previewConfig(example, cv, seed)), [example, cv, seed]);
+  const run = useMemo(() => compileConfig(previewConfig(example, cv, seed, batchProfiles)), [example, cv, seed, batchProfiles]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
@@ -68,7 +69,25 @@ export function App() {
       </div>
       {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
       <p className="variability-note">{text.cvHelp}</p>
-      <div className="diagram-context"><p>{example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <div className="diagram-context"><p>{example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      {example === 'batches' && <details className="batch-editor"><summary>{text.batchSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
+        <legend>{text.batchSettings}</legend>
+        <p>{text.batchSettingsHelp}</p>
+        <p id="batch-threshold-help" className="threshold-help"><strong>{text.threshold}.</strong> {text.thresholdHelp}</p>
+        {(['prep', 'work'] as const).map(id => {
+          const profile = batchProfiles[id];
+          const update = (patch: Partial<typeof profile>) => {
+            runner.current?.dispose(); setView(null);
+            setBatchProfiles(previous => ({...previous, [id]: {...previous[id], ...patch}}));
+          };
+          return <div className="batch-settings-row" key={id}>
+            <strong>{nameFor(id, id, text)}</strong>
+            <label>{text.mode}<select aria-label={`${nameFor(id, id, text)}: ${text.mode}`} value={profile.mode} onChange={event => update({mode: event.target.value as typeof profile.mode})}><option value="sequential">{text.sequential}</option><option value="simultaneous">{text.simultaneous}</option></select></label>
+            <label>{text.repetitions}<select aria-label={`${nameFor(id, id, text)}: ${text.repetitions}`} value={profile.repetitions} onChange={event => {const repetitions = Number(event.target.value); update({repetitions, transportThreshold: Math.min(profile.transportThreshold, repetitions)});}}>{Array.from({length: 10}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+            <label>{text.threshold}<select aria-describedby="batch-threshold-help" aria-label={`${nameFor(id, id, text)}: ${text.threshold}`} value={profile.transportThreshold} onChange={event => update({transportThreshold: Number(event.target.value)})}>{Array.from({length: profile.repetitions}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+          </div>;
+        })}
+      </fieldset></details>}
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
       <p className="scroll-note">{text.scroll}</p>
       <div className="material-key" aria-label={text.material}>{run.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>

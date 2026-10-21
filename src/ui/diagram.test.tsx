@@ -113,3 +113,47 @@ describe('assembly diagram', () => {
     runner.dispose();
   });
 });
+
+describe('batch diagram', () => {
+  it('distinguishes reserved inputs, a current repetition, accumulated output and a missing full batch', () => {
+    const run = exampleRuns.batches, model = new Simulation(run).advanceTo(9 * 60_000), runner = new Runner(run);
+    expect(model.stations.find(s => s.stationId === 'prep')).toMatchObject({transferReady: false, inputs: [{reservedQuantity: 4_000_000}], output: {heldQuantity: 2_000_000}});
+    for (const language of ['ru', 'en'] as const) {
+      const text = labels(language), svg = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model, status: 'paused'}} text={text} reduced/>);
+      expect(svg).toContain(`${text.reserved}: 4`);
+      expect(svg).toContain(`${text.repetition} 3/6: 0%`);
+      expect(svg).toContain(`${text.readyOutput}: <tspan class="quantity">2</tspan>`);
+      expect(svg).toContain(`${text.accumulating}: 2 / 3`);
+      expect(svg).toContain(`${text.needs}: 6 ${text.prepared}`);
+      expect(svg).toContain(`${text.batch} 6, ${text.thresholdShort} 3`);
+      expect(svg).not.toContain(text.awaitingUnload);
+      expect(svg).not.toMatch(/NaN|Infinity/);
+    }
+    runner.dispose();
+  });
+  it('shows a blocked partial remainder as awaiting unload with its actual destination', () => {
+    const c = previewConfig('batches'); c.stations[0]!.plan[0]!.processing.mode = 'simultaneous';
+    const run = compileConfig(c), simulation = new Simulation(run), runner = new Runner(run);
+    let model = simulation.advanceTo(0);
+    while (model.stations.find(s => s.stationId === 'prep')!.status !== 'blocked' && simulation.nextEventTime() !== null) {simulation.step(); model = simulation.getSnapshot();}
+    expect(model.stations.find(s => s.stationId === 'prep')!.transferReady).toBe(true);
+    for (const language of ['ru', 'en'] as const) {
+      const text = labels(language), svg = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model, status: 'paused'}} text={text} reduced/>);
+      expect(svg).toContain(text.awaitingUnload);
+      expect(svg).toContain(`${text.fullInput}: ${text.work}`);
+      expect(svg).toContain(`2 ${text.minutes} ${text.perCycle}`);
+      expect(svg).toContain('data-transfer-ready="true"');
+    }
+    runner.dispose();
+  });
+  it('shows a simultaneous cycle without inventing early output or animation while paused', () => {
+    const c = previewConfig('batches'); c.stations[0]!.plan[0]!.processing.mode = 'simultaneous';
+    const run = compileConfig(c), model = new Simulation(run).advanceTo(6 * 60_000), runner = new Runner(run);
+    const station = model.stations.find(s => s.stationId === 'prep')!;
+    expect(station).toMatchObject({progress: 0.5, output: {heldQuantity: 0}, inputs: [{reservedQuantity: 6_000_000}]});
+    const svg = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model, status: 'paused'}} text={labels('en')} reduced={false}/>);
+    expect(svg).toContain('Cycle: 50%'); expect(svg).toContain('Reserved: 6');
+    expect(svg).not.toContain('<animateMotion');
+    runner.dispose();
+  });
+});

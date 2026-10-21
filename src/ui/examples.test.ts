@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../engine/simulation';
+import { compileConfig } from '../engine/config';
 import { Runner } from '../runner/runner';
 import type { RunnerHost } from '../runner/runner';
-import { exampleIds, exampleRuns } from './preview';
+import { defaultBatchProfiles, exampleIds, exampleRuns, previewConfig } from './preview';
 
 class Host implements RunnerHost {
   time = 0;
@@ -45,5 +46,39 @@ describe('technical examples', () => {
     expect(queue.stations.find(s => s.stationId === 'prep')!.status).toBe('processing');
     expect(blocked.stations.find(s => s.stationId === 'prep')).toMatchObject({status: 'blocked', reason: 'output', blockedBy: [{stationId: 'work', location: 'input'}]});
     expect(blocked.stations.find(s => s.stationId === 'work')!.inputs[0]!.quantity).toBe(1_000_000);
+  });
+});
+
+describe('batch playback acceptance', () => {
+  it.each(['sequential', 'simultaneous'] as const)('%s batches with CV survive pause, speed changes and replay', mode => {
+    const c = previewConfig('batches', 0.5, 0);
+    c.stations[0]!.plan[0]!.processing.mode = mode;
+    const run = compileConfig(c), expected = new Simulation(run).runToEnd();
+    for (const speed of [60, 300, 1800, 'max'] as const) {
+      const host = new Host(), runner = new Runner(run, undefined, host);
+      runner.setSpeed(speed); runner.step(); runner.step();
+      const paused = runner.getView().model;
+      host.time += 60_000; runner.setSpeed(300);
+      expect(runner.getView().model).toBe(paused);
+      runner.setSpeed(speed); runner.resume(); host.drain();
+      expect(runner.getView().model).toEqual(expected);
+      runner.repeat(); host.drain(); expect(runner.getView().model).toEqual(expected); runner.dispose();
+    }
+  });
+});
+
+
+describe('batch example configuration', () => {
+  it('keeps profiles independent and capacities sufficient throughout the UI range', () => {
+    const profiles = structuredClone(defaultBatchProfiles);
+    for (const repetitions of [1, 5, 10]) for (const mode of ['sequential', 'simultaneous'] as const) {
+      profiles.prep = {mode, repetitions, transportThreshold: repetitions};
+      profiles.work = {mode, repetitions, transportThreshold: 1};
+      const run = compileConfig(previewConfig('batches', 0.25, 0, profiles));
+      expect(run.resolved.stations.find(s => s.id === 'prep')).toMatchObject({mode, repetitions, transportThreshold: repetitions * 1_000_000, cv: 0.25});
+      expect(new Simulation(run).runToEnd().line!.counters.find(c => c.materialId === 'product')!.sold).toBeGreaterThan(0);
+    }
+    expect(defaultBatchProfiles.prep).toEqual({mode: 'sequential', repetitions: 6, transportThreshold: 3});
+    expect(compileConfig(previewConfig('queue', 0, 42, profiles)).calculationHash).toBe(exampleRuns.queue.calculationHash);
   });
 });

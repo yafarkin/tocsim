@@ -1,8 +1,13 @@
 import { compileConfig } from '../engine/config';
 import type { EditorConfig } from '../engine/config';
-export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly'] as const;
+export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches'] as const;
 export type ExampleId = typeof exampleIds[number];
-export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42): EditorConfig {
+export interface BatchProfile {mode: 'sequential' | 'simultaneous'; repetitions: number; transportThreshold: number}
+export const defaultBatchProfiles: Record<'prep' | 'work', BatchProfile> = {
+  prep: {mode: 'sequential', repetitions: 6, transportThreshold: 3},
+  work: {mode: 'sequential', repetitions: 6, transportThreshold: 3},
+};
+export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42, batches = defaultBatchProfiles): EditorConfig {
   const materialIds = ['raw', 'prepared', 'processed', 'product'];
   const ids = ['prep', 'work', 'finish'];
   const config: EditorConfig = {
@@ -59,6 +64,18 @@ export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42): 
       {id: 'work-assembly', fromId: 'work', toId: 'assembly', materialId: 'processed'},
       {id: 'assembly-market', fromId: 'assembly', toId: 'market', materialId: 'product'},
     ];
+  }
+  if (example === 'batches') {
+    for (const [index, station] of config.stations.entries()) {
+      station.plan[0]!.processing.timeMs = [2, 2, 1][index]! * 60_000;
+      station.inputBuffer = {kind: 'quantity', quantity: index === 0 ? '12' : '10'};
+      if (station.id === 'prep' || station.id === 'work') {
+        const profile = batches[station.id];
+        Object.assign(station.plan[0]!.processing, {mode: profile.mode, repetitions: profile.repetitions});
+        station.transportThreshold = String(profile.transportThreshold);
+      }
+    }
+    config.sources[0]!.intervalMs = 60_000;
   }
   return config;
 }

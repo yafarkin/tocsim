@@ -25,6 +25,10 @@ export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunCo
   }
   return station.remainingProcessingMs !== null ? `${text.remaining}: ${Math.ceil(station.remainingProcessingMs / 60_000)} ${text.minutes}` : text[station.status];
 }
+export function batchOutputStatus(station: DeepReadonly<StationSnapshot>, threshold: number, text: Labels): string {
+  if (station.output.heldQuantity === 0) return '';
+  return station.transferReady ? text.awaitingUnload : `${text.accumulating}: ${quantityText(station.output.heldQuantity)} / ${quantityText(threshold)}`;
+}
 function Tokens({quantity, x, y, color}: {quantity: number; x: number; y: number; color: string}) {
   return <g aria-hidden="true">{tokenFills(quantity).map((fill, i) => <g key={i}>
     <rect x={x} y={y - i * 13} width="30" height="9" rx="2" fill="var(--surface)" stroke={color}/>
@@ -70,12 +74,16 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
           const state = view.model.stations.find(s => s.stationId === id)!, input = state.inputs[0]!, inputColor = materialColor(input.materialId), outputColor = materialColor(state.output.materialId);
           const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
+          const recipe = run.resolved.recipes.find(recipe => recipe.id === config.recipeId)!;
+          const repetition = config.repetitions - input.reservedQuantity / recipe.inputs[0]!.quantity + 1;
+          const operation = config.mode === 'simultaneous' ? text.cycle : `${text.repetition} ${repetition}/${config.repetitions}`;
+          const outputStatus = batchOutputStatus(state, config.transportThreshold, text);
           const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
           const cap = (buffer: DeepReadonly<ResolvedBuffer>) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
-          return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status} data-duration-ms={state.operationDurationMs ?? undefined}>
+          return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status} data-duration-ms={state.operationDurationMs ?? undefined} data-transfer-ready={state.transferReady} data-held-quantity={state.output.heldQuantity}>
             <text x={x} y="56" className="station-number">{String(index + 1).padStart(2, '0')}</text>
             <text x={x} y="84" className="station-title">{stationName(id)}</text>
-            <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes}{config.cv > 0 && ` (${text.mean})`}</text>
+            <text x={x} y="108" className="small">{config.timeMs / 60_000} {text.minutes} {config.mode === 'simultaneous' ? text.perCycle : text.perRepetition}{config.cv > 0 && ` (${text.mean})`}</text>
             <text x={x} y="128" className="tiny">{text.priority}: {config.priority}{config.cv > 0 && ` · CV ${config.cv}`}</text>
             {state.inputs.length === 1 ? <>
             <g className="buffer"><text x={x - 50} y="139" textAnchor="middle" className="small">{text.input}</text>
@@ -103,14 +111,17 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                 </g>;
               })}
             </>}
-            <rect x={x} y="150" width="176" height="122" rx="8" className={`station-body state-${state.status}`}/>
+            <rect x={x} y="150" width="176" height="164" rx="8" className={`station-body state-${state.status}`}/>
             <circle cx={x + 16} cy="172" r="4" className={`state-dot state-${state.status}`}/>
             <text x={x + 28} y="177" className="state-label">{state.reason === 'notStarted' ? text.notStarted : state.status === 'paused' && state.reason ? text[state.reason === 'input' || state.reason === 'output' ? 'paused' : state.reason] : text[state.status]}</text>
-            <text x={x + 14} y="204" className="small">{state.remainingProcessingMs !== null ? `${Math.round((state.progress ?? 0) * 100)}%` : ' '}</text>
+            <text x={x + 14} y="204" className="tiny">{state.remainingProcessingMs !== null ? `${operation}: ${Math.round((state.progress ?? 0) * 100)}%` : ' '}</text>
             <rect x={x + 14} y="216" width="148" height="7" rx="3" fill="var(--track)"/>
             <rect x={x + 14} y="216" width={148 * (state.progress ?? 0)} height="7" rx="3" fill="var(--progress)"/>
-            <text x={x + 14} y="251" className="small">{text.held}: <tspan className="quantity">{quantityText(state.output.heldQuantity)}</tspan></text>
-            {state.output.heldQuantity > 0 && <rect x={x + 132} y="239" width="29" height="11" rx="2" fill={outputColor}/>}
+            <text x={x + 14} y="237" className="small" data-reserved={id}><title>{state.inputs.map(entry => `${materialName(entry.materialId)}: ${quantityText(entry.reservedQuantity)}`).join('; ')}</title>{text.reserved}: {state.inputs.length === 1 ? quantityText(input.reservedQuantity) : text.reserveAtInputs}</text>
+            <text x={x + 14} y="258" className="small">{text.readyOutput}: <tspan className="quantity">{quantityText(state.output.heldQuantity)}</tspan></text>
+            {state.output.heldQuantity > 0 && <rect x={x + 132} y="247" width="29" height="11" rx="2" fill={outputColor}/>}
+            <text x={x + 14} y="279" className={`tiny batch-output-${state.transferReady ? 'released' : 'accumulating'}`} data-batch-output={id}>{outputStatus}</text>
+            <text x={x + 14} y="301" className="tiny">{text.batch} {config.repetitions}, {text.thresholdShort} {quantityText(config.transportThreshold)}</text>
             <g className="buffer">
               <text x={x + 217} y="139" textAnchor="middle" className="small">{text.output}</text>
               {direct ? <><title>{text.directLong}</title><path d={`M ${x + 181} 215 H ${x + 240}`} className="direct-path"/><text x={x + 214} y="246" textAnchor="middle" className="tiny">{text.direct}</text></>
@@ -141,7 +152,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
     <p className="flow-note">{text.note}</p>
     <details className="text-view"><summary>{text.textView}</summary>
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.held}</th></tr></thead><tbody>
-        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}</td></tr>;})}
+        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
       <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
     </details>
