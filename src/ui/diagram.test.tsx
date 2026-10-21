@@ -7,7 +7,7 @@ import { blockedCyclicLine, cyclicLine } from '../engine/test-fixtures';
 import { FIRST_X, NODE_GAP, fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { previewConfig, exampleRuns } from './preview';
 import { labels } from './i18n';
-import { FlowDiagram, stationReason } from './FlowDiagram';
+import { FlowDiagram, operationProgress, stationReason } from './FlowDiagram';
 
 const previewRun = exampleRuns.blocking;
 
@@ -224,9 +224,36 @@ it('labels setup separately from processing on the existing diagram in both lang
     const html = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model}} text={text} reduced/>);
     expect(html).toContain('data-state="setup"');
     expect(html).toContain(text.setup);
-    expect(stationReason(model.stations[0]!, run, text)).toBe(text.setup);
+    expect(stationReason(model.stations[0]!, run, text)).toContain(`${text.setup}: A → B`);
     expect(model.stations[0]!.progress).toBeNull();
     expect(html).not.toMatch(/NaN|Infinity/);
   }
+  runner.dispose();
+});
+
+it('preserves setup progress and recipe details through lunch, night and language changes', () => {
+  const config = cyclicLine(); config.durationMs += 86_400_000;
+  config.stations[0]!.initialRecipeId = 'recipeB'; config.stations[0]!.setupMs = 500 * 60_000;
+  const run = compileConfig(config), sim = new Simulation(run), runner = new Runner(run);
+  for (const [time, reason, remaining] of [[240, 'lunch', 260], [300, null, 260], [540, 'offShift', 20], [1440, null, 20]] as const) {
+    const model = sim.advanceTo(time * 60_000), station = model.stations[0]!;
+    expect(station.remainingSetupMs).toBe(remaining * 60_000);
+    expect(station.reason).toBe(reason);
+    expect(operationProgress(station)).toBeCloseTo(1 - remaining / 500);
+    const original = JSON.stringify(model);
+    for (const language of ['ru', 'en'] as const) {
+      const text = labels(language), detail = stationReason(station, run, text);
+      expect(detail).toContain(`${text.setup}: B → A`);
+      expect(detail).toContain(`${text.remaining}: ${remaining} ${text.minutes}`);
+      if (reason) expect(detail).toContain(text[reason]);
+      const html = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model}} text={text} reduced/>);
+      expect(html).toContain(`${text.setup}: ${Math.round((1 - remaining / 500) * 100)}%`);
+      expect(html).toContain(`data-setup-remaining-ms="${remaining * 60_000}"`);
+      expect(html).not.toMatch(/NaN|Infinity/);
+    }
+    expect(JSON.stringify(model)).toBe(original);
+  }
+  const done = sim.advanceTo(1460 * 60_000).stations[0]!;
+  expect(done.remainingSetupMs).toBeNull(); expect(operationProgress(done)).toBe(0);
   runner.dispose();
 });

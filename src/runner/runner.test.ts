@@ -282,3 +282,30 @@ it('matches the complete cyclic run at all supported speeds for both batch modes
     }
   }
 });
+
+it('preserves setup runs across speeds, a pause during setup, step and repeat', () => {
+  for (const mode of ['sequential', 'simultaneous'] as const) {
+    const config = cyclicLine(); config.durationMs += 86_400_000;
+    config.stations[0]!.setupMs = 250 * 60_000;
+    config.stations[0]!.initialRecipeId = 'recipeB';
+    config.stations[0]!.plan.forEach(row => {row.processing.cv = 0.5; row.processing.mode = mode; row.processing.repetitions = 2;});
+    const run = compileConfig(config), expected = new Simulation(run).runToEnd();
+    for (const speed of [1, 60, 300, 1800, 'max'] as const) {
+      const host = new FakeHost(), runner = new Runner(run, undefined, host);
+      runner.step();
+      expect(runner.getView().model.stations[0]!.remainingSetupMs).toBe(250 * 60_000);
+      runner.setSpeed(speed); runner.resume(); host.next(1000); runner.pause();
+      const paused = runner.getView().model;
+      host.time += 1_000_000;
+      expect(runner.getView().model).toBe(paused);
+      runner.resume(); host.drain(60_000);
+      expect(runner.getView().model).toEqual(expected);
+      runner.repeat(); host.drain(60_000);
+      expect(runner.getView().model).toEqual(expected);
+      runner.dispose();
+    }
+    const runner = new Runner(run, undefined, new FakeHost());
+    do {runner.step();} while (runner.getView().status === 'paused');
+    expect(runner.getView().model).toEqual(expected); runner.dispose();
+  }
+});
