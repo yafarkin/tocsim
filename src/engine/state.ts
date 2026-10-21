@@ -8,12 +8,16 @@ export interface StationState {
   /** Zero-based row and number of fully processed batches within that row. */
   planIndex: number;
   completedBatches: number;
+  configuredRecipeId: string;
+  targetRecipeId: string | null;
+  remainingSetupMs: number | null;
   operationVersion: number;
   operationOrdinal: number;
+  /** Full duration of the current processing or setup operation. */
   operationDurationMs: number | null;
   /** Once released, every remaining held item stays eligible until fully unloaded. */
   transferReady: boolean;
-  status: 'idle' | 'processing' | 'blocked' | 'starved' | 'paused';
+  status: 'idle' | 'setup' | 'processing' | 'blocked' | 'starved' | 'paused';
   reason: 'notStarted' | 'input' | 'output' | 'offShift' | 'lunch' | 'complete' | 'horizon' | null;
   remainingProcessingMs: number | null;
 }
@@ -109,7 +113,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 11;
+  schemaVersion: 12;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -124,7 +128,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 11,
+    schemaVersion: 12,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -142,8 +146,9 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
         stationId: station.stationId, planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
+        configuredRecipeId: station.configuredRecipeId, targetRecipeId: station.targetRecipeId, remainingSetupMs: station.remainingSetupMs,
         transferReady: station.transferReady, remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
-        progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
+        progress: station.remainingSetupMs !== null ? null : station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
         inputs: config.inputBuffers.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, (recipe.inputs.find(component => component.materialId === input.materialId)?.quantity ?? 0) * row.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: outputMaterialId, quantity: count('output', outputMaterialId), heldQuantity: held},
         outputs: [...new Set(config.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort().map(materialId => ({

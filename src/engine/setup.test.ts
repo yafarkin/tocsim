@@ -98,25 +98,12 @@ describe('setup configuration and recipe transitions', () => {
     expect(compileConfig(reordered).calculationHash).toBe(compileConfig(duration).calculationHash);
   });
 
-  it('blocks nonzero setup before creating inventory, events or sources, with the original source path', () => {
-    const config = line(); config.stations.reverse();
-    config.stations[0]!.setupMs = 7 * M;
+  it('allows nonzero setup through all state and scheduler constructors', () => {
+    const config = line(); config.stations[0]!.setupMs = 7 * M;
     const run = compileConfig(config);
-    for (const create of [createPushState, createPushScheduler, (run: ReturnType<typeof compileConfig>) => new Simulation(run)]) {
-      try { create(run); throw new Error('Expected setup guard'); } catch (error) {
-        expect(error).toBeInstanceOf(ConfigError);
-        expect(error).toMatchObject({code: 'unsupported', path: 'config.stations.0.setupMs', objectId: 's2'});
-        const failure = error as ConfigError;
-        expect(failure.messages.ru).toContain('не поддерживается');
-        expect(failure.messages.en).toContain('not supported');
-      }
-    }
-    expect(run.source).toEqual(config);
-  });
-
-  it('also blocks nonzero configured setup on an otherwise unchanged single-row station', () => {
-    const config = line(); config.stations[0]!.setupMs = 1;
-    expect(() => new Simulation(compileConfig(config))).toThrow(ConfigError);
+    expect(() => createPushState(run)).not.toThrow();
+    expect(() => createPushScheduler(run)).not.toThrow();
+    expect(() => new Simulation(run).runToEnd()).not.toThrow();
   });
 
   it('keeps zero-duration runs unchanged even with another initial recipe', () => {

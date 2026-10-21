@@ -213,3 +213,20 @@ it('keeps multiple direct outputs named and expands row height for three or more
   expect(new Set(starts).size).toBe(4);
   runner.dispose();
 });
+
+
+it('labels setup separately from processing on the existing diagram in both languages', () => {
+  const config = cyclicLine(); config.stations[0]!.setupMs = 7 * 60_000;
+  const run = compileConfig(config), runner = new Runner(run);
+  const model = new Simulation(run).advanceTo(2 * 60_000);
+  for (const language of ['ru', 'en'] as const) {
+    const text = labels(language);
+    const html = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model}} text={text} reduced/>);
+    expect(html).toContain('data-state="setup"');
+    expect(html).toContain(text.setup);
+    expect(stationReason(model.stations[0]!, run, text)).toBe(text.setup);
+    expect(model.stations[0]!.progress).toBeNull();
+    expect(html).not.toMatch(/NaN|Infinity/);
+  }
+  runner.dispose();
+});

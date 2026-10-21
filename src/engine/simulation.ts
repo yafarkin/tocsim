@@ -4,6 +4,7 @@ import { freezeData, inputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
+import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
 import { completeProduction, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
@@ -45,6 +46,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     for (const config of stations) {
       const station = ctx.state.stations.find(s => s.stationId === config.id)!;
       if (!canStart(calendar, ctx.timeMs)) {station.status = 'paused'; station.reason = calendarReason(ctx.timeMs);}
+      else if (station.remainingSetupMs !== null) continue;
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(ctx.state, config);
         if (station.transferReady && hasStock(ctx.state, config.id, 'held')) {station.status = 'blocked'; station.reason = 'output';}
@@ -69,7 +71,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
   }
   function planCompletion(ctx: EventContext, id: string) {
     const station = ctx.state.stations.find(s => s.stationId === id)!;
-    const due = BigInt(ctx.timeMs) + BigInt(station.remainingProcessingMs!);
+    const due = BigInt(ctx.timeMs) + BigInt(station.remainingSetupMs ?? station.remainingProcessingMs!);
     // A calendar close invalidates this provisional completion. No work beyond horizon.
     if (due <= BigInt(calendar.endTimeMs)) ctx.schedule({kind: 'completion', stationId: id,
       operationVersion: station.operationVersion, id: `completion:${id}:${station.operationVersion}`, timeMs: Number(due)});
@@ -129,6 +131,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       state.line!.transfers = [];
       const elapsed = activeWorkMs(calendar, from, to);
       for (const station of state.stations) {
+        if (station.remainingSetupMs !== null) {
+          station.remainingSetupMs -= elapsed;
+          if (station.remainingSetupMs < 0) throw new EventError('value', station.stationId, {ru: 'Пропущено завершение переналадки.', en: 'Setup completion was skipped.'});
+        }
         if (station.remainingProcessingMs !== null) {
           station.remainingProcessingMs -= elapsed;
           if (station.remainingProcessingMs < 0) throw new EventError('value', station.stationId, {ru: 'Пропущено завершение обработки.', en: 'Processing completion was skipped.'});
@@ -138,7 +144,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     source: push.source,
     calendar: (ctx, event) => {
       if (event.boundary === 'close') {
-        for (const station of ctx.state.stations) if (station.remainingProcessingMs !== null) {
+        for (const station of ctx.state.stations) if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null) {
           ctx.invalidateOperation(station.stationId);
           // A 24:00 close may coincide with the next 00:00 opening. Mark the
           // operation paused explicitly so dispatch still replaces its token.
@@ -149,6 +155,14 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     },
     completion: (ctx, event) => {
       const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
+      if (station.remainingSetupMs !== null) {
+        if (station.remainingSetupMs !== 0) throw new EventError('value', event.stationId, {ru: 'Переналадка ещё не завершена.', en: 'Setup is not complete yet.'});
+        station.configuredRecipeId = station.targetRecipeId!;
+        station.targetRecipeId = null; station.remainingSetupMs = null; station.operationDurationMs = null;
+        station.status = 'idle'; station.reason = null;
+        wakeTransfer(ctx);
+        return;
+      }
       if (station.remainingProcessingMs !== 0) throw new EventError('value', event.stationId, {ru: 'Операция ещё не завершена.', en: 'Operation is not complete yet.'});
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(ctx.state, config);
       const row = rowOf(ctx.state, config);
@@ -204,6 +218,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       let started = false;
       for (const config of stations) {
         const station = ctx.state.stations.find(s => s.stationId === config.id)!, recipe = recipeOf(ctx.state, config);
+        if (station.remainingSetupMs !== null) {
+          if (station.status !== 'setup') {station.status = 'setup'; station.reason = null; planCompletion(ctx, config.id);}
+          continue;
+        }
         if (station.remainingProcessingMs !== null) {
           if (station.status !== 'processing') {station.status = 'processing'; station.reason = null; planCompletion(ctx, config.id);}
           continue;
@@ -213,6 +231,15 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         if (!reserved) {
           const kit = recipe.inputs.map(input => ({...input, quantity: input.quantity * rowOf(ctx.state, config).repetitions}));
           if (kit.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
+          const setupMs = setupDurationMs(config.setupMs, station.configuredRecipeId, recipe.id);
+          if (setupMs > 0) {
+            station.targetRecipeId = recipe.id; station.remainingSetupMs = setupMs; station.operationDurationMs = setupMs;
+            station.status = 'setup'; station.reason = null;
+            ctx.invalidateOperation(config.id); planCompletion(ctx, config.id);
+            started = true;
+            continue;
+          }
+          station.configuredRecipeId = recipe.id;
           reserveInputs(ctx.state, config.id, kit);
         }
         if (station.operationOrdinal === Number.MAX_SAFE_INTEGER) throw new RandomError({ru: 'Исчерпан счётчик операций.', en: 'Operation counter is exhausted.'});

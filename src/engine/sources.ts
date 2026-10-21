@@ -1,6 +1,6 @@
 import { addMoney, addQuantity, MAX_UNITS, purchaseCost, splitCost } from './arithmetic';
 import { calendarForDuration, sourceAttemptTime } from './calendar';
-import { ConfigError, inputCapacity } from './config';
+import { inputCapacity } from './config';
 import type { RunConfig } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers } from './events';
@@ -26,18 +26,8 @@ function warehouseQuantity(state: EngineState, material: string): number {
 }
 
 export function createPushState(run: RunConfig): EngineState {
-  // Task 54 validates setup parameters. Execution is enabled only in task 55.
-  for (const station of run.resolved.stations) {
-    if (station.setupMs > 0) {
-      const index = run.source.stations.findIndex(source => source.id === station.id);
-      throw new ConfigError('unsupported', `config.stations.${index}.setupMs`, station.id, {
-        ru: 'Параметры переналадки проверены, но выполнение ненулевой переналадки ещё не поддерживается.',
-        en: 'Setup parameters are validated, but nonzero setup execution is not supported yet.',
-      });
-    }
-  }
   return {...createInventory(run), timeMs: 0,
-    stations: run.resolved.stations.map(station => ({stationId: station.id, planIndex: 0, completedBatches: 0, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false,
+    stations: run.resolved.stations.map(station => ({stationId: station.id, planIndex: 0, completedBatches: 0, configuredRecipeId: station.initialRecipeId, targetRecipeId: null, remainingSetupMs: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false,
       status: 'idle', reason: 'notStarted', remainingProcessingMs: null})),
     sources: run.resolved.sources.map(source => ({sourceId: source.id, nextOrdinal: 0, pendingQuantity: 0,
       attempts: 0, releasedQuantity: 0, purchasedCost: 0n, lastAttempt: null})), sourceTransfers: [], line: null};
