@@ -144,12 +144,9 @@ describe('multi-row plan compilation', () => {
     expect(error(config).code).toBe('capacity');
   });
 
-  it('explicitly blocks cycle execution until the execution task is complete', () => {
+  it('starts validated cycles through Simulation and the source scheduler', () => {
     const run = compileConfig(plannedLine());
-    expect(() => new Simulation(run)).toThrow(ConfigError);
-    expect(() => createPushScheduler(run)).toThrow(/cycle execution/);
-    const single = line(); single.stations[0]!.plan[0]!.batches = 2;
-    expect(() => new Simulation(compileConfig(single))).toThrow(/cycle execution/);
-    expect(() => new Simulation(compileConfig(line()))).not.toThrow();
+    expect(() => new Simulation(run).advanceTo(0)).not.toThrow();
+    expect(() => createPushScheduler(run)).not.toThrow();
   });
 });

@@ -28,3 +28,35 @@ export function line(): EditorConfig {
     initialStocks: [{id: 'initial', ownerId: 's1', location: 'input', materialId: 'raw', quantity: '0.5', cost: '5'}],
   };
 }
+
+/** Two recipe outputs and two independent raw inputs, with finite initial kits. */
+export function cyclicLine(): EditorConfig {
+  const config = line();
+  config.materials = [config.materials[0]!,
+    {id: 'rawB', name: 'Raw B', color: 'blue', role: 'raw', purchasePrice: '2'},
+    {id: 'a', name: 'A', color: 'red', role: 'finished', salePrice: '10'},
+    {id: 'b', name: 'B', color: 'green', role: 'finished', salePrice: '20'},
+  ];
+  config.recipes = [
+    {id: 'recipeA', name: 'A', kind: 'production', inputs: [{materialId: 'raw', quantity: '1'}], output: {materialId: 'a', quantity: '1'}},
+    {id: 'recipeB', name: 'B', kind: 'production', inputs: [{materialId: 'rawB', quantity: '1'}], output: {materialId: 'b', quantity: '1'}},
+  ];
+  config.stations = [config.stations[0]!];
+  config.stations[0]!.inputBuffer = {kind: 'infinite'};
+  config.stations[0]!.plan = [
+    {id: 'rowA', recipeId: 'recipeA', batches: 2, processing: {mode: 'sequential', repetitions: 1, timeMs: 60_000, cv: 0}},
+    {id: 'rowB', recipeId: 'recipeB', batches: 1, processing: {mode: 'simultaneous', repetitions: 1, timeMs: 120_000, cv: 0}},
+  ];
+  config.sources[0]!.availability = 'warehouse';
+  config.sources.push({id: 'sourceB', name: 'B', materialId: 'rawB', availability: 'warehouse', quantity: '1', intervalMs: 60_000});
+  config.routes = [config.routes[0]!,
+    {id: 'rawBRoute', fromId: 'sourceB', toId: 's1', materialId: 'rawB'},
+    {id: 'sellA', fromId: 's1', toId: 'market', materialId: 'a'},
+    {id: 'sellB', fromId: 's1', toId: 'market', materialId: 'b'},
+  ];
+  config.initialStocks = [
+    {id: 'stockA', ownerId: 's1', location: 'input', materialId: 'raw', quantity: '12', cost: '120'},
+    {id: 'stockB', ownerId: 's1', location: 'input', materialId: 'rawB', quantity: '12', cost: '24'},
+  ];
+  return config;
+}

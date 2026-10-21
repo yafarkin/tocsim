@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compileConfig } from '../engine/config';
 import type { DeepReadonly } from '../engine/config';
 import { Simulation } from '../engine/simulation';
-import { line } from '../engine/test-fixtures';
+import { cyclicLine, line } from '../engine/test-fixtures';
 import { Runner, RunnerError, TURN_BUDGET_MS } from './runner';
 import type { RunnerHost, RunnerView } from './runner';
 
@@ -241,5 +241,27 @@ describe('runner diagnostics', () => {
     expect(runner.getView().model.timeMs).toBe(0);
     expect(runner.getView().model.sources[0]!.attempts).toBe(0);
     expect(runner.getFailure()).not.toBeNull(); expect(host.callbacks.size).toBe(0);
+  });
+});
+
+
+describe('cyclic plans under playback controls', () => {
+  it('preserves CV results through pause, speed change, repeat and full-timestamp steps', () => {
+    const config = cyclicLine();
+    config.stations[0]!.plan.forEach(row => {row.processing.cv = 0.5;});
+    const run = compileConfig(config), expected = new Simulation(run).runToEnd();
+    const host = new FakeHost(), runner = new Runner(run, undefined, host);
+    runner.setSpeed(60); runner.start(); host.next(5000);
+    runner.pause(); const paused = runner.getView().model;
+    host.time += 1_000_000;
+    expect(runner.getView().model).toBe(paused);
+    runner.setSpeed('max'); runner.resume(); host.drain(1000);
+    expect(runner.getView().model).toEqual(expected);
+    runner.repeat(); host.drain(1000);
+    expect(runner.getView().model).toEqual(expected);
+    const stepped = new Runner(run, undefined, new FakeHost());
+    do {stepped.step();} while (stepped.getView().status === 'paused');
+    expect(stepped.getView().model).toEqual(expected);
+    runner.dispose(); stepped.dispose();
   });
 });

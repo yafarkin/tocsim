@@ -5,6 +5,9 @@ import type { DeepReadonly, RunConfig } from './config';
 /** Internal operation token is deliberately excluded from UI snapshots. */
 export interface StationState {
   stationId: string;
+  /** Zero-based row and number of fully processed batches within that row. */
+  planIndex: number;
+  completedBatches: number;
   operationVersion: number;
   operationOrdinal: number;
   operationDurationMs: number | null;
@@ -104,7 +107,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 9;
+  schemaVersion: 10;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -119,34 +122,37 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 9,
+    schemaVersion: 10,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
     timeMs: state.timeMs,
     stations: state.stations.map(station => {
       const config = run.resolved.stations.find(s => s.id === station.stationId)!;
-      const recipe = run.resolved.recipes.find(r => r.id === config.recipeId)!;
+      const row = config.plan[station.planIndex]!;
+      const recipe = run.resolved.recipes.find(r => r.id === row.recipeId)!;
       const count = (location: StockState['location'], materialId: string) => state.stocks.filter(s => s.ownerId === station.stationId && s.location === location && s.materialId === materialId).reduce((sum, stock) => sum + stock.quantity, 0);
-      const held = count('held', recipe.output.materialId);
+      const outputMaterialId = state.stocks.find(stock => stock.ownerId === station.stationId && stock.location === 'held')?.materialId ?? recipe.output.materialId;
+      const held = count('held', outputMaterialId);
       const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
-      const routes = run.resolved.routes.filter(r => r.fromId === station.stationId);
+      const routes = run.resolved.routes.filter(r => r.fromId === station.stationId && r.materialId === outputMaterialId);
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
-        stationId: station.stationId, status: station.status, reason: station.reason,
+        stationId: station.stationId, planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
         transferReady: station.transferReady, remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
-        progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? config.timeMs))),
-        inputs: recipe.inputs.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, input.quantity * config.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
-        output: {materialId: recipe.output.materialId, quantity: count('output', recipe.output.materialId), heldQuantity: held},
+        progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
+        inputs: config.inputBuffers.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, (recipe.inputs.find(component => component.materialId === input.materialId)?.quantity ?? 0) * row.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
+        output: {materialId: outputMaterialId, quantity: count('output', outputMaterialId), heldQuantity: held},
         blockedBy: held > 0 && station.transferReady ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
     }),
     line: state.line ? {
       termination: state.timeMs === run.resolved.durationMs ? 'horizon' : 'running',
       flow: state.stations.some(s => s.remainingProcessingMs !== null) || run.resolved.stations.some(s => {
-        const inputs = run.resolved.recipes.find(r => r.id === s.recipeId)!.inputs;
-        return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity * s.repetitions);
+        const row = s.plan[state.stations.find(station => station.stationId === s.id)!.planIndex]!;
+        const inputs = run.resolved.recipes.find(r => r.id === row.recipeId)!.inputs;
+        return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity * row.repetitions);
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',

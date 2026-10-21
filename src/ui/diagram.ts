@@ -34,7 +34,7 @@ export function graphLayout(run: RunConfig) {
   // Every final output shares one market column, including shorter branches.
   depths.set('market', Math.max(...run.resolved.stations.map(s => depths.get(s.id)!)) + 1);
   const rowPitch = Math.max(420, ...run.resolved.stations.map(station => {
-    const count = run.resolved.recipes.find(recipe => recipe.id === station.recipeId)!.inputs.length;
+    const count = station.inputBuffers.length;
     const lines = Math.max(count, run.resolved.routes.filter(route => route.fromId === station.id).length);
     return stationReasonY(count) + stationReasonHeight(lines) + 1;
   }));
@@ -53,7 +53,7 @@ export function graphLayout(run: RunConfig) {
     const from = nodes.get(route.fromId)!, to = nodes.get(route.toId)!;
     const x1 = from.x + (from.depth === 0 ? 118 : 244), y1 = from.y + 215;
     const station = run.resolved.stations.find(station => station.id === route.toId);
-    const inputs = station ? run.resolved.recipes.find(recipe => recipe.id === station.recipeId)!.inputs : [];
+    const inputs = station?.inputBuffers ?? [];
     const multiple = inputs.length > 1;
     const x2 = to.x - (route.toId === 'market' ? 8 : multiple ? 96 : 82), y2 = to.y + (multiple ? multiInputY(inputs.findIndex(input => input.materialId === route.materialId)) : 215);
     const middle = (x1 + x2) / 2;

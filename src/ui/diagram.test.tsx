@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { compileConfig } from '../engine/config';
 import { Runner } from '../runner/runner';
 import { Simulation } from '../engine/simulation';
+import { cyclicLine } from '../engine/test-fixtures';
 import { FIRST_X, NODE_GAP, fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { previewConfig, exampleRuns } from './preview';
 import { labels } from './i18n';
@@ -156,4 +157,22 @@ describe('batch diagram', () => {
     expect(svg).not.toContain('<animateMotion');
     runner.dispose();
   });
+});
+
+
+it('uses the current cycle row profile and keeps every input route attached in RU/EN', () => {
+  const run = compileConfig(cyclicLine()), runner = new Runner(run);
+  const model = new Simulation(run).advanceTo(2 * 60_000);
+  const view = {...runner.getView(), model, status: 'paused' as const};
+  expect(model.stations[0]!.planIndex).toBe(1);
+  const layout = graphLayout(run);
+  expect(layout.paths.get('rawBRoute')!.y).toBeGreaterThan(layout.paths.get('r1')!.y);
+  for (const language of ['ru', 'en'] as const) {
+    const text = labels(language);
+    const markup = renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced/>);
+    expect(markup).toContain(`2 ${text.minutes} ${text.perCycle}`);
+    expect(markup).toContain('Raw B');
+    expect(markup).not.toMatch(/NaN|Infinity/);
+  }
+  runner.dispose();
 });
