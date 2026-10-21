@@ -1,7 +1,7 @@
 import { addMoney, addQuantity, MAX_UNITS } from './arithmetic';
 import { activeWorkMs, calendarForDuration, canStart, DAY_MS } from './calendar';
-import { freezeData, inputCapacity } from './config';
-import type { DeepReadonly, RunConfig } from './config';
+import { freezeData, inputCapacity, outputCapacity } from './config';
+import type { DeepReadonly, RunConfig, ResolvedBuffer } from './config';
 import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
 import { setupDurationMs } from './setup';
@@ -15,7 +15,7 @@ type Station = RunConfig['resolved']['stations'][number];
 function count(state: EngineState, owner: string, location: StockState['location'], materialId: string): number {
   return state.stocks.filter(s => s.ownerId === owner && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + s.quantity, 0);
 }
-function free(capacity: Station['outputBuffer'], occupied: number): number {
+function free(capacity: DeepReadonly<ResolvedBuffer>, occupied: number): number {
   return Number((capacity.kind === 'infinite' ? MAX_UNITS : BigInt(capacity.quantity)) - BigInt(occupied));
 }
 function createLineHandlers(run: RunConfig): EventHandlers {
@@ -112,7 +112,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const heads = new Map<string, StockState>();
       for (const stock of ctx.state.stocks) {
         const config = stations.find(s => s.id === stock.ownerId);
-        if (!config || !(stock.location === 'output' || (stock.location === 'held' && ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0))) continue;
+        if (!config || (stock.location !== 'output' && stock.location !== 'held')) continue;
+        const capacity = outputCapacity(config, stock.materialId);
+        if (stock.location === 'held' && !(ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && capacity.kind === 'quantity' && capacity.quantity === 0)) continue;
         const key = JSON.stringify([stock.ownerId, stock.location, stock.materialId]);
         if (!heads.has(key)) heads.set(key, stock);
       }
@@ -194,10 +196,11 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       let moved = distribute(ctx);
       for (const config of stations) {
         for (const material of new Set(ctx.state.stocks.filter(stock => stock.ownerId === config.id && stock.location === 'held').map(stock => stock.materialId))) {
-          if (ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && !(config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0)) {
-            const quantity = Math.min(count(ctx.state, config.id, 'held', material), free(config.outputBuffer, count(ctx.state, config.id, 'output', material)));
+          const capacity = outputCapacity(config, material);
+          if (ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && !(capacity.kind === 'quantity' && capacity.quantity === 0)) {
+            const quantity = Math.min(count(ctx.state, config.id, 'held', material), free(capacity, count(ctx.state, config.id, 'output', material)));
             if (quantity > 0) {
-              const parts = transferStock(ctx.state, {ownerId: config.id, location: 'held'}, {ownerId: config.id, location: 'output'}, material, quantity, config.outputBuffer, ctx.timeMs);
+              const parts = transferStock(ctx.state, {ownerId: config.id, location: 'held'}, {ownerId: config.id, location: 'output'}, material, quantity, capacity, ctx.timeMs);
               ctx.state.line!.transfers.push({fromId: config.id, toId: config.id, fromLocation: 'held', materialId: material, quantity,
                 cost: parts.reduce((sum, part) => addMoney(sum, part.cost), 0n), kind: 'buffer'});
               moved = true;

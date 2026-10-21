@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { inputCapacity } from '../engine/config';
+import { inputCapacity, outputCapacity } from '../engine/config';
 import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
 import type { StationSnapshot } from '../engine/state';
@@ -92,13 +92,14 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
         {order.map((id, index) => {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
           const state = view.model.stations.find(s => s.stationId === id)!, row = config.plan[state.planIndex]!, input = state.inputs[0]!, inputColor = materialColor(input.materialId), outputColor = materialColor(state.output.materialId);
-          const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, config.outputBuffer);
+          const outputBuffer = outputCapacity(config, state.output.materialId);
+          const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, outputBuffer);
           const recipe = run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!;
           const repetition = row.repetitions - state.inputs.find(input => input.materialId === recipe.inputs[0]!.materialId)!.reservedQuantity / recipe.inputs[0]!.quantity + 1;
           const operation = row.mode === 'simultaneous' ? text.cycle : `${text.repetition} ${repetition}/${row.repetitions}`;
           const progress = operationProgress(state), settingUp = state.remainingSetupMs !== null;
           const outputStatus = batchOutputStatus(state, config.transportThreshold, text);
-          const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
+          const direct = outputBuffer.kind === 'quantity' && outputBuffer.quantity === 0;
           const cap = (buffer: DeepReadonly<ResolvedBuffer>) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
           return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-state={state.status} data-duration-ms={state.operationDurationMs ?? undefined} data-transfer-ready={state.transferReady} data-held-quantity={state.output.heldQuantity} data-setup-remaining-ms={state.remainingSetupMs ?? undefined}>
             <text x={x} y="56" className="station-number">{String(index + 1).padStart(2, '0')}</text>
@@ -148,19 +149,20 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
               {direct ? <><title>{text.directLong}</title><path d={`M ${x + 181} 215 H ${x + 240}`} className="direct-path"/><text x={x + 214} y="246" textAnchor="middle" className="tiny">{text.direct}</text></>
                 : <><rect x={x + 190} y="150" width="54" height="122" rx="5"/><Tokens quantity={state.output.quantity} x={x + 202} y={244} color={outputColor}/>
                   <rect x={x + 194} y="267" width={46 * (outputFill ?? 0)} height="3" fill={outputColor}/>
-                  <text x={x + 217} y="295" textAnchor="middle" className="quantity">{quantityText(state.output.quantity)}</text><text x={x + 217} y="314" textAnchor="middle" className="tiny">/ {cap(config.outputBuffer)}</text></>}
+                  <text x={x + 217} y="295" textAnchor="middle" className="quantity">{quantityText(state.output.quantity)}</text><text x={x + 217} y="314" textAnchor="middle" className="tiny">/ {cap(outputBuffer)}</text></>}
             </g>
             </> : <>
               <text x={x + 230} y="139" textAnchor="middle" className="small">{text.output}</text>
               {state.outputs.map((entry, outputIndex) => {
                 const y = 148 + outputIndex * 86, color = materialColor(entry.materialId), name = materialName(entry.materialId);
-                const fill = fillRatio(entry.quantity, config.outputBuffer);
+                const capacity = outputCapacity(config, entry.materialId), direct = capacity.kind === 'quantity' && capacity.quantity === 0;
+                const fill = fillRatio(entry.quantity, capacity);
                 return <g key={entry.materialId} className="buffer" data-output-material={entry.materialId} data-output-quantity={entry.quantity} data-held-quantity={entry.heldQuantity}>
-                  <title>{`${name}: ${text.output} ${quantityText(entry.quantity)}${direct ? '' : ` / ${cap(config.outputBuffer)}`}; ${text.readyOutput}: ${quantityText(entry.heldQuantity)}`}</title>
+                  <title>{`${name}: ${text.output} ${quantityText(entry.quantity)}${direct ? '' : ` / ${cap(capacity)}`}; ${text.readyOutput}: ${quantityText(entry.heldQuantity)}`}</title>
                   <path d={`M ${x + 180} 215 H ${x + 184} V ${multiInputY(outputIndex)} H ${x + 190}`} className="direct-path"/>
                   <rect x={x + 190} y={y} width="80" height="78" rx="5"/>
                   <text x={x + 230} y={y + 17} textAnchor="middle" className="tiny">{name.length > 12 ? `${name.slice(0, 11)}…` : name}</text>
-                  <text x={x + 230} y={y + 38} textAnchor="middle" className="small">{direct ? text.direct : `${quantityText(entry.quantity)} / ${cap(config.outputBuffer)}`}</text>
+                  <text x={x + 230} y={y + 38} textAnchor="middle" className="small">{direct ? text.direct : `${quantityText(entry.quantity)} / ${cap(capacity)}`}</text>
                   <text x={x + 230} y={y + 57} textAnchor="middle" className="tiny">{text.readyOutput}: {quantityText(entry.heldQuantity)}</text>
                   <rect x={x + 196} y={y + 68} width="68" height="4" rx="2" fill="var(--track)"/>
                   <rect x={x + 196} y={y + 68} width={direct ? 68 : 68 * (fill ?? 0)} height="4" rx="2" fill={color}/>

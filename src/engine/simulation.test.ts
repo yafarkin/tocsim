@@ -44,10 +44,11 @@ function checkBalance(run: RunConfig, snapshot: DeepReadonly<Snapshot>) {
   for (const stock of snapshot.stocks) {expect(stock.quantity).toBeGreaterThan(0); expect(BigInt(stock.cost)).toBeGreaterThanOrEqual(0n);}
   for (const station of run.resolved.stations) {
     for (const location of ['input', 'output'] as const) {
-      const capacity = location === 'input' ? station.inputBuffers[0]!.capacity : station.outputBuffer;
-      if (capacity.kind === 'quantity') {
-        const occupied = snapshot.stocks.filter(s => s.ownerId === station.id && s.location === location).reduce((sum, s) => sum + s.quantity, 0);
-        expect(occupied).toBeLessThanOrEqual(capacity.quantity);
+      for (const {materialId, capacity} of location === 'input' ? station.inputBuffers : station.outputBuffers) {
+        if (capacity.kind === 'quantity') {
+          const occupied = snapshot.stocks.filter(s => s.ownerId === station.id && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + s.quantity, 0);
+          expect(occupied).toBeLessThanOrEqual(capacity.quantity);
+        }
       }
     }
   }

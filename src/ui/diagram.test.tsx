@@ -274,3 +274,20 @@ it('shows the current plan row, completed batches and specific missing recipe in
   }
   runner.dispose();
 });
+
+it('renders each output using its own capacity, including direct B beside buffered A', () => {
+  const config = blockedCyclicLine(true);
+  config.stations[0]!.outputBuffer = {kind: 'materials', materials: [
+    {materialId: 'a', capacity: {kind: 'infinite'}},
+    {materialId: 'b', capacity: {kind: 'quantity', quantity: '0'}},
+  ]};
+  const run = compileConfig(config), model = new Simulation(run).advanceTo(2 * 60_000), runner = new Runner(run);
+  for (const language of ['ru', 'en'] as const) {
+    const text = labels(language), html = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model}} text={text} reduced/>);
+    expect(html).toContain(`A: ${text.output} 1 / ∞; ${text.readyOutput}: 0`);
+    expect(html).toContain(`B: ${text.output} 0; ${text.readyOutput}: 0`);
+    expect(html).toContain(text.direct);
+    expect(html).not.toMatch(/NaN|Infinity|0\/0/);
+  }
+  runner.dispose();
+});

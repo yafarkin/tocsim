@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.16.0';
+export const ENGINE_VERSION = '0.17.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -10,7 +10,9 @@ export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
 
 export type BufferConfig = { kind: 'quantity'; quantity: string } | { kind: 'infinite' };
-export type InputBufferConfig = BufferConfig | {kind: 'materials'; materials: {materialId: string; capacity: BufferConfig}[]};
+export type MaterialBufferConfig = BufferConfig | {kind: 'materials'; materials: {materialId: string; capacity: BufferConfig}[]};
+export type InputBufferConfig = MaterialBufferConfig | {kind: 'inherit'};
+export type OutputBufferConfig = MaterialBufferConfig | {kind: 'inherit'};
 export interface MaterialConfig {
   id: string; name: string; color: string;
   role: 'raw' | 'intermediate' | 'finished';
@@ -27,7 +29,7 @@ export interface StationConfig {
     id: string; recipeId: string; batches: number;
     processing: { mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number };
   }[];
-  inputBuffer: InputBufferConfig; outputBuffer: BufferConfig;
+  inputBuffer: InputBufferConfig; outputBuffer: OutputBufferConfig;
   transportThreshold?: string;
   initialRecipeId?: string;
   setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
@@ -45,6 +47,7 @@ export interface InitialStockConfig {
 export interface EditorConfig {
   schemaVersion: 1; id: string; name: string; language: 'ru' | 'en';
   displayOrder?: string[];
+  bufferDefaults?: {input?: BufferConfig; output?: BufferConfig};
   seed: number; durationMs: number; policy: 'push';
   calendar: { shiftStartMs: number; lunchStartMs: number; lunchEndMs: number; shiftEndMs: number };
   materials: MaterialConfig[]; recipes: RecipeConfig[]; stations: StationConfig[];
@@ -65,7 +68,7 @@ export interface ResolvedConfig {
     setupMs: number; initialRecipeId: string;
     // Static first-row fields remain for existing configuration consumers; execution selects from plan.
     id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
-    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer; transportThreshold: number;
+    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; transportThreshold: number;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
   }[];
   sources: { id: string; materialId: string; availability: SourceConfig['availability']; quantity: number; intervalMs: number }[];
@@ -75,6 +78,12 @@ export interface ResolvedConfig {
 export function inputCapacity(station: DeepReadonly<ResolvedConfig['stations'][number]>, materialId: string): DeepReadonly<ResolvedBuffer> {
   const buffer = station.inputBuffers.find(buffer => buffer.materialId === materialId);
   if (!buffer) throw new Error(`Input capacity is not configured: ${station.id}/${materialId}`);
+  return buffer.capacity;
+}
+
+export function outputCapacity(station: DeepReadonly<ResolvedConfig['stations'][number]>, materialId: string): DeepReadonly<ResolvedBuffer> {
+  const buffer = station.outputBuffers.find(buffer => buffer.materialId === materialId);
+  if (!buffer) throw new Error(`Output capacity is not configured: ${station.id}/${materialId}`);
   return buffer.capacity;
 }
 
@@ -160,8 +169,8 @@ class Reader {
   }
   buffer(value: unknown): ResolvedBuffer {
     const object = this.object(value, ['kind', 'quantity']);
-    if (object.kind === 'inherit' || object.kind === 'shift') {
-      this.at('kind').fail('unsupported', 'Наследование и расчёт буфера по смене пока не поддерживаются; задайте количество явно.', 'Buffer inheritance and shift-based capacities are not supported yet; specify a quantity explicitly.');
+    if (object.kind === 'shift') {
+      this.at('kind').fail('unsupported', 'Расчёт буфера по смене пока не поддерживается; задайте количество явно.', 'Shift-based capacities are not supported yet; specify a quantity explicitly.');
     }
     const kind = this.at('kind').choice(object.kind, ['quantity', 'infinite']);
     if (kind === 'infinite') {
@@ -197,7 +206,7 @@ function calculationHash(config: ResolvedConfig): string {
 export function compileConfig(value: unknown): RunConfig {
   const root = new Reader('config',
     value && typeof value === 'object' && 'id' in value && typeof value.id === 'string' ? value.id : null);
-  const config = root.object(value, ['schemaVersion', 'id', 'name', 'language', 'displayOrder', 'seed', 'durationMs', 'policy', 'calendar', 'materials', 'recipes', 'stations', 'sources', 'routes', 'initialStocks']);
+  const config = root.object(value, ['schemaVersion', 'id', 'name', 'language', 'displayOrder', 'seed', 'durationMs', 'policy', 'calendar', 'materials', 'recipes', 'stations', 'sources', 'routes', 'initialStocks', 'bufferDefaults']);
   root.at('schemaVersion').literal(config.schemaVersion, SCHEMA_VERSION);
   const seen = new Set<string>(['market', 'warehouse']);
   function id(value: unknown, reader: Reader): string {
@@ -272,6 +281,32 @@ export function compileConfig(value: unknown): RunConfig {
     if (outputQuantity % 1_000_000 !== 0) r.at('output').at('quantity').fail('value', 'Выход рецепта должен быть целым положительным числом.', 'Recipe output must be a positive whole number.');
     return {id, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
   }));
+  const defaultsReader = root.at('bufferDefaults');
+  const defaults = config.bufferDefaults === undefined ? {} : defaultsReader.object(config.bufferDefaults, ['input', 'output']);
+  const defaultInput = defaults.input === undefined ? null : defaultsReader.at('input').buffer(defaults.input);
+  const defaultOutput = defaults.output === undefined ? {kind: 'quantity' as const, quantity: 0} : defaultsReader.at('output').buffer(defaults.output);
+  function resolveBuffers(value: unknown, reader: Reader, materialIds: string[], inherited: ResolvedBuffer | null) {
+    if (value && typeof value === 'object' && 'kind' in value && value.kind === 'inherit') {
+      reader.object(value, ['kind']);
+      if (!inherited) reader.fail('unsupported', 'Для наследуемого входа пока нужно явно задать глобальную ёмкость; расчёт на долю смены ещё не поддерживается.', 'Inherited input currently requires an explicit global capacity; shift-based calculation is not supported yet.');
+      return materialIds.map(materialId => ({materialId, capacity: {...inherited!}}));
+    }
+    if (value && typeof value === 'object' && 'kind' in value && value.kind === 'materials') {
+      const object = reader.object(value, ['kind', 'materials']);
+      const seenMaterials = new Set<string>();
+      const buffers = reader.at('materials').array(object.materials).map((value, index) => {
+        const mr = reader.at('materials').at(index), entry = mr.object(value, ['materialId', 'capacity']);
+        const materialId = mr.at('materialId').text(entry.materialId);
+        if (!materialIds.includes(materialId) || seenMaterials.has(materialId)) mr.at('materialId').fail('reference', 'Ёмкости должны соответствовать уникальным материалам буфера поста.', 'Capacities must match unique station buffer materials.');
+        seenMaterials.add(materialId);
+        return {materialId, capacity: mr.at('capacity').buffer(entry.capacity)};
+      });
+      if (buffers.length !== materialIds.length) reader.fail('capacity', 'Нужна ёмкость для каждого материала буфера поста.', 'Every station buffer material requires a capacity.');
+      return buffers.sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
+    }
+    const capacity = reader.buffer(value);
+    return materialIds.map(materialId => ({materialId, capacity: {...capacity}}));
+  }
   const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'transportThreshold', 'setupMs', 'initialRecipeId', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
     r.at('name').text(station.name);
     const rows = r.at('plan').array(station.plan);
@@ -309,30 +344,16 @@ export function compileConfig(value: unknown): RunConfig {
     r.at('lunchReplacement').literal(station.lunchReplacement, false);
     const costs = r.at('costs').object(station.costs, ['perShift', 'perLunchHour', 'capital']);
     const br = r.at('inputBuffer');
-    let inputBuffers: {materialId: string; capacity: ResolvedBuffer}[];
-    if (station.inputBuffer && typeof station.inputBuffer === 'object' && 'kind' in station.inputBuffer && station.inputBuffer.kind === 'materials') {
-      const object = br.object(station.inputBuffer, ['kind', 'materials']);
-      const seenMaterials = new Set<string>();
-      inputBuffers = br.at('materials').array(object.materials).map((value, index) => {
-        const mr = br.at('materials').at(index), entry = mr.object(value, ['materialId', 'capacity']);
-        const materialId = mr.at('materialId').text(entry.materialId);
-        if (!inputIds.includes(materialId) || seenMaterials.has(materialId)) mr.at('materialId').fail('reference', 'Ёмкости должны соответствовать уникальным входным материалам плана.', 'Capacities must match unique plan input materials.');
-        seenMaterials.add(materialId);
-        return {materialId, capacity: mr.at('capacity').buffer(entry.capacity)};
-      });
-      if (inputBuffers.length !== inputIds.length) br.fail('capacity', 'Нужна ёмкость для каждого входного материала.', 'Every input material requires a capacity.');
-      inputBuffers.sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
-    } else {
-      const capacity = br.buffer(station.inputBuffer);
-      inputBuffers = inputIds.map(materialId => ({materialId, capacity: {...capacity}}));
-    }
+    const inputBuffers = resolveBuffers(station.inputBuffer, br, inputIds, defaultInput);
+    const outputIds = [...new Set(plannedRecipes.map(recipe => recipe.output.materialId))].sort();
+    const outputBuffers = resolveBuffers(station.outputBuffer, r.at('outputBuffer'), outputIds, defaultOutput);
     for (const row of plan) for (const input of recipes.find(recipe => recipe.id === row.recipeId)!.inputs) {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
       if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * row.repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
     return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, setupMs, initialRecipeId, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
       timeMs: first.timeMs, cv: first.cv, inputBuffers,
-      outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
+      outputBuffers,
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};
   }));
   const sources = byId(entries('sources', ['id', 'name', 'materialId', 'availability', 'quantity', 'intervalMs']).map(({object: source, reader: r, id}) => {
@@ -422,7 +443,7 @@ export function compileConfig(value: unknown): RunConfig {
   for (const station of stations) {
     for (const location of ['input', 'output'] as const) {
       for (const materialId of location === 'input' ? station.inputBuffers.map(input => input.materialId) : new Set(stationRecipes(station).map(recipe => recipe.output.materialId))) {
-        const buffer = location === 'input' ? inputCapacity(station, materialId) : station.outputBuffer;
+        const buffer = location === 'input' ? inputCapacity(station, materialId) : outputCapacity(station, materialId);
         const total = initialStocks.filter(s => s.ownerId === station.id && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + BigInt(s.quantity), 0n);
         if (total > BigInt(Number.MAX_SAFE_INTEGER) || (buffer.kind === 'quantity' && total > BigInt(buffer.quantity))) new Reader('config.initialStocks', station.id).fail('capacity', `Запас ${materialId} превышает ёмкость буфера или диапазон.`, `Stock ${materialId} exceeds buffer capacity or range.`);
       }

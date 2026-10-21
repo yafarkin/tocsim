@@ -1,5 +1,5 @@
 import { moneyToJSON } from './arithmetic';
-import { freezeData } from './config';
+import { freezeData, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 
 /** Internal operation token is deliberately excluded from UI snapshots. */
@@ -140,7 +140,8 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const count = (location: StockState['location'], materialId: string) => state.stocks.filter(s => s.ownerId === station.stationId && s.location === location && s.materialId === materialId).reduce((sum, stock) => sum + stock.quantity, 0);
       const outputMaterialId = state.stocks.find(stock => stock.ownerId === station.stationId && stock.location === 'held')?.materialId ?? recipe.output.materialId;
       const held = count('held', outputMaterialId);
-      const direct = config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0;
+      const capacity = outputCapacity(config, outputMaterialId);
+      const direct = capacity.kind === 'quantity' && capacity.quantity === 0;
       const routes = run.resolved.routes.filter(r => r.fromId === station.stationId && r.materialId === outputMaterialId);
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
