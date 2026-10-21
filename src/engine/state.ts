@@ -90,7 +90,9 @@ export interface LineState {
 export interface StationSnapshot extends Omit<StationState, 'operationVersion' | 'operationOrdinal'> {
   progress: number | null;
   inputs: {materialId: string; quantity: number; missingQuantity: number; reservedQuantity: number}[];
+  /** Material of held work, or the next recipe output when the station is clear. */
   output: {materialId: string; quantity: number; heldQuantity: number};
+  outputs: {materialId: string; quantity: number; heldQuantity: number}[];
   blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
 export interface LineSnapshot {
@@ -107,7 +109,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 10;
+  schemaVersion: 11;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -122,7 +124,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 10,
+    schemaVersion: 11,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -144,6 +146,9 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
         inputs: config.inputBuffers.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, (recipe.inputs.find(component => component.materialId === input.materialId)?.quantity ?? 0) * row.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: outputMaterialId, quantity: count('output', outputMaterialId), heldQuantity: held},
+        outputs: [...new Set(config.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort().map(materialId => ({
+          materialId, quantity: count('output', materialId), heldQuantity: count('held', materialId),
+        })),
         blockedBy: held > 0 && station.transferReady ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
     }),

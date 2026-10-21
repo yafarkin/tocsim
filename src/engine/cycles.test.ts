@@ -5,7 +5,7 @@ import type { DeepReadonly } from './config';
 import { processingDuration } from './random';
 import { Simulation } from './simulation';
 import type { Snapshot } from './state';
-import { cyclicLine } from './test-fixtures';
+import { blockedCyclicLine, cyclicLine } from './test-fixtures';
 const M = 60_000, Q = 1_000_000;
 const counter = (s: DeepReadonly<Snapshot>, material: string) => s.line!.counters.find(c => c.materialId === material)!;
 function balance(s: DeepReadonly<Snapshot>, initialRawA = 12 * Q, initialRawB = 12 * Q, cost = 144 * Q) {
@@ -17,31 +17,6 @@ function balance(s: DeepReadonly<Snapshot>, initialRawA = 12 * Q, initialRawB = 
   const remainingCost = s.stocks.reduce((sum, stock) => sum + BigInt(stock.cost), 0n);
   const disposedCost = s.line!.counters.reduce((sum, c) => sum + BigInt(c.soldCost) + BigInt(c.scrapCost), 0n);
   expect(remainingCost + disposedCost).toBe(BigInt(cost));
-}
-function blockedLine(buffered: boolean) {
-  const config = cyclicLine();
-  config.stations[0]!.plan[0]!.batches = 1;
-  config.stations[0]!.outputBuffer = {kind: 'quantity', quantity: buffered ? '1' : '0'};
-  for (const material of config.materials.filter(m => m.id === 'a' || m.id === 'b')) {
-    material.role = 'intermediate'; delete material.salePrice;
-  }
-  config.materials.push({id: 'product', name: 'Product', role: 'finished', color: 'black', salePrice: '30'});
-  config.recipes.push(
-    {id: 'finishA', name: 'Finish A', kind: 'production', inputs: [{materialId: 'a', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
-    {id: 'finishB', name: 'Finish B', kind: 'production', inputs: [{materialId: 'b', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
-  );
-  const consumer = structuredClone(config.stations[0]!);
-  consumer.id = 's2'; consumer.outputBuffer = {kind: 'quantity', quantity: '0'};
-  consumer.inputBuffer = {kind: 'quantity', quantity: '1'};
-  consumer.plan = [
-    {id: 'finishRowB', recipeId: 'finishB', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 10 * M, cv: 0}},
-    {id: 'finishRowA', recipeId: 'finishA', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 10 * M, cv: 0}},
-  ];
-  config.stations.push(consumer);
-  for (const route of config.routes.filter(r => r.toId === 'market')) route.toId = 's2';
-  config.routes.push({id: 'sellProduct', fromId: 's2', toId: 'market', materialId: 'product'});
-  config.initialStocks.push({id: 'waitingA', ownerId: 's2', location: 'input', materialId: 'a', quantity: '1', cost: '7'});
-  return config;
 }
 
 describe('cyclic recipe execution', () => {
@@ -127,7 +102,7 @@ describe('cyclic recipe execution', () => {
   });
 
   it.each([false, true])('advances after completion but blocks the next batch on held A (buffered=%s)', buffered => {
-    const sim = new Simulation(compileConfig(blockedLine(buffered)));
+    const sim = new Simulation(compileConfig(blockedCyclicLine(buffered)));
     const s = sim.advanceTo(buffered ? 4 * M : M);
     expect(s.stations[0]).toMatchObject({planIndex: 1, completedBatches: 0, status: 'blocked', reason: 'output', remainingProcessingMs: null});
     expect(s.stations[0]!.output).toMatchObject({materialId: 'a', heldQuantity: Q});
@@ -145,7 +120,7 @@ describe('cyclic recipe execution', () => {
   });
 
   it('keeps the current row and remaining reservation when an intermediate repetition is blocked', () => {
-    const config = blockedLine(false);
+    const config = blockedCyclicLine(false);
     config.stations[0]!.plan[0]!.processing.repetitions = 2;
     const sim = new Simulation(compileConfig(config));
     const s = sim.advanceTo(M);

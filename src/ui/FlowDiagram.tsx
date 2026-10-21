@@ -45,7 +45,8 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
   const materialName = (id: string) => {const m = run.source.materials.find(m => m.id === id)!; return nameFor(id, m.name, text);};
   const materialColor = (id: string) => run.source.materials.find(m => m.id === id)!.color;
   const stationName = (id: string) => nameFor(id, run.source.stations.find(s => s.id === id)!.name, text);
-  const sold = view.model.line!.counters.reduce((sum, c) => sum + BigInt(c.sold), 0n).toString();
+  const finished = run.resolved.materials.filter(material => material.role === 'finished');
+  const sold = (materialId: string) => view.model.line!.counters.find(counter => counter.materialId === materialId)!.sold;
   const [overlay, setOverlay] = useState({sequence: -1, visible: false});
   const seen = useRef(-1);
   useEffect(() => {
@@ -122,6 +123,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
             {state.output.heldQuantity > 0 && <rect x={x + 132} y="247" width="29" height="11" rx="2" fill={outputColor}/>}
             <text x={x + 14} y="279" className={`tiny batch-output-${state.transferReady ? 'released' : 'accumulating'}`} data-batch-output={id}>{outputStatus}</text>
             <text x={x + 14} y="301" className="tiny">{text.batch} {row.repetitions}, {text.thresholdShort} {quantityText(config.transportThreshold)}</text>
+            {state.outputs.length === 1 ? <>
             <g className="buffer">
               <text x={x + 217} y="139" textAnchor="middle" className="small">{text.output}</text>
               {direct ? <><title>{text.directLong}</title><path d={`M ${x + 181} 215 H ${x + 240}`} className="direct-path"/><text x={x + 214} y="246" textAnchor="middle" className="tiny">{text.direct}</text></>
@@ -129,15 +131,40 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                   <rect x={x + 194} y="267" width={46 * (outputFill ?? 0)} height="3" fill={outputColor}/>
                   <text x={x + 217} y="295" textAnchor="middle" className="quantity">{quantityText(state.output.quantity)}</text><text x={x + 217} y="314" textAnchor="middle" className="tiny">/ {cap(config.outputBuffer)}</text></>}
             </g>
-            <foreignObject x={x - 5} y={stationReasonY(state.inputs.length)} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.blockedBy.length))}><div className={`reason reason-${state.status}`}>{stationReason(state, run, text)}</div></foreignObject>
+            </> : <>
+              <text x={x + 230} y="139" textAnchor="middle" className="small">{text.output}</text>
+              {state.outputs.map((entry, outputIndex) => {
+                const y = 148 + outputIndex * 86, color = materialColor(entry.materialId), name = materialName(entry.materialId);
+                const fill = fillRatio(entry.quantity, config.outputBuffer);
+                return <g key={entry.materialId} className="buffer" data-output-material={entry.materialId} data-output-quantity={entry.quantity} data-held-quantity={entry.heldQuantity}>
+                  <title>{`${name}: ${text.output} ${quantityText(entry.quantity)}${direct ? '' : ` / ${cap(config.outputBuffer)}`}; ${text.readyOutput}: ${quantityText(entry.heldQuantity)}`}</title>
+                  <path d={`M ${x + 180} 215 H ${x + 184} V ${multiInputY(outputIndex)} H ${x + 190}`} className="direct-path"/>
+                  <rect x={x + 190} y={y} width="80" height="78" rx="5"/>
+                  <text x={x + 230} y={y + 17} textAnchor="middle" className="tiny">{name.length > 12 ? `${name.slice(0, 11)}…` : name}</text>
+                  <text x={x + 230} y={y + 38} textAnchor="middle" className="small">{direct ? text.direct : `${quantityText(entry.quantity)} / ${cap(config.outputBuffer)}`}</text>
+                  <text x={x + 230} y={y + 57} textAnchor="middle" className="tiny">{text.readyOutput}: {quantityText(entry.heldQuantity)}</text>
+                  <rect x={x + 196} y={y + 68} width="68" height="4" rx="2" fill="var(--track)"/>
+                  <rect x={x + 196} y={y + 68} width={direct ? 68 : 68 * (fill ?? 0)} height="4" rx="2" fill={color}/>
+                </g>;
+              })}
+            </>}
+            <foreignObject x={x - 5} y={stationReasonY(Math.max(state.inputs.length, state.outputs.length))} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.outputs.length, state.blockedBy.length))}><div className={`reason reason-${state.status}`}>{stationReason(state, run, text)}</div></foreignObject>
           </g>;
         })}
-        <g className="endpoint"><rect x={marketX} y="147" width="130" height="118" rx="8"/><text x={marketX + 65} y="173" textAnchor="middle" className="small">{text.market}</text>
-          <text x={marketX + 65} y="220" textAnchor="middle" className="output-total" data-testid="output-total">{quantityText(sold)}</text><text x={marketX + 65} y="246" textAnchor="middle" className="tiny">{text.unit}</text>
+        <g className="endpoint"><rect x={marketX} y="147" width="130" height={finished.length === 1 ? 118 : 56 + finished.length * 46} rx="8"/><text x={marketX + 65} y="173" textAnchor="middle" className="small">{text.market}</text>
+          {finished.length === 1 ? <>
+            <text x={marketX + 65} y="220" textAnchor="middle" className="output-total" data-testid="output-total">{quantityText(sold(finished[0]!.id))}</text><text x={marketX + 65} y="246" textAnchor="middle" className="tiny">{text.unit}</text>
+          </> : finished.map((material, index) => <g key={material.id} data-sold-material={material.id}>
+            <title>{`${materialName(material.id)}: ${quantityText(sold(material.id))}`}</title>
+            <text x={marketX + 65} y={196 + index * 46} textAnchor="middle" className="tiny">{materialName(material.id).slice(0, 16)}</text>
+            <text x={marketX + 65} y={218 + index * 46} textAnchor="middle" className="small">{quantityText(sold(material.id))}</text>
+          </g>)}
         </g>
         {overlay.visible && overlay.sequence === view.transfers.sequence && view.transfers.items.map(transfer => {
           const edge = transfer.kind === 'buffer' ? null : run.resolved.routes.find(route => route.fromId === transfer.fromId && route.toId === transfer.toId && route.materialId === transfer.materialId);
-          const geometry = edge ? layout.paths.get(edge.id)! : {path: `M ${xOf(transfer.fromId) + 160} ${yOf(transfer.fromId) + 215} H ${xOf(transfer.fromId) + 210}`, x: xOf(transfer.fromId) + 210, y: yOf(transfer.fromId) + 215};
+          const bufferOutputs = view.model.stations.find(station => station.stationId === transfer.fromId)?.outputs ?? [];
+          const bufferY = yOf(transfer.fromId) + (bufferOutputs.length > 1 ? multiInputY(bufferOutputs.findIndex(output => output.materialId === transfer.materialId)) : 215);
+          const geometry = edge ? layout.paths.get(edge.id)! : {path: `M ${xOf(transfer.fromId) + 160} ${yOf(transfer.fromId) + 215} H ${xOf(transfer.fromId) + 184} V ${bufferY} H ${xOf(transfer.fromId) + 210}`, x: xOf(transfer.fromId) + 210, y: bufferY};
           const key = `${transfer.fromId}:${transfer.toId}:${transfer.materialId}:${transfer.kind}`;
           return <g key={`${view.transfers.sequence}:${key}`} className={`transfer-token ${moving ? 'moving' : ''}`} transform={moving ? undefined : `translate(${geometry.x} ${geometry.y})`} data-transfer={key}>
             {moving && <animateMotion dur="0.5s" path={geometry.path} fill="freeze"/>}
@@ -157,8 +184,8 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
       <div><dt>{text.awaitingUnload}</dt><dd>{text.unloadHelp}</dd></div>
     </dl></details>
     <details className="text-view"><summary>{text.textView}</summary>
-      <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.held}</th></tr></thead><tbody>
-        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
+      <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.output} / {text.readyOutput}</th></tr></thead><tbody>
+        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
       <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
     </details>

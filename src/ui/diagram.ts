@@ -13,6 +13,7 @@ export function fillRatio(quantity: number, capacity: DeepReadonly<ResolvedBuffe
   return capacity.kind === 'infinite' || capacity.quantity === 0 ? null : Math.min(1, quantity / capacity.quantity);
 }
 
+export const outputMaterials = (run: RunConfig, stationId: string): string[] => [...new Set(run.resolved.stations.find(station => station.id === stationId)!.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort();
 export const multiInputY = (index: number) => 187 + index * 86;
 export const stationReasonHeight = (lines: number) => Math.max(80, lines * 30);
 export const stationReasonY = (inputs: number) => Math.max(339, inputs > 1 ? 148 + (inputs - 1) * 86 + 78 + 25 : 339);
@@ -33,8 +34,9 @@ export function graphLayout(run: RunConfig) {
   }
   // Every final output shares one market column, including shorter branches.
   depths.set('market', Math.max(...run.resolved.stations.map(s => depths.get(s.id)!)) + 1);
+  const nodeGap = run.resolved.stations.some(station => outputMaterials(run, station.id).length > 1) ? NODE_GAP + 30 : NODE_GAP;
   const rowPitch = Math.max(420, ...run.resolved.stations.map(station => {
-    const count = station.inputBuffers.length;
+    const count = Math.max(station.inputBuffers.length, outputMaterials(run, station.id).length);
     const lines = Math.max(count, run.resolved.routes.filter(route => route.fromId === station.id).length);
     return stationReasonY(count) + stationReasonHeight(lines) + 1;
   }));
@@ -44,14 +46,16 @@ export function graphLayout(run: RunConfig) {
     const priority = (id: string) => run.resolved.stations.find(s => s.id === id)?.priority ?? 0;
     const layer = ids.filter(id => depths.get(id) === depth).sort((a, b) => priority(b) - priority(a) || (a < b ? -1 : a > b ? 1 : 0));
     rows = Math.max(rows, layer.length);
-    layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * NODE_GAP - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * NODE_GAP, y: row * rowPitch}));
+    layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * nodeGap - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * nodeGap, y: row * rowPitch}));
   }
   const baseHeight = rows * rowPitch + 60;
   const paths = new Map<string, {path: string; x: number; y: number}>();
   let lanes = 0;
   for (const route of run.resolved.routes) {
     const from = nodes.get(route.fromId)!, to = nodes.get(route.toId)!;
-    const x1 = from.x + (from.depth === 0 ? 118 : 244), y1 = from.y + 215;
+    const outputs = from.depth === 0 ? [] : outputMaterials(run, route.fromId);
+    const x1 = from.x + (from.depth === 0 ? 118 : outputs.length > 1 ? 274 : 244);
+    const y1 = from.y + (outputs.length > 1 ? multiInputY(outputs.indexOf(route.materialId)) : 215);
     const station = run.resolved.stations.find(station => station.id === route.toId);
     const inputs = station?.inputBuffers ?? [];
     const multiple = inputs.length > 1;

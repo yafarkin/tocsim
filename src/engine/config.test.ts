@@ -28,7 +28,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffers: [{materialId: 'raw', capacity: {quantity: 2_000_000}}], outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffers[0]!.capacity).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.13.0');
+    expect(run.engineVersion).toBe('0.14.0');
     expect(run.rngVersion).toBe('counter32-fixed-lognormal-1');
     expect(run.schemaVersion).toBe(1);
   });

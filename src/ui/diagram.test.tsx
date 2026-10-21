@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { compileConfig } from '../engine/config';
 import { Runner } from '../runner/runner';
 import { Simulation } from '../engine/simulation';
-import { cyclicLine } from '../engine/test-fixtures';
+import { blockedCyclicLine, cyclicLine } from '../engine/test-fixtures';
 import { FIRST_X, NODE_GAP, fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { previewConfig, exampleRuns } from './preview';
 import { labels } from './i18n';
@@ -32,7 +32,7 @@ describe('diagram derived from configuration and snapshot', () => {
     expect(svg).toContain('Заполнен вход: Обработка');
     expect(svg).toContain('Не хватает: 1 Обработанная деталь');
     expect(svg).toContain('Текстовое представление');
-    expect(svg).toContain('На посту'); expect(svg).toContain('Без буфера');
+    expect(svg).toContain('Выход / Готово'); expect(svg).toContain('Без буфера');
     expect(svg).not.toMatch(/NaN|Infinity|0\/0/);
     expect(svg).toContain(`viewBox="0 0 ${FIRST_X + 3 * NODE_GAP + 130} 480"`);
     runner.dispose();
@@ -172,7 +172,44 @@ it('uses the current cycle row profile and keeps every input route attached in R
     const markup = renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced/>);
     expect(markup).toContain(`2 ${text.minutes} ${text.perCycle}`);
     expect(markup).toContain('Raw B');
+    expect(markup).toContain('data-sold-material="a"');
+    expect(markup).toContain('data-sold-material="b"');
     expect(markup).not.toMatch(/NaN|Infinity/);
   }
+  runner.dispose();
+});
+
+
+it('shows old buffered A, held A and every output route after the cursor has moved to B', () => {
+  const run = compileConfig(blockedCyclicLine(true)), runner = new Runner(run);
+  const model = new Simulation(run).advanceTo(4 * 60_000), layout = graphLayout(run);
+  expect(model.stations[0]!.planIndex).toBe(1);
+  expect(layout.paths.get('sellA')!.path).not.toBe(layout.paths.get('sellB')!.path);
+  for (const language of ['ru', 'en'] as const) {
+    const markup = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model, status: 'paused'}} text={labels(language)} reduced/>);
+    expect(markup).toContain('data-output-material="a" data-output-quantity="1000000" data-held-quantity="1000000"');
+    expect(markup).toContain('data-output-material="b" data-output-quantity="0" data-held-quantity="0"');
+    expect(markup).toContain(`A: ${labels(language).output} 1, ${labels(language).readyOutput} 1`);
+    expect(markup).toContain(`${labels(language).fullOutput}: Первый`);
+    expect(markup).not.toMatch(/NaN|Infinity|0\/0/);
+  }
+  runner.dispose();
+});
+
+it('keeps multiple direct outputs named and expands row height for three or more output materials', () => {
+  const config = cyclicLine();
+  for (const id of ['c', 'd']) {
+    config.materials.push({id, name: id.toUpperCase(), color: 'blue', role: 'finished', salePrice: '1'});
+    config.recipes.push({id: `recipe-${id}`, name: id, kind: 'production', inputs: [{materialId: 'raw', quantity: '1'}], output: {materialId: id, quantity: '1'}});
+    config.stations[0]!.plan.push({id: `row-${id}`, recipeId: `recipe-${id}`, batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 60_000, cv: 0}});
+    config.routes.push({id: `sell-${id}`, fromId: 's1', toId: 'market', materialId: id});
+  }
+  const run = compileConfig(config), runner = new Runner(run), layout = graphLayout(run);
+  const markup = renderToStaticMarkup(<FlowDiagram run={run} view={runner.getView()} text={labels('en')} reduced/>);
+  for (const id of ['a', 'b', 'c', 'd']) expect(markup).toContain(`data-output-material="${id}"`);
+  expect(markup).not.toMatch(/NaN|Infinity|0\/0/);
+  expect(layout.height).toBeGreaterThan(600);
+  const starts = ['sellA', 'sellB', 'sell-c', 'sell-d'].map(id => layout.paths.get(id)!.path.split(' H ')[0]);
+  expect(new Set(starts).size).toBe(4);
   runner.dispose();
 });

@@ -60,3 +60,29 @@ export function cyclicLine(): EditorConfig {
   ];
   return config;
 }
+
+export function blockedCyclicLine(buffered: boolean) {
+  const config = cyclicLine();
+  config.stations[0]!.plan[0]!.batches = 1;
+  config.stations[0]!.outputBuffer = {kind: 'quantity', quantity: buffered ? '1' : '0'};
+  for (const material of config.materials.filter(m => m.id === 'a' || m.id === 'b')) {
+    material.role = 'intermediate'; delete material.salePrice;
+  }
+  config.materials.push({id: 'product', name: 'Product', role: 'finished', color: 'black', salePrice: '30'});
+  config.recipes.push(
+    {id: 'finishA', name: 'Finish A', kind: 'production', inputs: [{materialId: 'a', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
+    {id: 'finishB', name: 'Finish B', kind: 'production', inputs: [{materialId: 'b', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
+  );
+  const consumer = structuredClone(config.stations[0]!);
+  consumer.id = 's2'; consumer.outputBuffer = {kind: 'quantity', quantity: '0'};
+  consumer.inputBuffer = {kind: 'quantity', quantity: '1'};
+  consumer.plan = [
+    {id: 'finishRowB', recipeId: 'finishB', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 600_000, cv: 0}},
+    {id: 'finishRowA', recipeId: 'finishA', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 600_000, cv: 0}},
+  ];
+  config.stations.push(consumer);
+  for (const route of config.routes.filter(r => r.toId === 'market')) route.toId = 's2';
+  config.routes.push({id: 'sellProduct', fromId: 's2', toId: 'market', materialId: 'product'});
+  config.initialStocks.push({id: 'waitingA', ownerId: 's2', location: 'input', materialId: 'a', quantity: '1', cost: '7'});
+  return config;
+}
