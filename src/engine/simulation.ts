@@ -46,7 +46,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(config);
         if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) {station.status = 'blocked'; station.reason = 'output';}
-        else if (recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) {station.status = 'starved'; station.reason = 'input';}
+        else if (!ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved') && recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity * config.repetitions)) {station.status = 'starved'; station.reason = 'input';}
         else {station.status = 'idle'; station.reason = null;}
       }
     }
@@ -150,13 +150,14 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
       if (station.remainingProcessingMs !== 0) throw new EventError('value', event.stationId, {ru: 'Операция ещё не завершена.', en: 'Operation is not complete yet.'});
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(config);
-      completeProduction(ctx.state, config.id, recipe.output, station.operationDurationMs!, ctx.timeMs);
+      const multiplier = config.mode === 'simultaneous' ? config.repetitions : 1;
+      completeProduction(ctx.state, config.id, {...recipe.output, quantity: recipe.output.quantity * multiplier}, station.operationDurationMs!, ctx.timeMs, recipe.inputs.map(input => ({...input, quantity: input.quantity * multiplier})));
       for (const input of recipe.inputs) {
         const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
-        inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity);
+        inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity * multiplier);
       }
       const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
-      outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity);
+      outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity * multiplier);
       station.remainingProcessingMs = null; station.operationDurationMs = null;
       wakeTransfer(ctx);
     },
@@ -192,8 +193,12 @@ function createLineHandlers(run: RunConfig): EventHandlers {
           continue;
         }
         if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) continue;
-        if (recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
-        reserveInputs(ctx.state, config.id, recipe.inputs);
+        const reserved = ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved');
+        if (!reserved) {
+          const kit = recipe.inputs.map(input => ({...input, quantity: input.quantity * config.repetitions}));
+          if (kit.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
+          reserveInputs(ctx.state, config.id, kit);
+        }
         if (station.operationOrdinal === Number.MAX_SAFE_INTEGER) throw new RandomError({ru: 'Исчерпан счётчик операций.', en: 'Operation counter is exhausted.'});
         station.operationDurationMs = processingDuration(config.timeMs, config.cv, run.resolved.seed, config.id, config.recipeId, station.operationOrdinal++);
         station.remainingProcessingMs = station.operationDurationMs; station.status = 'processing'; station.reason = null;

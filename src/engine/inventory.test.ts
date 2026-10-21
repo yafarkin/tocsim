@@ -246,7 +246,7 @@ describe('range, capacity and transactional failures', () => {
     inventory.stocks[0]!.provenance.processingMs.s1 = 99n;
     inventory.stocks[0]!.provenance.defectSourceIds.push('another');
     const decoded = JSON.parse(JSON.stringify(snapshot));
-    expect(decoded.schemaVersion).toBe(7);
+    expect(decoded.schemaVersion).toBe(8);
     expect(decoded.stocks[0].provenance.processingMs.s1).toBe('13');
     expect(decoded.stocks[0].provenance.defectSourceIds).toEqual(['bad']);
     expect(Object.isFrozen(snapshot.stocks[0]!.provenance.processingMs)).toBe(true);

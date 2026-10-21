@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.9.0';
+export const ENGINE_VERSION = '0.10.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -25,7 +25,7 @@ export interface StationConfig {
   id: string; name: string; priority: number;
   plan: {
     id: string; recipeId: string; batches: number;
-    processing: { mode: 'sequential'; repetitions: number; timeMs: number; cv: number };
+    processing: { mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number };
   }[];
   inputBuffer: InputBufferConfig; outputBuffer: BufferConfig;
   setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
@@ -55,7 +55,7 @@ export interface ResolvedConfig {
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
-    id: string; priority: number; planId: string; recipeId: string; timeMs: number; cv: number;
+    id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
     inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
   }[];
@@ -275,8 +275,11 @@ export function compileConfig(value: unknown): RunConfig {
     if (!recipe) pr.at('recipeId').fail('reference', `Рецепт ${recipeId} не найден.`, `Recipe ${recipeId} was not found.`);
     pr.at('batches').literal(row.batches, 1);
     const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv']);
-    pr.at('processing').at('mode').literal(processing.mode, 'sequential');
-    pr.at('processing').at('repetitions').literal(processing.repetitions, 1);
+    const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
+    const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
+    for (const amount of [...recipe!.inputs, recipe!.output]) {
+      if (BigInt(amount.quantity) * BigInt(repetitions) > BigInt(Number.MAX_SAFE_INTEGER)) pr.at('processing').at('repetitions').fail('value', 'Количество полной партии превышает диапазон.', 'Full batch quantity exceeds range.');
+    }
     const cv = processing.cv;
     if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
     r.at('setupMs').literal(station.setupMs, 0);
@@ -304,9 +307,9 @@ export function compileConfig(value: unknown): RunConfig {
     }
     for (const input of recipe!.inputs) {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
-      if (capacity.kind === 'quantity' && capacity.quantity < input.quantity) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект рецепта.`, `Input buffer ${input.materialId} cannot hold a complete recipe kit.`);
+      if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
-    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), planId, recipeId,
+    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), planId, recipeId, mode: mode as 'sequential' | 'simultaneous', repetitions,
       timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number, inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};

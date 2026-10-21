@@ -102,7 +102,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 7;
+  schemaVersion: 8;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -117,7 +117,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 7,
+    schemaVersion: 8,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -135,7 +135,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         stationId: station.stationId, status: station.status, reason: station.reason,
         remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
         progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? config.timeMs))),
-        inputs: recipe.inputs.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null ? Math.max(0, input.quantity - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
+        inputs: recipe.inputs.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, input.quantity * config.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: recipe.output.materialId, quantity: count('output', recipe.output.materialId), heldQuantity: held},
         blockedBy: held > 0 ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
@@ -144,7 +144,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       termination: state.timeMs === run.resolved.durationMs ? 'horizon' : 'running',
       flow: state.stations.some(s => s.remainingProcessingMs !== null) || run.resolved.stations.some(s => {
         const inputs = run.resolved.recipes.find(r => r.id === s.recipeId)!.inputs;
-        return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity);
+        return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity * s.repetitions);
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',

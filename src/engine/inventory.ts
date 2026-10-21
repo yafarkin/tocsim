@@ -195,7 +195,7 @@ export function consumeStock(state: InventoryState, from: StockAddress, material
   });
 }
 
-/** One complete kit for one recipe repetition, atomically removed from the input. */
+/** Atomically reserve a complete batch kit from the input. */
 export function reserveInputs(state: InventoryState, stationId: string, inputs: readonly MaterialAmount[]): StockState[] {
   return transaction(state, draft => {
     const at: StockAddress = {ownerId: stationId, location: 'input'}; address(at);
@@ -210,15 +210,15 @@ export function reserveInputs(state: InventoryState, stationId: string, inputs: 
   });
 }
 
-/** Consume the single reserved kit and create one homogeneous output lot on the station.
- * Multiple repetitions and their individual defects must remain separate in future batch work.
- */
-export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0): StockState {
+/** Consume a reserved kit (or the entire reservation) and create its output lot. */
+export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
   return transaction(state, draft => {
     address({ownerId: stationId, location: 'held'});
     quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId); quantity(readyAtMs, stationId, false);
     if (!output.materialId || output.quantity % 1_000_000 !== 0) fail('value', stationId, 'Производственный выход должен быть целым положительным числом изделий.', 'Production output must be a positive whole number of items.');
-    const inputs = draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
+    if (kit && (kit.length === 0 || new Set(kit.map(input => input.materialId)).size !== kit.length)) fail('value', stationId, 'Нужен уникальный непустой комплект.', 'A unique nonempty kit is required.');
+    const inputs = kit ? kit.flatMap(input => takeFIFO(draft, {ownerId: stationId, location: 'reserved'}, input.materialId, input.quantity))
+      : draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
     if (inputs.length === 0 || draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held')) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
     let cost = 0n;
     const provenance: Provenance = {origin: {kind: 'unreleased'}, defective: false, defectSourceIds: [], processingMs: {}};
