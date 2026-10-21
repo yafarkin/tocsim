@@ -69,7 +69,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           <text x="78" y="242" textAnchor="middle" className="small">{materialName(source.materialId)}</text>
           {run.resolved.sources.length > 1 && <text x="78" y="286" textAnchor="middle" className="tiny">{source.id}</text>}
         </g>)}
-        {run.resolved.routes.map(route => <path key={route.id} d={layout.paths.get(route.id)!.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</title></path>)}
+        {run.resolved.routes.map(route => <path key={route.id} d={layout.paths.get(route.id)!.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{`${objectName(route.fromId)} → ${objectName(route.toId)}: ${materialName(route.materialId)}`}</title></path>)}
         {order.map((id, index) => {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
           const state = view.model.stations.find(s => s.stationId === id)!, input = state.inputs[0]!, inputColor = materialColor(input.materialId), outputColor = materialColor(state.output.materialId);
@@ -100,7 +100,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                 const y = 148 + inputIndex * 86, capacity = inputCapacity(config, entry.materialId), fill = fillRatio(entry.quantity, capacity);
                 const name = materialName(entry.materialId), color = materialColor(entry.materialId);
                 return <g key={entry.materialId} className="buffer" data-input-material={entry.materialId}>
-                  <title>{name}: {quantityText(entry.quantity)} / {cap(capacity)}; {text.reserved}: {quantityText(entry.reservedQuantity)}</title>
+                  <title>{`${name}: ${quantityText(entry.quantity)} / ${cap(capacity)}; ${text.reserved}: ${quantityText(entry.reservedQuantity)}`}</title>
                   <rect x={x - 92} y={y} width="80" height="78" rx="5"/>
                   <text x={x - 52} y={y + 17} textAnchor="middle" className="tiny">{name.length > 12 ? `${name.slice(0, 11)}…` : name}</text>
                   <text x={x - 52} y={y + 38} textAnchor="middle" className="small">{quantityText(entry.quantity)} / {cap(capacity)}</text>
@@ -141,7 +141,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           const key = `${transfer.fromId}:${transfer.toId}:${transfer.materialId}:${transfer.kind}`;
           return <g key={`${view.transfers.sequence}:${key}`} className={`transfer-token ${moving ? 'moving' : ''}`} transform={moving ? undefined : `translate(${geometry.x} ${geometry.y})`} data-transfer={key}>
             {moving && <animateMotion dur="0.5s" path={geometry.path} fill="freeze"/>}
-            <title>{text.transfer}: {quantityText(transfer.quantity)} {materialName(transfer.materialId)}</title>
+            <title>{`${text.transfer}: ${quantityText(transfer.quantity)} ${materialName(transfer.materialId)}`}</title>
             <circle cx="0" cy="0" r="7" fill={materialColor(transfer.materialId)} stroke="var(--surface)" strokeWidth="2"/>
             <rect x="-23" y="-33" width="46" height="20" rx="5" fill="var(--surface)" stroke="var(--border)"/>
             <text x="0" y="-19" textAnchor="middle" className="tiny">{quantityText(transfer.quantity)}</text>
@@ -150,6 +150,12 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
       </svg>
     </div>
     <p className="flow-note">{text.note}</p>
+    <details className="scheme-help"><summary>{text.schemeHelp}</summary><dl>
+      <div><dt>{text.input}</dt><dd>{text.inputHelp}</dd></div>
+      <div><dt>{text.reserved}</dt><dd>{text.reserveHelp}</dd></div>
+      <div><dt>{text.readyOutput}</dt><dd>{text.readyHelp}</dd></div>
+      <div><dt>{text.awaitingUnload}</dt><dd>{text.unloadHelp}</dd></div>
+    </dl></details>
     <details className="text-view"><summary>{text.textView}</summary>
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.held}</th></tr></thead><tbody>
         {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{state.progress === null ? '—' : `${Math.round(state.progress * 100)}%`}</td><td>{quantityText(state.output.heldQuantity)} {materialName(state.output.materialId)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}

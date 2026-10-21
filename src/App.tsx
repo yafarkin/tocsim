@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { version as appVersion } from '../package.json';
 import { clockAt, calendarForDuration } from './engine/calendar';
 import { compileConfig } from './engine/config';
 import type { DeepReadonly } from './engine/config';
 import { Runner } from './runner/runner';
 import type { PlaybackSpeed, RunnerView } from './runner/runner';
 import { FlowDiagram } from './ui/FlowDiagram';
+import { RunSummary } from './ui/RunSummary';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
 import { defaultBatchProfiles, exampleIds, previewConfig } from './ui/preview';
@@ -67,6 +69,7 @@ export function App() {
         </div>
         <div className="model-clock"><span>{text.day} {time.dayIndex + 1}</span><strong>{clock}</strong><span className={`playback-state playback-${status}`}>{status === 'paused' ? text.pausedView : status === 'running' ? text.running : status === 'finished' ? text.finished : status === 'error' ? text.error : status === 'stopped' ? text.stopped : text.ready}</span></div>
       </div>
+      {view && <RunSummary run={run} view={view} text={text} language={language}/>}
       {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
       <p className="variability-note">{text.cvHelp}</p>
       <div className="diagram-context"><p>{example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
@@ -91,7 +94,7 @@ export function App() {
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
       <p className="scroll-note">{text.scroll}</p>
       <div className="material-key" aria-label={text.material}>{run.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>
-      {view?.error && <p role="alert" className="run-error">{view.error.messages[language]}</p>}
     </section>
+    <footer className="version-info" aria-label={text.versions}><span>{text.appVersion} {appVersion}</span>{' '}<span>{text.engineVersion} {run.engineVersion}</span></footer>
   </main>;
 }

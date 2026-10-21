@@ -126,7 +126,7 @@ describe('batch diagram', () => {
       expect(svg).toContain(`${text.accumulating}: 2 / 3`);
       expect(svg).toContain(`${text.needs}: 6 ${text.prepared}`);
       expect(svg).toContain(`${text.batch} 6, ${text.thresholdShort} 3`);
-      expect(svg).not.toContain(text.awaitingUnload);
+      expect(svg).not.toContain('class="tiny batch-output-released"');
       expect(svg).not.toMatch(/NaN|Infinity/);
     }
     runner.dispose();

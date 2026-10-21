@@ -35,3 +35,8 @@
 @media(max-width:480px){.batch-editor{margin:14px 14px 0}}
 
 .batch-settings .threshold-help{color:var(--text);line-height:1.6}
+
+.scheme-help{margin:0 22px 20px;padding-top:12px;border-top:1px solid var(--line);font-size:14px}.scheme-help summary{width:fit-content;color:var(--accent)}.scheme-help dl{margin:14px 0;max-width:95ch}.scheme-help dl>div{margin:12px 0}.scheme-help dt{font-weight:600}.scheme-help dd{margin:4px 0 0;color:var(--muted);font-size:13px}
+.run-summary{margin:18px 22px;padding:16px 18px;border:1px solid var(--border);border-radius:6px;background:var(--soft)}.run-summary h2{margin:0 0 10px;font-size:18px}.run-summary p{margin:8px 0;font-size:14px}.run-summary .summary-help{color:var(--muted);font-size:12px;max-width:100ch}.run-summary table{margin:0}.run-summary th:first-child{min-width:120px}.run-summary td{font-variant-numeric:tabular-nums}.run-summary .run-error{color:var(--error)}
+.version-info{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:16px;color:var(--subtle);font-size:12px}
+@media(max-width:480px){.scheme-help{margin-left:14px;margin-right:14px}.run-summary{margin:14px;padding:12px}.run-summary p{font-size:13px}}
