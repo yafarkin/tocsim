@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.11.0';
+export const ENGINE_VERSION = '0.12.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -51,11 +51,17 @@ export interface EditorConfig {
 }
 
 export type ResolvedBuffer = { kind: 'quantity'; quantity: number } | { kind: 'infinite' };
+export interface ResolvedPlanRow {
+  id: string; recipeId: string; batches: number;
+  mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
+}
 export interface ResolvedConfig {
   seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
+    plan: ResolvedPlanRow[];
+    // First-row fields preserve existing single-recipe consumers until cycle execution is added.
     id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
     inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer; transportThreshold: number;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
@@ -266,26 +272,33 @@ export function compileConfig(value: unknown): RunConfig {
   }));
   const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'transportThreshold', 'setupMs', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
     r.at('name').text(station.name);
-    const plan = r.at('plan').array(station.plan);
-    if (plan.length !== 1) r.at('plan').fail('unsupported', 'Сейчас поддерживается одна строка плана на пост.', 'One plan row per station is currently supported.');
-    const pr = r.at('plan').at(0);
-    const row = pr.object(plan[0], ['id', 'recipeId', 'batches', 'processing']);
-    const planId = id(row.id, pr.at('id'));
-    const recipeId = pr.at('recipeId').text(row.recipeId);
-    const recipe = recipes.find(recipe => recipe.id === recipeId);
-    if (!recipe) pr.at('recipeId').fail('reference', `Рецепт ${recipeId} не найден.`, `Recipe ${recipeId} was not found.`);
-    pr.at('batches').literal(row.batches, 1);
-    const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv']);
-    const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
-    const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
-    for (const amount of [...recipe!.inputs, recipe!.output]) {
-      if (BigInt(amount.quantity) * BigInt(repetitions) > BigInt(Number.MAX_SAFE_INTEGER)) pr.at('processing').at('repetitions').fail('value', 'Количество полной партии превышает диапазон.', 'Full batch quantity exceeds range.');
-    }
+    const rows = r.at('plan').array(station.plan);
+    if (rows.length === 0) r.at('plan').fail('value', 'План должен содержать хотя бы одну строку.', 'Plan requires at least one row.');
     const tr = r.at('transportThreshold');
     const transportThreshold = tr.quantity(station.transportThreshold === undefined ? '1' : station.transportThreshold, true);
-    if (transportThreshold % 1_000_000 !== 0 || transportThreshold > recipe!.output.quantity * repetitions) tr.fail('value', 'Транспортный порог должен быть целым числом изделий от 1 до полного выхода партии.', 'Transport threshold must be a whole number of items from 1 to the full batch output.');
-    const cv = processing.cv;
-    if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
+    const plan = rows.map((value, index): ResolvedPlanRow => {
+      const pr = r.at('plan').at(index);
+      const row = pr.object(value, ['id', 'recipeId', 'batches', 'processing']);
+      const planId = id(row.id, pr.at('id'));
+      const recipeId = pr.at('recipeId').text(row.recipeId);
+      const recipe = recipes.find(recipe => recipe.id === recipeId);
+      if (!recipe) pr.at('recipeId').fail('reference', `Рецепт ${recipeId} не найден.`, `Recipe ${recipeId} was not found.`);
+      const batches = pr.at('batches').integer(row.batches, 1);
+      const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv']);
+      const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
+      const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
+      for (const amount of [...recipe!.inputs, recipe!.output]) {
+        if (BigInt(amount.quantity) * BigInt(repetitions) > BigInt(Number.MAX_SAFE_INTEGER)) pr.at('processing').at('repetitions').fail('value', 'Количество полной партии превышает диапазон.', 'Full batch quantity exceeds range.');
+      }
+      if (transportThreshold % 1_000_000 !== 0 || transportThreshold > recipe!.output.quantity * repetitions) tr.fail('value', 'Транспортный порог должен быть целым числом изделий от 1 до полного выхода каждой партии плана.', 'Transport threshold must be a whole number of items from 1 to the full output of every batch in the plan.');
+      const cv = processing.cv;
+      if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
+      return {id: planId, recipeId, batches, mode, repetitions,
+        timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number};
+    });
+    const first = plan[0]!;
+    const plannedRecipes = plan.map(row => recipes.find(recipe => recipe.id === row.recipeId)!);
+    const inputIds = [...new Set(plannedRecipes.flatMap(recipe => recipe.inputs.map(input => input.materialId)))].sort();
     r.at('setupMs').literal(station.setupMs, 0);
     const maintenance = r.at('maintenance').object(station.maintenance, ['enabled']);
     r.at('maintenance').at('enabled').literal(maintenance.enabled, false);
@@ -299,22 +312,22 @@ export function compileConfig(value: unknown): RunConfig {
       inputBuffers = br.at('materials').array(object.materials).map((value, index) => {
         const mr = br.at('materials').at(index), entry = mr.object(value, ['materialId', 'capacity']);
         const materialId = mr.at('materialId').text(entry.materialId);
-        if (!recipe!.inputs.some(input => input.materialId === materialId) || seenMaterials.has(materialId)) mr.at('materialId').fail('reference', 'Ёмкости должны соответствовать уникальным входам рецепта.', 'Capacities must match unique recipe inputs.');
+        if (!inputIds.includes(materialId) || seenMaterials.has(materialId)) mr.at('materialId').fail('reference', 'Ёмкости должны соответствовать уникальным входным материалам плана.', 'Capacities must match unique plan input materials.');
         seenMaterials.add(materialId);
         return {materialId, capacity: mr.at('capacity').buffer(entry.capacity)};
       });
-      if (inputBuffers.length !== recipe!.inputs.length) br.fail('capacity', 'Нужна ёмкость для каждого входного материала.', 'Every input material requires a capacity.');
+      if (inputBuffers.length !== inputIds.length) br.fail('capacity', 'Нужна ёмкость для каждого входного материала.', 'Every input material requires a capacity.');
       inputBuffers.sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
     } else {
       const capacity = br.buffer(station.inputBuffer);
-      inputBuffers = recipe!.inputs.map(input => ({materialId: input.materialId, capacity: {...capacity}}));
+      inputBuffers = inputIds.map(materialId => ({materialId, capacity: {...capacity}}));
     }
-    for (const input of recipe!.inputs) {
+    for (const row of plan) for (const input of recipes.find(recipe => recipe.id === row.recipeId)!.inputs) {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
-      if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
+      if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * row.repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
-    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, planId, recipeId, mode: mode as 'sequential' | 'simultaneous', repetitions,
-      timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number, inputBuffers,
+    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
+      timeMs: first.timeMs, cv: first.cv, inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};
   }));
@@ -324,6 +337,7 @@ export function compileConfig(value: unknown): RunConfig {
     if (m.role !== 'raw') r.at('materialId').fail('topology', 'Источник должен выпускать сырьё.', 'Source must release raw material.');
     return {id, materialId: m.id, availability: r.at('availability').choice(source.availability, ['virtual', 'warehouse']), quantity: r.at('quantity').quantity(source.quantity, true), intervalMs: r.at('intervalMs').integer(source.intervalMs, 1)};
   }));
+  const stationRecipes = (station: typeof stations[number]) => station.plan.map(row => recipes.find(recipe => recipe.id === row.recipeId)!);
   const routes = byId(entries('routes', ['id', 'fromId', 'toId', 'materialId']).map(({object: route, reader: r, id}) => {
     const fromId = r.at('fromId').text(route.fromId);
     const toId = r.at('toId').text(route.toId);
@@ -332,9 +346,9 @@ export function compileConfig(value: unknown): RunConfig {
     const consumer = stations.find(s => s.id === toId);
     if (!producer) r.at('fromId').fail('reference', `Производитель ${fromId} не найден.`, `Producer ${fromId} was not found.`);
     if (!consumer && toId !== 'market') r.at('toId').fail('reference', `Получатель ${toId} не найден.`, `Consumer ${toId} was not found.`);
-    const producedMaterial = 'materialId' in producer! ? producer.materialId : recipes.find(p => p.id === producer!.recipeId)!.output.materialId;
-    if (producedMaterial !== materialId) r.at('materialId').fail('reference', 'Производитель не выпускает указанный материал.', 'Producer does not output this material.');
-    if (consumer && !recipes.find(p => p.id === consumer.recipeId)!.inputs.some(input => input.materialId === materialId)) r.at('materialId').fail('reference', 'Получатель не использует указанный материал.', 'Consumer does not use this material.');
+    const producedMaterials = 'materialId' in producer! ? [producer.materialId] : stationRecipes(producer!).map(recipe => recipe.output.materialId);
+    if (!producedMaterials.includes(materialId)) r.at('materialId').fail('reference', 'Производитель не выпускает указанный материал.', 'Producer does not output this material.');
+    if (consumer && !consumer.inputBuffers.some(input => input.materialId === materialId)) r.at('materialId').fail('reference', 'Получатель не использует указанный материал.', 'Consumer does not use this material.');
     if (toId === 'market' && material(materialId, r).role !== 'finished') r.at('toId').fail('topology', 'На рынок передаются только конечные изделия.', 'Only finished materials can go to market.');
     return {id, fromId, toId, materialId};
   }));
@@ -366,18 +380,22 @@ export function compileConfig(value: unknown): RunConfig {
   for (const station of stations) {
     const outgoing = routes.filter(r => r.fromId === station.id);
     const incoming = routes.filter(r => r.toId === station.id);
-    for (const input of recipes.find(recipe => recipe.id === station.recipeId)!.inputs) {
+    for (const input of station.inputBuffers) {
       if (!incoming.some(route => route.materialId === input.materialId)) new Reader('config.stations', station.id).fail('topology', `Нет маршрута для входа ${input.materialId}.`, `No route for required input ${input.materialId}.`);
     }
     if (outgoing.length === 0 || incoming.length === 0) {
       new Reader('config.stations', station.id).fail('topology', 'Посту нужны входные и выходные маршруты.', 'A station requires incoming and outgoing routes.');
     }
-    if (outgoing.some(r => r.toId === 'market') && outgoing.some(r => r.toId !== 'market')) {
-      new Reader('config.stations', station.id).fail('topology', 'Нельзя одновременно передавать один выпуск в рынок и на посты.', 'One output cannot go both to market and to stations.');
+    for (const materialId of new Set(stationRecipes(station).map(recipe => recipe.output.materialId))) {
+      const materialRoutes = outgoing.filter(route => route.materialId === materialId);
+      if (materialRoutes.length === 0) new Reader('config.stations', station.id).fail('topology', `Нет маршрута для выхода ${materialId}.`, `No route for required output ${materialId}.`);
+      if (materialRoutes.some(r => r.toId === 'market') && materialRoutes.some(r => r.toId !== 'market')) {
+        new Reader('config.stations', station.id).fail('topology', 'Нельзя одновременно передавать один выпуск в рынок и на посты.', 'One output cannot go both to market and to stations.');
+      }
     }
   }
   if (visited.size !== sources.length + stations.length
-    || new Set(stations.map(s => s.recipeId)).size !== recipes.length
+    || new Set(stations.flatMap(s => s.plan.map(row => row.recipeId))).size !== recipes.length
     || new Set([...sources.map(s => s.materialId), ...recipes.map(r => r.output.materialId)]).size !== materials.length) {
     root.fail('topology', 'Сеть должна использовать все посты, рецепты и материалы.', 'Network must use all stations, recipes and materials.');
   }
@@ -392,16 +410,14 @@ export function compileConfig(value: unknown): RunConfig {
     } else {
       const station = stations.find(s => s.id === ownerId);
       if (!station) r.at('ownerId').fail('reference', `Пост ${ownerId} не найден.`, `Station ${ownerId} was not found.`);
-      const recipe = recipes.find(p => p.id === station!.recipeId)!;
-      const matches = location === 'input' ? recipe.inputs.some(input => input.materialId === materialId) : materialId === recipe.output.materialId;
+      const matches = location === 'input' ? station!.inputBuffers.some(input => input.materialId === materialId) : stationRecipes(station!).some(recipe => materialId === recipe.output.materialId);
       if (!matches) r.at('materialId').fail('reference', 'Материал не соответствует буферу поста.', 'Material does not match the station buffer.');
     }
     return {id, ownerId, location, materialId, quantity, cost};
   }));
   for (const station of stations) {
-    const recipe = recipes.find(recipe => recipe.id === station.recipeId)!;
     for (const location of ['input', 'output'] as const) {
-      for (const materialId of location === 'input' ? recipe.inputs.map(input => input.materialId) : [recipe.output.materialId]) {
+      for (const materialId of location === 'input' ? station.inputBuffers.map(input => input.materialId) : new Set(stationRecipes(station).map(recipe => recipe.output.materialId))) {
         const buffer = location === 'input' ? inputCapacity(station, materialId) : station.outputBuffer;
         const total = initialStocks.filter(s => s.ownerId === station.id && s.location === location && s.materialId === materialId).reduce((sum, s) => sum + BigInt(s.quantity), 0n);
         if (total > BigInt(Number.MAX_SAFE_INTEGER) || (buffer.kind === 'quantity' && total > BigInt(buffer.quantity))) new Reader('config.initialStocks', station.id).fail('capacity', `Запас ${materialId} превышает ёмкость буфера или диапазон.`, `Stock ${materialId} exceeds buffer capacity or range.`);

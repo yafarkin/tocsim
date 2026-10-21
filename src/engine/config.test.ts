@@ -28,7 +28,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffers: [{materialId: 'raw', capacity: {quantity: 2_000_000}}], outputBuffer: {quantity: 0}, costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffers[0]!.capacity).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.11.0');
+    expect(run.engineVersion).toBe('0.12.0');
     expect(run.rngVersion).toBe('counter32-fixed-lognormal-1');
     expect(run.schemaVersion).toBe(1);
   });
@@ -116,7 +116,6 @@ describe('invalid and unsupported configurations', () => {
   it.each([
     ['schemaVersion', 2], ['policy', 'dbr'], ['globalBuffers', {input: '0.5'}],
     ['stations.0.inputBuffer', {kind: 'inherit'}], ['stations.0.inputBuffer', {kind: 'shift', quantity: '0.5'}],
-    ['stations.0.plan.0.batches', 2],
     ['stations.0.setupMs', 1], ['stations.0.maintenance.enabled', true],
     ['stations.0.lunchReplacement', true], ['recipes.0.kind', 'inspection'],
   ])('rejects unsupported feature %s', (path, value) => {
@@ -164,11 +163,11 @@ describe('invalid and unsupported configurations', () => {
     }
   });
 
-  it('rejects an input equal to its output and still rejects multi-row plans', () => {
+  it('rejects an input equal to its output and duplicate plan row IDs', () => {
     const assembly = line(); assembly.recipes[0]!.inputs.push({materialId: 'part', quantity: '1'});
     expect(failure(assembly).code).toBe('topology');
     const cyclicPlan = line(); cyclicPlan.stations[0]!.plan.push(structuredClone(cyclicPlan.stations[0]!.plan[0]!));
-    expect(failure(cyclicPlan).code).toBe('unsupported');
+    expect(failure(cyclicPlan).code).toBe('id');
   });
 
   it('rejects duplicate routes and disconnected stations', () => {
