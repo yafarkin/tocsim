@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.14.0';
+export const ENGINE_VERSION = '0.15.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -29,6 +29,7 @@ export interface StationConfig {
   }[];
   inputBuffer: InputBufferConfig; outputBuffer: BufferConfig;
   transportThreshold?: string;
+  initialRecipeId?: string;
   setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
   costs: { perShift: string; perLunchHour: string; capital: string };
 }
@@ -61,7 +62,8 @@ export interface ResolvedConfig {
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
     plan: ResolvedPlanRow[];
-    // First-row fields preserve existing single-recipe consumers until cycle execution is added.
+    setupMs: number; initialRecipeId: string;
+    // Static first-row fields remain for existing configuration consumers; execution selects from plan.
     id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
     inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer; transportThreshold: number;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
@@ -270,7 +272,7 @@ export function compileConfig(value: unknown): RunConfig {
     if (outputQuantity % 1_000_000 !== 0) r.at('output').at('quantity').fail('value', 'Выход рецепта должен быть целым положительным числом.', 'Recipe output must be a positive whole number.');
     return {id, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
   }));
-  const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'transportThreshold', 'setupMs', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
+  const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'transportThreshold', 'setupMs', 'initialRecipeId', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
     r.at('name').text(station.name);
     const rows = r.at('plan').array(station.plan);
     if (rows.length === 0) r.at('plan').fail('value', 'План должен содержать хотя бы одну строку.', 'Plan requires at least one row.');
@@ -299,7 +301,9 @@ export function compileConfig(value: unknown): RunConfig {
     const first = plan[0]!;
     const plannedRecipes = plan.map(row => recipes.find(recipe => recipe.id === row.recipeId)!);
     const inputIds = [...new Set(plannedRecipes.flatMap(recipe => recipe.inputs.map(input => input.materialId)))].sort();
-    r.at('setupMs').literal(station.setupMs, 0);
+    const setupMs = r.at('setupMs').integer(station.setupMs);
+    const initialRecipeId = station.initialRecipeId === undefined ? first.recipeId : r.at('initialRecipeId').text(station.initialRecipeId);
+    if (!recipes.some(recipe => recipe.id === initialRecipeId)) r.at('initialRecipeId').fail('reference', `Начальный рецепт ${initialRecipeId} не найден.`, `Initial recipe ${initialRecipeId} was not found.`);
     const maintenance = r.at('maintenance').object(station.maintenance, ['enabled']);
     r.at('maintenance').at('enabled').literal(maintenance.enabled, false);
     r.at('lunchReplacement').literal(station.lunchReplacement, false);
@@ -326,7 +330,7 @@ export function compileConfig(value: unknown): RunConfig {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
       if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * row.repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
-    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
+    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, setupMs, initialRecipeId, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
       timeMs: first.timeMs, cv: first.cv, inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};
