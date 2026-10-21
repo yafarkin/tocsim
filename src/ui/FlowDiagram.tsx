@@ -12,6 +12,12 @@ export function operationProgress(station: DeepReadonly<StationSnapshot>): numbe
   return station.remainingSetupMs === null ? station.progress
     : Math.max(0, Math.min(1, 1 - station.remainingSetupMs / station.operationDurationMs!));
 }
+export function planPosition(station: DeepReadonly<StationSnapshot>, run: RunConfig, text: Labels): string | null {
+  const config = run.resolved.stations.find(config => config.id === station.stationId)!;
+  if (config.plan.length === 1) return null;
+  const row = config.plan[station.planIndex]!, recipe = run.source.recipes.find(recipe => recipe.id === row.recipeId)!;
+  return `${text.planRow} ${station.planIndex + 1}/${config.plan.length}: ${nameFor(recipe.id, recipe.name, text)}. ${text.rowBatches}: ${station.completedBatches}/${row.batches}`;
+}
 export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunConfig, text: Labels): string {
   if (station.reason === 'notStarted') return text.notStarted;
   const calendarReason = station.reason === 'lunch' || station.reason === 'offShift' || station.reason === 'horizon' ? text[station.reason] : null;
@@ -21,7 +27,10 @@ export function stationReason(station: DeepReadonly<StationSnapshot>, run: RunCo
   }
   if (calendarReason) return calendarReason;
   if (station.reason === 'input') {
-    return `${text.needs}: ` + station.inputs.filter(input => input.missingQuantity > 0).map(input => {
+    const config = run.resolved.stations.find(config => config.id === station.stationId)!;
+    const recipe = run.source.recipes.find(recipe => recipe.id === config.plan[station.planIndex]!.recipeId)!;
+    const waiting = config.plan.length > 1 ? `${text.waitingForRecipe}: ${nameFor(recipe.id, recipe.name, text)}. ` : '';
+    return waiting + `${text.needs}: ` + station.inputs.filter(input => input.missingQuantity > 0).map(input => {
       const material = run.source.materials.find(m => m.id === input.materialId)!;
       return `${quantityText(input.missingQuantity)} ${nameFor(material.id, material.name, text)}`;
     }).join(', ');
@@ -158,7 +167,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                 </g>;
               })}
             </>}
-            <foreignObject x={x - 5} y={stationReasonY(Math.max(state.inputs.length, state.outputs.length))} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.outputs.length, state.blockedBy.length), config.setupMs > 0)}><div className={`reason reason-${state.status}`}>{stationReason(state, run, text)}</div></foreignObject>
+            <foreignObject x={x - 5} y={stationReasonY(Math.max(state.inputs.length, state.outputs.length))} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.outputs.length, state.blockedBy.length), config.setupMs > 0, config.plan.length > 1)}><div className={`reason reason-${state.status}`}>{config.plan.length > 1 && <div className="plan-position" data-plan-row={state.planIndex + 1}>{planPosition(state, run, text)}</div>}<div>{stationReason(state, run, text)}</div></div></foreignObject>
           </g>;
         })}
         <g className="endpoint"><rect x={marketX} y="147" width="130" height={finished.length === 1 ? 118 : 56 + finished.length * 46} rx="8"/><text x={marketX + 65} y="173" textAnchor="middle" className="small">{text.market}</text>
@@ -195,7 +204,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
     </dl></details>
     <details className="text-view"><summary>{text.textView}</summary>
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.output} / {text.readyOutput}</th></tr></thead><tbody>
-        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
+        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}{planPosition(state, run, text) && <span>{planPosition(state, run, text)}</span>}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
       <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
     </details>

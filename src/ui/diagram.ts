@@ -15,7 +15,7 @@ export function fillRatio(quantity: number, capacity: DeepReadonly<ResolvedBuffe
 
 export const outputMaterials = (run: RunConfig, stationId: string): string[] => [...new Set(run.resolved.stations.find(station => station.id === stationId)!.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort();
 export const multiInputY = (index: number) => 187 + index * 86;
-export const stationReasonHeight = (lines: number, setups = false) => Math.max(setups ? 140 : 80, lines * 30);
+export const stationReasonHeight = (lines: number, setups = false, plans = false) => Math.max(setups ? 140 : 80, lines * 30) + (plans ? 70 : 0);
 export const stationReasonY = (inputs: number) => Math.max(339, inputs > 1 ? 148 + (inputs - 1) * 86 + 78 + 25 : 339);
 export interface DiagramNode {x: number; y: number; depth: number}
 /** Stable layers for an acyclic network. Coordinates never affect model order. */
@@ -38,7 +38,7 @@ export function graphLayout(run: RunConfig) {
   const rowPitch = Math.max(420, ...run.resolved.stations.map(station => {
     const count = Math.max(station.inputBuffers.length, outputMaterials(run, station.id).length);
     const lines = Math.max(count, run.resolved.routes.filter(route => route.fromId === station.id).length);
-    return stationReasonY(count) + stationReasonHeight(lines, station.setupMs > 0) + 1;
+    return stationReasonY(count) + stationReasonHeight(lines, station.setupMs > 0, station.plan.length > 1) + 1;
   }));
   const nodes = new Map<string, DiagramNode>();
   let rows = 1;

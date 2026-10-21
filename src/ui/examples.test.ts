@@ -82,3 +82,55 @@ describe('batch example configuration', () => {
     expect(compileConfig(previewConfig('queue', 0, 42, profiles)).calculationHash).toBe(exampleRuns.queue.calculationHash);
   });
 });
+
+describe('cyclic plan example acceptance', () => {
+  it('V14 exposes A,A,B and seven-minute recipe changes through the complete cycle', () => {
+    const sim = new Simulation(exampleRuns.plans);
+    expect(sim.advanceTo(3 * 60_000).stations[0]).toMatchObject({planIndex: 0, completedBatches: 1, remainingSetupMs: null, remainingProcessingMs: 3 * 60_000});
+    expect(sim.advanceTo(6 * 60_000).stations[0]).toMatchObject({planIndex: 1, completedBatches: 0, configuredRecipeId: 'recipe-a', targetRecipeId: 'recipe-b', remainingSetupMs: 7 * 60_000});
+    expect(sim.advanceTo(13 * 60_000).stations[0]).toMatchObject({status: 'processing', configuredRecipeId: 'recipe-b', remainingSetupMs: null});
+    expect(sim.advanceTo(19 * 60_000).stations[0]).toMatchObject({planIndex: 0, completedBatches: 0, targetRecipeId: 'recipe-a', remainingSetupMs: 7 * 60_000});
+    expect(sim.advanceTo(26 * 60_000).stations[0]).toMatchObject({status: 'processing', configuredRecipeId: 'recipe-a'});
+  });
+
+  it('V22 waits for B without skipping its row or consuming A despite available A stock', () => {
+    const config = previewConfig('plans', 0, 42, undefined, {batchesA: 2, batchesB: 1, setupMinutes: 7, supplyB: false});
+    const sim = new Simulation(compileConfig(config));
+    const waiting = sim.advanceTo(20 * 60_000);
+    expect(waiting.stations[0]).toMatchObject({status: 'starved', reason: 'input', planIndex: 1, configuredRecipeId: 'recipe-a', remainingSetupMs: null});
+    expect(waiting.stations[0]!.inputs).toEqual([
+      {materialId: 'raw-a', quantity: 4_000_000, missingQuantity: 0, reservedQuantity: 0},
+      {materialId: 'raw-b', quantity: 0, missingQuantity: 1_000_000, reservedQuantity: 0},
+    ]);
+    const end = sim.runToEnd();
+    expect(end.line!.termination).toBe('horizon');
+    expect(end.line!.counters.find(c => c.materialId === 'product-a')!.sold).toBe(2_000_000);
+    expect(end.line!.counters.find(c => c.materialId === 'product-b')!.sold).toBe(0);
+    expect(end.stations[0]!.planIndex).toBe(1);
+  });
+
+  it('applies row counts and setup settings without changing repetitions or unrelated examples', () => {
+    const profile = {batchesA: 4, batchesB: 3, setupMinutes: 15, supplyB: true};
+    const run = compileConfig(previewConfig('plans', 0.5, 0, undefined, profile));
+    expect(run.resolved.stations[0]!.plan.map(row => [row.batches, row.repetitions, row.cv])).toEqual([[4, 1, 0.5], [3, 1, 0.5]]);
+    expect(run.resolved.stations[0]!.setupMs).toBe(900_000);
+    profile.batchesA = 10;
+    expect(run.resolved.stations[0]!.plan[0]!.batches).toBe(4);
+    expect(compileConfig(previewConfig('queue', 0, 42, undefined, profile)).calculationHash).toBe(exampleRuns.queue.calculationHash);
+    expect(compileConfig(previewConfig('plans', 0, 42, undefined, {...profile, setupMinutes: 0})).resolved.stations[0]!.setupMs).toBe(0);
+  });
+});
+
+it.each([true, false])('keeps the configured plan reproducible through pause and speed changes, B supply %s', supplyB => {
+  const run = compileConfig(previewConfig('plans', 0.5, 0, undefined, {batchesA: 3, batchesB: 2, setupMinutes: 15, supplyB}));
+  const expected = new Simulation(run).runToEnd(), host = new Host(), runner = new Runner(run, undefined, host);
+  runner.setSpeed(60); runner.start();
+  const callback = host.callback!; host.callback = null; host.time += 10_000; callback();
+  runner.pause(); const paused = runner.getView().model;
+  host.time += 1_000_000;
+  expect(runner.getView().model).toBe(paused);
+  runner.setSpeed('max'); runner.resume(); host.drain();
+  expect(runner.getView().model).toEqual(expected);
+  runner.repeat(); host.drain(); expect(runner.getView().model).toEqual(expected);
+  runner.dispose();
+});

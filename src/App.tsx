@@ -9,7 +9,7 @@ import { FlowDiagram } from './ui/FlowDiagram';
 import { RunSummary } from './ui/RunSummary';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
-import { defaultBatchProfiles, exampleIds, previewConfig } from './ui/preview';
+import { defaultBatchProfiles, defaultPlanProfile, exampleIds, previewConfig } from './ui/preview';
 import type { ExampleId } from './ui/preview';
 import { ThemePicker } from './ui/ThemePicker';
 import { useTheme } from './ui/theme';
@@ -19,10 +19,11 @@ export function App() {
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
   const [batchProfiles, setBatchProfiles] = useState(() => structuredClone(defaultBatchProfiles));
+  const [planProfile, setPlanProfile] = useState(() => ({...defaultPlanProfile}));
   const [cv, setCv] = useState(0), [seedText, setSeedText] = useState('42');
   const seedValid = /^\d+$/.test(seedText) && Number(seedText) <= 0xffffffff;
   const seed = seedValid ? Number(seedText) : 42;
-  const run = useMemo(() => compileConfig(previewConfig(example, cv, seed, batchProfiles)), [example, cv, seed, batchProfiles]);
+  const run = useMemo(() => compileConfig(previewConfig(example, cv, seed, batchProfiles, planProfile)), [example, cv, seed, batchProfiles, planProfile]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
@@ -56,7 +57,7 @@ export function App() {
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <section id="flow" className="diagram-panel" aria-label={text.diagram} data-time-ms={view?.model.timeMs ?? 0} data-playback={status} data-speed={view?.speed ?? 60} data-reduced={manualReduced || systemReduced}>
       <div className="diagram-controls">
         <div className="playback-buttons"><button className="play-button" type="button" disabled={!view || terminal || !seedValid} onClick={() => {if (status === 'ready') runner.current?.start(); else if (status === 'running') runner.current?.pause(); else runner.current?.resume();}}>{playLabel}</button>
@@ -64,7 +65,7 @@ export function App() {
           <button type="button" disabled={!view || terminal || status === 'ready'} onClick={() => runner.current?.stop()}>{text.stop}</button>
           <button type="button" disabled={!view || !locked} onClick={reset}>{text.newRun}</button>
           <label className="speed-picker">{text.speed}<select aria-label={text.speed} value={view?.speed ?? 60} onChange={event => {preferredSpeed.current = event.target.value === 'max' ? 'max' : Number(event.target.value); runner.current?.setSpeed(preferredSpeed.current);}}><option value="60">{text.speed60}</option><option value="300">{text.speed300}</option><option value="1800">{text.speed1800}</option><option value="max">{text.max}</option></select></label>
-          <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>
+          <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>
           <label className="speed-picker">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
         </div>
         <div className="model-clock"><span>{text.day} {time.dayIndex + 1}</span><strong>{clock}</strong><span className={`playback-state playback-${status}`}>{status === 'paused' ? text.pausedView : status === 'running' ? text.running : status === 'finished' ? text.finished : status === 'error' ? text.error : status === 'stopped' ? text.stopped : text.ready}</span></div>
@@ -72,7 +73,15 @@ export function App() {
       {view && <RunSummary run={run} view={view} text={text} language={language}/>}
       {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
       <p className="variability-note">{text.cvHelp}</p>
-      <div className="diagram-context"><p>{example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <div className="diagram-context"><p>{example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      {example === 'plans' && <details className="batch-editor" open><summary>{text.planSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
+        <legend>{text.planSettings}</legend><p>{text.planSettingsHelp}</p>
+        <div className="batch-settings-row">
+          {(['batchesA', 'batchesB'] as const).map(key => <label key={key}>{text[key]}<select aria-label={text[key]} value={planProfile[key]} onChange={event => {runner.current?.dispose(); setView(null); setPlanProfile(previous => ({...previous, [key]: Number(event.target.value)}));}}>{Array.from({length: 10}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>)}
+          <label>{text.setupMinutes}<select aria-label={text.setupMinutes} value={planProfile.setupMinutes} onChange={event => {runner.current?.dispose(); setView(null); setPlanProfile(previous => ({...previous, setupMinutes: Number(event.target.value)}));}}>{[0, 2, 7, 15].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+          <label>{text.supplyB}<select aria-label={text.supplyB} aria-describedby="plan-wait-help" value={String(planProfile.supplyB)} onChange={event => {runner.current?.dispose(); setView(null); setPlanProfile(previous => ({...previous, supplyB: event.target.value === 'true'}));}}><option value="true">{text.supplied}</option><option value="false">{text.unavailable}</option></select></label>
+        </div><p id="plan-wait-help">{text.planWaitHelp}</p>
+      </fieldset></details>}
       {example === 'batches' && <details className="batch-editor"><summary>{text.batchSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
         <legend>{text.batchSettings}</legend>
         <p>{text.batchSettingsHelp}</p>

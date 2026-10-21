@@ -120,7 +120,7 @@ describe('setup configuration and recipe transitions', () => {
   });
 
   it('retains compatibility of all six existing examples', () => {
-    for (const run of Object.values(exampleRuns)) {
+    for (const run of Object.entries(exampleRuns).filter(([id]) => id !== 'plans').map(([, run]) => run)) {
       expect(run.resolved.stations.every(station => station.setupMs === 0 && station.initialRecipeId === station.plan[0]!.recipeId)).toBe(true);
       expect(new Simulation(run).runToEnd().line!.termination).toBe('horizon');
     }

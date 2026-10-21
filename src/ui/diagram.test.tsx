@@ -257,3 +257,20 @@ it('preserves setup progress and recipe details through lunch, night and languag
   expect(done.remainingSetupMs).toBeNull(); expect(operationProgress(done)).toBe(0);
   runner.dispose();
 });
+
+it('shows the current plan row, completed batches and specific missing recipe in both languages', () => {
+  const config = previewConfig('plans', 0, 42, undefined, {batchesA: 2, batchesB: 1, setupMinutes: 7, supplyB: false});
+  const run = compileConfig(config), sim = new Simulation(run), runner = new Runner(run);
+  const first = sim.advanceTo(3 * 60_000), waiting = sim.advanceTo(6 * 60_000);
+  for (const language of ['ru', 'en'] as const) {
+    const text = labels(language);
+    const active = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model: first}} text={text} reduced/>);
+    expect(active).toContain(`${text.planRow} 1/2: ${text.recipeA}. ${text.rowBatches}: 1/2`);
+    const starved = renderToStaticMarkup(<FlowDiagram run={run} view={{...runner.getView(), model: waiting}} text={text} reduced/>);
+    expect(starved).toContain(`${text.planRow} 2/2: ${text.recipeB}. ${text.rowBatches}: 0/1`);
+    expect(stationReason(waiting.stations[0]!, run, text)).toBe(`${text.waitingForRecipe}: ${text.recipeB}. ${text.needs}: 1 ${text.rawB}`);
+    expect(starved).toContain('data-plan-row="2"');
+    expect(starved).not.toMatch(/NaN|Infinity/);
+  }
+  runner.dispose();
+});

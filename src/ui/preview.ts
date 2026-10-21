@@ -1,13 +1,15 @@
 import { compileConfig } from '../engine/config';
 import type { EditorConfig } from '../engine/config';
-export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches'] as const;
+export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches', 'plans'] as const;
 export type ExampleId = typeof exampleIds[number];
+export interface PlanProfile {batchesA: number; batchesB: number; setupMinutes: number; supplyB: boolean}
+export const defaultPlanProfile: PlanProfile = {batchesA: 2, batchesB: 1, setupMinutes: 7, supplyB: true};
 export interface BatchProfile {mode: 'sequential' | 'simultaneous'; repetitions: number; transportThreshold: number}
 export const defaultBatchProfiles: Record<'prep' | 'work', BatchProfile> = {
   prep: {mode: 'sequential', repetitions: 6, transportThreshold: 3},
   work: {mode: 'sequential', repetitions: 6, transportThreshold: 3},
 };
-export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42, batches = defaultBatchProfiles): EditorConfig {
+export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42, batches = defaultBatchProfiles, plan = defaultPlanProfile): EditorConfig {
   const materialIds = ['raw', 'prepared', 'processed', 'product'];
   const ids = ['prep', 'work', 'finish'];
   const config: EditorConfig = {
@@ -76,6 +78,37 @@ export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42, b
       }
     }
     config.sources[0]!.intervalMs = 60_000;
+  }
+  if (example === 'plans') {
+    const station = config.stations[0]!;
+    station.id = 'planner'; station.name = 'Циклический пост';
+    station.setupMs = plan.setupMinutes * 60_000;
+    station.inputBuffer = {kind: 'quantity', quantity: '4'};
+    station.plan = [
+      {id: 'row-a', recipeId: 'recipe-a', batches: plan.batchesA, processing: {mode: 'sequential', repetitions: 1, timeMs: 3 * 60_000, cv}},
+      {id: 'row-b', recipeId: 'recipe-b', batches: plan.batchesB, processing: {mode: 'sequential', repetitions: 1, timeMs: 6 * 60_000, cv}},
+    ];
+    config.stations = [station];
+    config.materials = [
+      {id: 'raw-a', name: 'Материал A', color: '#357dad', role: 'raw', purchasePrice: '10'},
+      {id: 'raw-b', name: 'Материал B', color: '#8862a5', role: 'raw', purchasePrice: '10'},
+      {id: 'product-a', name: 'Изделие A', color: '#247e70', role: 'finished', salePrice: '30'},
+      {id: 'product-b', name: 'Изделие B', color: '#b56b20', role: 'finished', salePrice: '30'},
+    ];
+    config.recipes = [
+      {id: 'recipe-a', name: 'Рецепт A', kind: 'production', inputs: [{materialId: 'raw-a', quantity: '1'}], output: {materialId: 'product-a', quantity: '1'}},
+      {id: 'recipe-b', name: 'Рецепт B', kind: 'production', inputs: [{materialId: 'raw-b', quantity: '1'}], output: {materialId: 'product-b', quantity: '1'}},
+    ];
+    config.sources = [
+      {id: 'source-a', name: 'Источник A', materialId: 'raw-a', availability: 'virtual', quantity: '1', intervalMs: 3 * 60_000},
+      {id: 'source-b', name: 'Источник B', materialId: 'raw-b', availability: plan.supplyB ? 'virtual' : 'warehouse', quantity: '1', intervalMs: 3 * 60_000},
+    ];
+    config.routes = [
+      {id: 'input-a', fromId: 'source-a', toId: 'planner', materialId: 'raw-a'},
+      {id: 'input-b', fromId: 'source-b', toId: 'planner', materialId: 'raw-b'},
+      {id: 'output-a', fromId: 'planner', toId: 'market', materialId: 'product-a'},
+      {id: 'output-b', fromId: 'planner', toId: 'market', materialId: 'product-b'},
+    ];
   }
   return config;
 }

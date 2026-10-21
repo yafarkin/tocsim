@@ -42,3 +42,5 @@
 @media(max-width:480px){.scheme-help{margin-left:14px;margin-right:14px}.run-summary{margin:14px;padding:12px}.run-summary p{font-size:13px}}
 
 .station-body.state-setup{fill:var(--paused-bg);stroke:var(--paused);stroke-dasharray:5 3}.state-dot.state-setup{fill:var(--paused)}.reason-setup{border-color:var(--paused)}.reason{overflow-wrap:anywhere}
+
+.plan-position{font-weight:600;margin-bottom:8px}
