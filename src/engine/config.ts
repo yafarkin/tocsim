@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.10.0';
+export const ENGINE_VERSION = '0.11.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -28,6 +28,7 @@ export interface StationConfig {
     processing: { mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number };
   }[];
   inputBuffer: InputBufferConfig; outputBuffer: BufferConfig;
+  transportThreshold?: string;
   setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
   costs: { perShift: string; perLunchHour: string; capital: string };
 }
@@ -56,7 +57,7 @@ export interface ResolvedConfig {
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
     id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
-    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer;
+    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffer: ResolvedBuffer; transportThreshold: number;
     costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
   }[];
   sources: { id: string; materialId: string; availability: SourceConfig['availability']; quantity: number; intervalMs: number }[];
@@ -263,7 +264,7 @@ export function compileConfig(value: unknown): RunConfig {
     if (outputQuantity % 1_000_000 !== 0) r.at('output').at('quantity').fail('value', 'Выход рецепта должен быть целым положительным числом.', 'Recipe output must be a positive whole number.');
     return {id, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
   }));
-  const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'setupMs', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
+  const stations = byId(entries('stations', ['id', 'name', 'priority', 'plan', 'inputBuffer', 'outputBuffer', 'transportThreshold', 'setupMs', 'maintenance', 'lunchReplacement', 'costs']).map(({object: station, reader: r, id: stationId}) => {
     r.at('name').text(station.name);
     const plan = r.at('plan').array(station.plan);
     if (plan.length !== 1) r.at('plan').fail('unsupported', 'Сейчас поддерживается одна строка плана на пост.', 'One plan row per station is currently supported.');
@@ -280,6 +281,9 @@ export function compileConfig(value: unknown): RunConfig {
     for (const amount of [...recipe!.inputs, recipe!.output]) {
       if (BigInt(amount.quantity) * BigInt(repetitions) > BigInt(Number.MAX_SAFE_INTEGER)) pr.at('processing').at('repetitions').fail('value', 'Количество полной партии превышает диапазон.', 'Full batch quantity exceeds range.');
     }
+    const tr = r.at('transportThreshold');
+    const transportThreshold = tr.quantity(station.transportThreshold === undefined ? '1' : station.transportThreshold, true);
+    if (transportThreshold % 1_000_000 !== 0 || transportThreshold > recipe!.output.quantity * repetitions) tr.fail('value', 'Транспортный порог должен быть целым числом изделий от 1 до полного выхода партии.', 'Transport threshold must be a whole number of items from 1 to the full batch output.');
     const cv = processing.cv;
     if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
     r.at('setupMs').literal(station.setupMs, 0);
@@ -309,7 +313,7 @@ export function compileConfig(value: unknown): RunConfig {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
       if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
-    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), planId, recipeId, mode: mode as 'sequential' | 'simultaneous', repetitions,
+    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, planId, recipeId, mode: mode as 'sequential' | 'simultaneous', repetitions,
       timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number, inputBuffers,
       outputBuffer: r.at('outputBuffer').buffer(station.outputBuffer),
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};

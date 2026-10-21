@@ -9,7 +9,7 @@ import { line } from './test-fixtures';
 
 function initial(): EngineState {
   const run = compileConfig(line());
-  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
+  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
 }
 const run = () => compileConfig(line());
 function scheduler(handlers: EventHandlers = {}) { return new EventScheduler(run(), initial(), handlers); }

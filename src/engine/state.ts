@@ -8,6 +8,8 @@ export interface StationState {
   operationVersion: number;
   operationOrdinal: number;
   operationDurationMs: number | null;
+  /** Once released, every remaining held item stays eligible until fully unloaded. */
+  transferReady: boolean;
   status: 'idle' | 'processing' | 'blocked' | 'starved' | 'paused';
   reason: 'notStarted' | 'input' | 'output' | 'offShift' | 'lunch' | 'complete' | 'horizon' | null;
   remainingProcessingMs: number | null;
@@ -102,7 +104,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 8;
+  schemaVersion: 9;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -117,7 +119,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 8,
+    schemaVersion: 9,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -133,11 +135,11 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
         stationId: station.stationId, status: station.status, reason: station.reason,
-        remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
+        transferReady: station.transferReady, remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
         progress: station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? config.timeMs))),
         inputs: recipe.inputs.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, input.quantity * config.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: recipe.output.materialId, quantity: count('output', recipe.output.materialId), heldQuantity: held},
-        blockedBy: held > 0 ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
+        blockedBy: held > 0 && station.transferReady ? (direct ? recipients.map(s => ({stationId: s.id, location: 'input' as const})) : [{stationId: station.stationId, location: 'output' as const}]) : [],
       };
     }),
     line: state.line ? {

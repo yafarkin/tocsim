@@ -219,7 +219,7 @@ export function completeProduction(state: InventoryState, stationId: string, out
     if (kit && (kit.length === 0 || new Set(kit.map(input => input.materialId)).size !== kit.length)) fail('value', stationId, 'Нужен уникальный непустой комплект.', 'A unique nonempty kit is required.');
     const inputs = kit ? kit.flatMap(input => takeFIFO(draft, {ownerId: stationId, location: 'reserved'}, input.materialId, input.quantity))
       : draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
-    if (inputs.length === 0 || draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held')) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
+    if (inputs.length === 0 || (!kit && draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held'))) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
     let cost = 0n;
     const provenance: Provenance = {origin: {kind: 'unreleased'}, defective: false, defectSourceIds: [], processingMs: {}};
     const times = new Map<string, bigint>();

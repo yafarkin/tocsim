@@ -45,7 +45,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       if (!canStart(calendar, ctx.timeMs)) {station.status = 'paused'; station.reason = calendarReason(ctx.timeMs);}
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(config);
-        if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) {station.status = 'blocked'; station.reason = 'output';}
+        if (station.transferReady && count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) {station.status = 'blocked'; station.reason = 'output';}
         else if (!ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved') && recipe.inputs.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity * config.repetitions)) {station.status = 'starved'; station.reason = 'input';}
         else {station.status = 'idle'; station.reason = null;}
       }
@@ -109,7 +109,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const heads = new Map<string, StockState>();
       for (const stock of ctx.state.stocks) {
         const config = stations.find(s => s.id === stock.ownerId);
-        if (!config || !(stock.location === 'output' || (stock.location === 'held' && config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0))) continue;
+        if (!config || !(stock.location === 'output' || (stock.location === 'held' && ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0))) continue;
         const key = JSON.stringify([stock.ownerId, stock.location]);
         if (!heads.has(key)) heads.set(key, stock);
       }
@@ -158,6 +158,8 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       }
       const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
       outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity * multiplier);
+      station.transferReady = count(ctx.state, config.id, 'held', recipe.output.materialId) >= config.transportThreshold
+        || !ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved');
       station.remainingProcessingMs = null; station.operationDurationMs = null;
       wakeTransfer(ctx);
     },
@@ -168,7 +170,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       let moved = distribute(ctx);
       for (const config of stations) {
         const material = recipeOf(config).output.materialId;
-        if (!(config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0)) {
+        if (ctx.state.stations.find(s => s.stationId === config.id)!.transferReady && !(config.outputBuffer.kind === 'quantity' && config.outputBuffer.quantity === 0)) {
           const quantity = Math.min(count(ctx.state, config.id, 'held', material), free(config.outputBuffer, count(ctx.state, config.id, 'output', material)));
           if (quantity > 0) {
             const parts = transferStock(ctx.state, {ownerId: config.id, location: 'held'}, {ownerId: config.id, location: 'output'}, material, quantity, config.outputBuffer, ctx.timeMs);
@@ -177,6 +179,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
             moved = true;
           }
         }
+      }
+      for (const station of ctx.state.stations) {
+        if (!ctx.state.stocks.some(stock => stock.ownerId === station.stationId && stock.location === 'held')) station.transferReady = false;
       }
       refresh(ctx);
       if (moved) wakeTransfer(ctx);
@@ -192,7 +197,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
           if (station.status !== 'processing') {station.status = 'processing'; station.reason = null; planCompletion(ctx, config.id);}
           continue;
         }
-        if (count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) continue;
+        if (station.transferReady && count(ctx.state, config.id, 'held', recipe.output.materialId) > 0) continue;
         const reserved = ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved');
         if (!reserved) {
           const kit = recipe.inputs.map(input => ({...input, quantity: input.quantity * config.repetitions}));
