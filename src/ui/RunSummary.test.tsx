@@ -9,9 +9,12 @@ import { labels } from './i18n';
 import { RunSummary } from './RunSummary';
 
 describe('run summary from actual counters', () => {
-  it('appears only after termination and distinguishes stopped time from the planned horizon', () => {
+  it('shows a live incomplete report and distinguishes stopped time from the planned horizon', () => {
     const run = exampleRuns.queue, runner = new Runner(run);
-    for (const status of ['ready', 'running', 'paused'] as const) expect(renderToStaticMarkup(<RunSummary run={run} view={{...runner.getView(), status}} text={labels('ru')} language="ru"/>)).toBe('');
+    for (const status of ['ready', 'running', 'paused'] as const) {
+      const markup = renderToStaticMarkup(<RunSummary run={run} view={{...runner.getView(), status}} text={labels('ru')} language="ru"/>);
+      expect(markup).toContain(labels('ru').currentResult);expect(markup).toContain(labels('ru').incompleteResult);expect(markup).not.toContain(labels('ru').endedHorizon);
+    }
     const sim = new Simulation(run); sim.advanceTo(300_123); sim.stop();
     for (const language of ['ru', 'en'] as const) {
       const text = labels(language), markup = renderToStaticMarkup(<RunSummary run={run} view={{...runner.getView(), model: sim.getSnapshot(), status: 'stopped'}} text={text} language={language}/>);
@@ -28,7 +31,7 @@ describe('run summary from actual counters', () => {
     const run = compileConfig(c), model = new Simulation(run).runToEnd(), runner = new Runner(run);
     expect(model.line!.counters.find(c => c.materialId === 'product')).toMatchObject({produced: 0, sold: 1_000_000});
     const markup = renderToStaticMarkup(<RunSummary run={run} view={{...runner.getView(), status: 'finished', model}} text={labels('en')} language="en"/>);
-    expect(markup).toContain('<td>0</td><td>1</td>');
+    expect(markup).toContain('<td>0</td><td data-delivered="product">1</td>');
     expect(markup).toContain(labels('en').endedHorizon);
     expect(markup).toContain('17:00:00');
     runner.dispose();
@@ -49,7 +52,7 @@ describe('run summary from actual counters', () => {
       expect(markup).toContain('data-product="product2"'); expect(markup).toContain('data-product="product"');
       for (const id of ['product2', 'product']) {
         const counter = model.line!.counters.find(c => c.materialId === id)!;
-        expect(markup).toContain(`<td>${counter.produced / 1_000_000}</td><td>${counter.sold / 1_000_000}</td>`);
+        expect(markup).toContain(`<td>${counter.produced / 1_000_000}</td><td data-delivered="${id}">${counter.sold / 1_000_000}</td>`);
       }
     }
     runner.dispose();

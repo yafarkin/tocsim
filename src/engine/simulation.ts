@@ -125,7 +125,15 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const counter = ctx.state.line!.counters.find(c => c.materialId === materialId)!;
       for (const part of portions) {
         if (part.provenance.defective) recordScrap(ctx.state, 'market', part);
-        else {counter.sold = addQuantity(counter.sold, part.quantity); counter.soldCost = addMoney(counter.soldCost, part.cost);}
+        else {
+          counter.sold = addQuantity(counter.sold, part.quantity); counter.soldCost = addMoney(counter.soldCost, part.cost);
+          // Include the closing boundary in its shift, even when it is exactly 24:00.
+          const span = run.resolved.calendar.shiftEndMs - run.resolved.calendar.shiftStartMs;
+          const dayIndex = ctx.timeMs <= span ? 0 : Number((BigInt(ctx.timeMs) - BigInt(span) + BigInt(DAY_MS) - 1n) / BigInt(DAY_MS));
+          let daily = ctx.state.line!.shiftOutput.find(row => row.dayIndex === dayIndex && row.materialId === materialId);
+          if (!daily) {daily = {dayIndex, materialId, quantity: 0}; ctx.state.line!.shiftOutput.push(daily);}
+          daily.quantity = addQuantity(daily.quantity, part.quantity);
+        }
         ctx.state.line!.transfers.push({fromId: config.id, toId: 'market', fromLocation: location,
           materialId: part.materialId, quantity: part.quantity, cost: part.cost, kind: part.provenance.defective ? 'scrap' : 'sale'});
       }
@@ -375,7 +383,7 @@ export class Simulation {
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
-    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [],
+    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [],
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);
     this.scheduler = new EventScheduler(run, state, handlers);
