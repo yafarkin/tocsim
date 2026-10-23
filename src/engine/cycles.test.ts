@@ -203,7 +203,7 @@ describe('cyclic recipe execution', () => {
     expect(end.stations[0]).toMatchObject({planIndex: 0, remainingProcessingMs: null});
     expect(counter(end, 'b').sold).toBe(Q);
     expect(end.stocks.some(stock => stock.location === 'reserved')).toBe(false);
-    config.stations[0]!.plan[1]!.processing.timeMs++;
+    config.stations[0]!.plan[1]!.processing.timeMs!++;
     const unfinished = new Simulation(compileConfig(config)).runToEnd();
     expect(unfinished.stations[0]).toMatchObject({planIndex: 1, remainingProcessingMs: 1});
     expect(counter(unfinished, 'b').produced).toBe(0);

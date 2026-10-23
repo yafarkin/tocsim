@@ -1,8 +1,10 @@
 import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arithmetic';
+import { distributionMoments, meanDurationSixths } from './random';
+import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.18.0';
+export const ENGINE_VERSION = '0.19.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -24,11 +26,14 @@ export interface RecipeConfig {
   inputs: { materialId: string; quantity: string }[];
   output: { materialId: string; quantity: string };
 }
+export type ProcessingConfig = {mode: 'sequential' | 'simultaneous'; repetitions: number} & (
+  {timeMs: number; cv: number; distribution?: never} | {distribution: DurationDistribution; timeMs?: never; cv?: never}
+);
 export interface StationConfig {
   id: string; name: string; priority: number;
   plan: {
     id: string; recipeId: string; batches: number;
-    processing: { mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number };
+    processing: ProcessingConfig;
   }[];
   inputBuffer: InputBufferConfig; outputBuffer: OutputBufferConfig;
   transportThreshold?: string;
@@ -59,6 +64,7 @@ export type ResolvedBuffer = { kind: 'quantity'; quantity: number } | { kind: 'i
 export interface ResolvedPlanRow {
   id: string; recipeId: string; batches: number;
   mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
+  distribution?: BoundedDistribution;
 }
 export interface ResolvedConfig {
   seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
@@ -334,17 +340,40 @@ export function compileConfig(value: unknown): RunConfig {
       const recipe = recipes.find(recipe => recipe.id === recipeId);
       if (!recipe) pr.at('recipeId').fail('reference', `Рецепт ${recipeId} не найден.`, `Recipe ${recipeId} was not found.`);
       const batches = pr.at('batches').integer(row.batches, 1);
-      const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv']);
+      const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv', 'distribution']);
       const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
       const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
       for (const amount of [...recipe!.inputs, recipe!.output]) {
         if (BigInt(amount.quantity) * BigInt(repetitions) > BigInt(Number.MAX_SAFE_INTEGER)) pr.at('processing').at('repetitions').fail('value', 'Количество полной партии превышает диапазон.', 'Full batch quantity exceeds range.');
       }
       if (transportThreshold % 1_000_000 !== 0 || transportThreshold > recipe!.output.quantity * repetitions) tr.fail('value', 'Транспортный порог должен быть целым числом изделий от 1 до полного выхода каждой партии плана.', 'Transport threshold must be a whole number of items from 1 to the full output of every batch in the plan.');
-      const cv = processing.cv;
-      if (typeof cv !== 'number' || !Number.isFinite(cv) || cv < 0 || cv > 2) pr.at('processing').at('cv').fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
-      return {id: planId, recipeId, batches, mode, repetitions,
-        timeMs: pr.at('processing').at('timeMs').integer(processing.timeMs, 1), cv: cv as number};
+      const timingReader = pr.at('processing');
+      const readCv = (value: unknown, reader: Reader) => {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 2) reader.fail('value', 'CV должен быть числом от 0 до 2.', 'CV must be a number from 0 to 2.');
+        return value as number;
+      };
+      let timeMs: number, cv: number, distribution: BoundedDistribution | undefined;
+      if (processing.distribution === undefined) {
+        timeMs = timingReader.at('timeMs').integer(processing.timeMs, 1);
+        cv = readCv(processing.cv, timingReader.at('cv'));
+      } else {
+        for (const key of ['timeMs', 'cv']) if (key in processing) timingReader.at(key).fail('value', 'Задайте параметры внутри распределения, без отдельного среднего времени или CV.', 'Specify parameters inside the distribution, without separate mean time or CV.');
+        const dr = timingReader.at('distribution');
+        const d = dr.object(processing.distribution, ['kind', 'timeMs', 'meanMs', 'cv', 'minMs', 'maxMs', 'peakMs']);
+        const kind = dr.at('kind').choice(d.kind, ['constant', 'lognormal', 'uniform', 'triangular']);
+        dr.object(d, kind === 'constant' ? ['kind', 'timeMs'] : kind === 'lognormal' ? ['kind', 'meanMs', 'cv'] : kind === 'uniform' ? ['kind', 'minMs', 'maxMs'] : ['kind', 'minMs', 'peakMs', 'maxMs']);
+        if (kind === 'constant' || kind === 'lognormal') {
+          timeMs = dr.at(kind === 'constant' ? 'timeMs' : 'meanMs').integer(kind === 'constant' ? d.timeMs : d.meanMs, 1);
+          cv = kind === 'constant' ? 0 : readCv(d.cv, dr.at('cv'));
+        } else {
+          const minMs = dr.at('minMs').integer(d.minMs, 1), maxMs = dr.at('maxMs').integer(d.maxMs, minMs);
+          distribution = kind === 'uniform' ? {kind, minMs, maxMs} : {kind, minMs, peakMs: dr.at('peakMs').integer(d.peakMs, minMs, maxMs), maxMs};
+          ({meanMs: timeMs, cv} = distributionMoments(distribution));
+          // A degenerate bounded distribution is the same calculation as a constant.
+          if (minMs === maxMs) distribution = undefined;
+        }
+      }
+      return {id: planId, recipeId, batches, mode, repetitions, timeMs, cv, ...(distribution ? {distribution} : {})};
     });
     const first = plan[0]!;
     const plannedRecipes = plan.map(row => recipes.find(recipe => recipe.id === row.recipeId)!);
@@ -363,12 +392,12 @@ export function compileConfig(value: unknown): RunConfig {
     const rule = inherits ? defaultInput : (inputValue && typeof inputValue === 'object' && 'kind' in inputValue && inputValue.kind === 'materials' ? null : inputRule(inputValue, br));
     let inputBuffers: {materialId: string; capacity: ResolvedBuffer}[];
     if (rule?.kind === 'shift') {
-      let cycle = 0n;
+      let cycleSixths = 0n;
       const consumption = new Map<string, bigint>(), kits = new Map<string, bigint>();
       for (let i = 0; i < plan.length; i++) {
         const row = plan[i]!, previous = plan[(i + plan.length - 1) % plan.length]!;
-        cycle += BigInt(row.timeMs) * BigInt(row.mode === 'sequential' ? row.repetitions : 1) * BigInt(row.batches);
-        if (row.recipeId !== previous.recipeId) cycle += BigInt(setupMs);
+        cycleSixths += meanDurationSixths(row.timeMs, row.distribution) * BigInt(row.mode === 'sequential' ? row.repetitions : 1) * BigInt(row.batches);
+        if (row.recipeId !== previous.recipeId) cycleSixths += BigInt(setupMs) * 6n;
         for (const input of plannedRecipes[i]!.inputs) {
           const kit = BigInt(input.quantity) * BigInt(row.repetitions);
           consumption.set(input.materialId, (consumption.get(input.materialId) ?? 0n) + kit * BigInt(row.batches));
@@ -379,11 +408,11 @@ export function compileConfig(value: unknown): RunConfig {
       inputBuffers = inputIds.map(materialId => {
         const unit = materials.find(m => m.id === materialId)!.role === 'raw' ? 1n : 1_000_000n;
         const ceil = (n: bigint, d: bigint) => (n + d - 1n) / d;
-        const rounded = ceil(BigInt(rule.shifts) * work * consumption.get(materialId)!, 1_000_000n * cycle * unit) * unit;
+        const rounded = ceil(BigInt(rule.shifts) * work * consumption.get(materialId)! * 6n, 1_000_000n * cycleSixths * unit) * unit;
         const minimum = ceil(kits.get(materialId)!, unit) * unit;
         const quantity = rounded > minimum ? rounded : minimum;
         if (quantity > BigInt(Number.MAX_SAFE_INTEGER)) br.fail('capacity', `Расчётная ёмкость ${materialId} превышает диапазон.`, `Calculated capacity for ${materialId} exceeds range.`);
-        bufferCalculations.push({stationId, materialId, shifts: rule.sourceShifts, cycleWorkMs: cycle.toString(), cycleConsumption: consumption.get(materialId)!.toString(), roundedQuantity: Number(rounded), minimumKit: Number(minimum), raisedToKit: minimum > rounded});
+        bufferCalculations.push({stationId, materialId, shifts: rule.sourceShifts, cycleWorkMs: cycleSixths % 6n === 0n ? (cycleSixths / 6n).toString() : `${cycleSixths}/6`, cycleConsumption: consumption.get(materialId)!.toString(), roundedQuantity: Number(rounded), minimumKit: Number(minimum), raisedToKit: minimum > rounded});
         return {materialId, capacity: {kind: 'quantity', quantity: Number(quantity)}};
       });
     } else {

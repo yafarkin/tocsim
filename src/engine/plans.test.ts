@@ -55,7 +55,7 @@ describe('multi-row plan compilation', () => {
     for (const change of [
       (c: EditorConfig) => c.stations[0]!.plan.reverse(),
       (c: EditorConfig) => { c.stations[0]!.plan[1]!.batches++; },
-      (c: EditorConfig) => { c.stations[0]!.plan[1]!.processing.timeMs++; },
+      (c: EditorConfig) => { c.stations[0]!.plan[1]!.processing.timeMs!++; },
       (c: EditorConfig) => { c.stations[0]!.plan[1]!.processing.cv = 1; },
     ]) {
       const config = plannedLine(); change(config);

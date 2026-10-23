@@ -247,7 +247,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         }
         if (station.operationOrdinal === Number.MAX_SAFE_INTEGER) throw new RandomError({ru: 'Исчерпан счётчик операций.', en: 'Operation counter is exhausted.'});
         const row = rowOf(ctx.state, config);
-        station.operationDurationMs = processingDuration(row.timeMs, row.cv, run.resolved.seed, config.id, row.recipeId, station.operationOrdinal++);
+        station.operationDurationMs = processingDuration(row.timeMs, row.cv, run.resolved.seed, config.id, row.recipeId, station.operationOrdinal++, row.distribution);
         station.remainingProcessingMs = station.operationDurationMs; station.status = 'processing'; station.reason = null;
         ctx.invalidateOperation(config.id); planCompletion(ctx, config.id); started = true;
       }
