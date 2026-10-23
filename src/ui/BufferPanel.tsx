@@ -35,8 +35,10 @@ function StationEditor({run, id, settings, text, language, onApply}: {run: RunCo
   const resolved = run.resolved.stations.find(s => s.id === id)!;
   const materialNames = (direction: 'input' | 'output') => resolved[direction === 'input' ? 'inputBuffers' : 'outputBuffers'].map(b => {const m = run.source.materials.find(m => m.id === b.materialId)!; return {id: m.id, name: nameFor(m.id, m.name, text)};});
   return <details className="station-buffer-editor"><summary>{name} · {text.input}: {draft.input.kind === 'inherit' ? text.inherit : text.own} · {text.output}: {draft.output.kind === 'inherit' ? text.inherit : text.own}</summary>
+    <div className="buffer-fields-grid">
     <StationFields value={draft.input} input materials={materialNames('input')} text={text} label={`${name}: ${text.input}`} onChange={input => setDraft({...draft, input})}/>
     <StationFields value={draft.output} input={false} materials={materialNames('output')} text={text} label={`${name}: ${text.output}`} onChange={output => setDraft({...draft, output: output as OutputBufferConfig})}/>
+    </div>
     {preview.error ? <p role="alert" className="buffer-error">{preview.error.messages[language]} <span>{preview.error.path}</span></p> : <div aria-live="polite"><p>{text.bufferPreview}</p><Amounts run={preview.run} id={id} text={text}/></div>}
     <button type="button" disabled={!dirty || !!preview.error} onClick={() => onApply(candidate)}>{text.applyStation}: {name}</button>
   </details>;
@@ -51,8 +53,9 @@ export const BufferPanel = memo(function BufferPanel({run, locked, text, languag
   const apply = (next: RunConfig) => onApply(bufferSettings(next.source));
   return <details className="batch-editor buffer-editor"><summary>{text.bufferSettings}</summary><fieldset className="batch-settings" disabled={locked}>
     <legend>{text.bufferSettings}</legend><p>{locked ? text.bufferLocked : text.bufferHelp}</p><p>{text.calculationHelp}</p>
-    <h3>{text.globalBuffers}</h3><RuleFields value={defaults.input ?? {kind: 'shift', shifts: '0.5'}} input label={`${text.globalBuffers}: ${text.input}`} text={text} onChange={input => setDefaults({...defaults, input})}/>
+    <h3>{text.globalBuffers}</h3><div className="buffer-fields-grid"><RuleFields value={defaults.input ?? {kind: 'shift', shifts: '0.5'}} input label={`${text.globalBuffers}: ${text.input}`} text={text} onChange={input => setDefaults({...defaults, input})}/>
     <RuleFields value={defaults.output ?? {kind: 'quantity', quantity: '0'}} input={false} label={`${text.globalBuffers}: ${text.output}`} text={text} onChange={output => setDefaults({...defaults, output: output as BufferConfig})}/>
+    </div>
     <div className="buffer-actions"><div><p><strong>{text.updateInherited}</strong><br/>{text.changedStations}: {changed(updated.run)}</p><button type="button" disabled={!!updated.error} onClick={() => updated.run && apply(updated.run)}>{text.updateInherited}</button></div><div><p><strong>{text.resetBuffers}</strong><br/>{text.changedStations}: {changed(reset.run)}</p><button type="button" disabled={!!reset.error} onClick={() => reset.run && apply(reset.run)}>{text.resetBuffers}</button></div></div>
     {[updated.error, reset.error].map((error, i) => error && <p key={i} role="alert" className="buffer-error">{i === 0 ? text.afterUpdate : text.afterReset}: {error.messages[language]} <span>{error.path}</span></p>)}
     <div className="table-scroll" tabIndex={0} role="region" aria-label={text.bufferPreview}><table aria-label={text.bufferPreview}><thead><tr><th>{text.state}</th><th>{text.current}</th><th>{text.afterUpdate}</th><th>{text.afterReset}</th></tr></thead><tbody>{run.source.stations.map(s => <tr key={s.id}><th>{nameFor(s.id, s.name, text)}<span>{text.input}: {s.inputBuffer.kind === 'inherit' ? text.inherit : text.own}<br/>{text.output}: {s.outputBuffer.kind === 'inherit' ? text.inherit : text.own}</span></th><td><Amounts run={run} id={s.id} text={text}/></td><td>{updated.run ? <Amounts run={updated.run} id={s.id} text={text}/> : '—'}</td><td>{reset.run ? <Amounts run={reset.run} id={s.id} text={text}/> : '—'}</td></tr>)}</tbody></table></div>

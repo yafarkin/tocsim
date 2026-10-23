@@ -11,13 +11,13 @@ function LunchFields({run, id, locked, text, language, onApply}: {run: RunConfig
   let candidate: LunchSetting | undefined, error: ConfigError | undefined;
   try {candidate = lunchFromDraft(enabled, rate, id); compileConfig(withLunch(structuredClone(run.source) as EditorConfig, {[id]: candidate}));}
   catch (cause) {if (!(cause instanceof ConfigError)) throw cause; error = cause;}
-  return <>
+  return <div className="lunch-fields">
     <label className="maintenance-enable"><input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)}/>{text.lunchEnable}</label>
     <div className="batch-settings-row"><label>{text.lunchRate}<input aria-label={text.lunchRate} inputMode="decimal" value={rate} aria-invalid={!!error} onChange={e => setRate(e.target.value)}/></label></div>
     {error ? <p role="alert" className="buffer-error">{error.messages[language]}</p> : candidate && <p aria-live="polite">{text.bufferPreview}: {candidate.enabled ? text.lunchOn : text.lunchOff}. {text.lunchRate}: {candidate.hourlyRate} {text.moneyUnit}.</p>}
     <button type="button" disabled={locked || !!error} onClick={() => !locked && candidate && onApply(id, candidate)}>{text.lunchApply}</button>
     <p className="lunch-applied">{text.current}: {station.lunchReplacement ? text.lunchOn : text.lunchOff}. {text.lunchRate}: {station.costs.perLunchHour} {text.moneyUnit}.</p>
-  </>;
+  </div>;
 }
 export const LunchPanel = memo(function LunchPanel({run, locked, text, language, onApply}: {run: RunConfig; locked: boolean; text: Labels; language: Language; onApply: (id: string, setting: LunchSetting) => void}) {
   const [id, setId] = useState(run.source.stations[0]!.id);
