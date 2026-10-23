@@ -53,13 +53,6 @@ describe('explicit global capacities and station inheritance', () => {
     expect(compileConfig(config).calculationHash).toBe(base.calculationHash);
   });
 
-  it('rejects an inherited input without an explicit global until shift calculation is implemented', () => {
-    const config = line(); config.stations.reverse(); config.stations[0]!.inputBuffer = {kind: 'inherit'};
-    const error = failure(config);
-    expect(error).toMatchObject({code: 'unsupported', path: 'config.stations.0.inputBuffer', objectId: 's2'});
-    expect(error.messages.ru).toContain('долю смены'); expect(error.messages.en).toContain('shift-based');
-  });
-
   it('checks inherited capacity against the entire processing batch without silently increasing it', () => {
     const config = line(); config.bufferDefaults = {input: {kind: 'quantity', quantity: '0.5'}};
     config.stations[0]!.inputBuffer = {kind: 'inherit'}; config.stations[0]!.plan[0]!.processing.repetitions = 2;

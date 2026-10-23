@@ -2,7 +2,7 @@ import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arith
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.17.0';
+export const ENGINE_VERSION = '0.18.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -11,7 +11,8 @@ export type DeepReadonly<T> = T extends object
 
 export type BufferConfig = { kind: 'quantity'; quantity: string } | { kind: 'infinite' };
 export type MaterialBufferConfig = BufferConfig | {kind: 'materials'; materials: {materialId: string; capacity: BufferConfig}[]};
-export type InputBufferConfig = MaterialBufferConfig | {kind: 'inherit'};
+export type ShiftBufferConfig = {kind: 'shift'; shifts: string};
+export type InputBufferConfig = MaterialBufferConfig | ShiftBufferConfig | {kind: 'inherit'};
 export type OutputBufferConfig = MaterialBufferConfig | {kind: 'inherit'};
 export interface MaterialConfig {
   id: string; name: string; color: string;
@@ -47,7 +48,7 @@ export interface InitialStockConfig {
 export interface EditorConfig {
   schemaVersion: 1; id: string; name: string; language: 'ru' | 'en';
   displayOrder?: string[];
-  bufferDefaults?: {input?: BufferConfig; output?: BufferConfig};
+  bufferDefaults?: {input?: BufferConfig | ShiftBufferConfig; output?: BufferConfig};
   seed: number; durationMs: number; policy: 'push';
   calendar: { shiftStartMs: number; lunchStartMs: number; lunchEndMs: number; shiftEndMs: number };
   materials: MaterialConfig[]; recipes: RecipeConfig[]; stations: StationConfig[];
@@ -92,6 +93,11 @@ export interface RunConfig {
   readonly engineVersion: string;
   readonly rngVersion: string;
   readonly calculationHash: string;
+  readonly bufferCalculations: DeepReadonly<{
+    stationId: string; materialId: string; shifts: string;
+    cycleWorkMs: string; cycleConsumption: string;
+    roundedQuantity: number; minimumKit: number; raisedToKit: boolean;
+  }[]>;
   readonly source: DeepReadonly<EditorConfig>;
   readonly resolved: DeepReadonly<ResolvedConfig>;
 }
@@ -170,7 +176,7 @@ class Reader {
   buffer(value: unknown): ResolvedBuffer {
     const object = this.object(value, ['kind', 'quantity']);
     if (object.kind === 'shift') {
-      this.at('kind').fail('unsupported', 'Расчёт буфера по смене пока не поддерживается; задайте количество явно.', 'Shift-based capacities are not supported yet; specify a quantity explicitly.');
+      this.at('kind').fail('unsupported', 'Доля смены разрешена только для общего входа или входа поста.', 'Shift capacity is only allowed for the global input or station input.');
     }
     const kind = this.at('kind').choice(object.kind, ['quantity', 'infinite']);
     if (kind === 'infinite') {
@@ -283,12 +289,19 @@ export function compileConfig(value: unknown): RunConfig {
   }));
   const defaultsReader = root.at('bufferDefaults');
   const defaults = config.bufferDefaults === undefined ? {} : defaultsReader.object(config.bufferDefaults, ['input', 'output']);
-  const defaultInput = defaults.input === undefined ? null : defaultsReader.at('input').buffer(defaults.input);
+  function inputRule(value: unknown, reader: Reader): ResolvedBuffer | {kind: 'shift'; shifts: number; sourceShifts: string} {
+    if (value && typeof value === 'object' && 'kind' in value && value.kind === 'shift') {
+      const object = reader.object(value, ['kind', 'shifts']);
+      return {kind: 'shift', shifts: reader.at('shifts').quantity(object.shifts, true), sourceShifts: object.shifts as string};
+    }
+    return reader.buffer(value);
+  }
+  const defaultInput = inputRule(defaults.input === undefined ? {kind: 'shift', shifts: '0.5'} : defaults.input, defaultsReader.at('input'));
+  const bufferCalculations: RunConfig['bufferCalculations'][number][] = [];
   const defaultOutput = defaults.output === undefined ? {kind: 'quantity' as const, quantity: 0} : defaultsReader.at('output').buffer(defaults.output);
   function resolveBuffers(value: unknown, reader: Reader, materialIds: string[], inherited: ResolvedBuffer | null) {
     if (value && typeof value === 'object' && 'kind' in value && value.kind === 'inherit') {
       reader.object(value, ['kind']);
-      if (!inherited) reader.fail('unsupported', 'Для наследуемого входа пока нужно явно задать глобальную ёмкость; расчёт на долю смены ещё не поддерживается.', 'Inherited input currently requires an explicit global capacity; shift-based calculation is not supported yet.');
       return materialIds.map(materialId => ({materialId, capacity: {...inherited!}}));
     }
     if (value && typeof value === 'object' && 'kind' in value && value.kind === 'materials') {
@@ -344,7 +357,38 @@ export function compileConfig(value: unknown): RunConfig {
     r.at('lunchReplacement').literal(station.lunchReplacement, false);
     const costs = r.at('costs').object(station.costs, ['perShift', 'perLunchHour', 'capital']);
     const br = r.at('inputBuffer');
-    const inputBuffers = resolveBuffers(station.inputBuffer, br, inputIds, defaultInput);
+    const inputValue = station.inputBuffer;
+    const inherits = inputValue && typeof inputValue === 'object' && 'kind' in inputValue && inputValue.kind === 'inherit';
+    if (inherits) br.object(inputValue, ['kind']);
+    const rule = inherits ? defaultInput : (inputValue && typeof inputValue === 'object' && 'kind' in inputValue && inputValue.kind === 'materials' ? null : inputRule(inputValue, br));
+    let inputBuffers: {materialId: string; capacity: ResolvedBuffer}[];
+    if (rule?.kind === 'shift') {
+      let cycle = 0n;
+      const consumption = new Map<string, bigint>(), kits = new Map<string, bigint>();
+      for (let i = 0; i < plan.length; i++) {
+        const row = plan[i]!, previous = plan[(i + plan.length - 1) % plan.length]!;
+        cycle += BigInt(row.timeMs) * BigInt(row.mode === 'sequential' ? row.repetitions : 1) * BigInt(row.batches);
+        if (row.recipeId !== previous.recipeId) cycle += BigInt(setupMs);
+        for (const input of plannedRecipes[i]!.inputs) {
+          const kit = BigInt(input.quantity) * BigInt(row.repetitions);
+          consumption.set(input.materialId, (consumption.get(input.materialId) ?? 0n) + kit * BigInt(row.batches));
+          kits.set(input.materialId, kit > (kits.get(input.materialId) ?? 0n) ? kit : kits.get(input.materialId)!);
+        }
+      }
+      const work = BigInt(calendar.shiftEndMs - calendar.shiftStartMs - (calendar.lunchEndMs - calendar.lunchStartMs));
+      inputBuffers = inputIds.map(materialId => {
+        const unit = materials.find(m => m.id === materialId)!.role === 'raw' ? 1n : 1_000_000n;
+        const ceil = (n: bigint, d: bigint) => (n + d - 1n) / d;
+        const rounded = ceil(BigInt(rule.shifts) * work * consumption.get(materialId)!, 1_000_000n * cycle * unit) * unit;
+        const minimum = ceil(kits.get(materialId)!, unit) * unit;
+        const quantity = rounded > minimum ? rounded : minimum;
+        if (quantity > BigInt(Number.MAX_SAFE_INTEGER)) br.fail('capacity', `Расчётная ёмкость ${materialId} превышает диапазон.`, `Calculated capacity for ${materialId} exceeds range.`);
+        bufferCalculations.push({stationId, materialId, shifts: rule.sourceShifts, cycleWorkMs: cycle.toString(), cycleConsumption: consumption.get(materialId)!.toString(), roundedQuantity: Number(rounded), minimumKit: Number(minimum), raisedToKit: minimum > rounded});
+        return {materialId, capacity: {kind: 'quantity', quantity: Number(quantity)}};
+      });
+    } else {
+      inputBuffers = inherits ? inputIds.map(materialId => ({materialId, capacity: {...rule! as ResolvedBuffer}})) : resolveBuffers(inputValue, br, inputIds, null);
+    }
     const outputIds = [...new Set(plannedRecipes.map(recipe => recipe.output.materialId))].sort();
     const outputBuffers = resolveBuffers(station.outputBuffer, r.at('outputBuffer'), outputIds, defaultOutput);
     for (const row of plan) for (const input of recipes.find(recipe => recipe.id === row.recipeId)!.inputs) {
@@ -468,5 +512,5 @@ export function compileConfig(value: unknown): RunConfig {
   // Validation constructed independent numeric data; source is separately cloned for editing a copy.
   const source = structuredClone(value) as EditorConfig;
   return freezeData({schemaVersion: SCHEMA_VERSION, engineVersion: ENGINE_VERSION, rngVersion: RNG_VERSION,
-    calculationHash: calculationHash(resolved), source, resolved});
+    calculationHash: calculationHash(resolved), bufferCalculations, source, resolved});
 }
