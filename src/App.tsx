@@ -7,6 +7,9 @@ import { Runner } from './runner/runner';
 import type { PlaybackSpeed, RunnerView } from './runner/runner';
 import { DurationPanel, withDuration } from './ui/DurationPanel';
 import type { DurationDistribution } from './engine/random';
+import { LunchPanel } from './ui/LunchPanel';
+import { withLunch } from './ui/lunch';
+import type { LunchSetting, LunchSettings } from './ui/lunch';
 import { MaintenancePanel } from './ui/MaintenancePanel';
 import { withMaintenance } from './ui/maintenance';
 import { BufferPanel } from './ui/BufferPanel';
@@ -33,8 +36,9 @@ export function App() {
   const seed = seedValid ? Number(seedText) : 42;
   const [duration, setDuration] = useState<DurationDistribution>({kind: 'constant', timeMs: 480_000});
   const [maintenance, setMaintenance] = useState<MaintenanceConfig>({enabled: false});
+  const [lunch, setLunch] = useState<LunchSettings>({});
   const [buffers, setBuffers] = useState<BufferSettings | null>(null);
-  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); return compileConfig(buffers ? withBuffers(config, buffers) : config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance]);
+  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); return compileConfig(buffers ? withBuffers(config, buffers) : config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
@@ -64,6 +68,7 @@ export function App() {
     try {
       let config = previewConfig(example, cv, seed, nextBatches, nextPlan);
       if (example === 'batches') config = withMaintenance(config, 'prep', maintenance);
+      config = withLunch(config, lunch);
       compileConfig(buffers ? withBuffers(config, buffers) : config);
       setConfigurationError(null); runner.current?.dispose(); setView(null);
       setBatchProfiles(nextBatches); setPlanProfile(nextPlan);
@@ -81,6 +86,10 @@ export function App() {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setMaintenance(next);
   }, [locked]);
+  const applyLunch = useCallback((id: string, setting: LunchSetting) => {
+    if (locked) return;
+    setConfigurationError(null); runner.current?.dispose(); setView(null); setLunch(previous => ({...previous, [id]: setting}));
+  }, [locked]);
   const reset = () => {runner.current?.dispose(); setView(null); setGeneration(value => value + 1);};
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
   return <main>
@@ -89,7 +98,7 @@ export function App() {
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <section id="flow" className="diagram-panel" aria-label={text.diagram} data-time-ms={view?.model.timeMs ?? 0} data-playback={status} data-speed={view?.speed ?? 60} data-reduced={manualReduced || systemReduced}>
       <div className="diagram-controls">
         <div className="playback-buttons"><button className="play-button" type="button" disabled={!view || terminal || !seedValid || !!configurationError} onClick={() => {if (status === 'ready') runner.current?.start(); else if (status === 'running') runner.current?.pause(); else runner.current?.resume();}}>{playLabel}</button>
@@ -134,6 +143,7 @@ export function App() {
       </fieldset></details>}
       {example === 'batches' && <MaintenancePanel key={`maintenance-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyMaintenance}/>}
       {example === 'queue' && <DurationPanel key={`duration-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyDuration}/>}
+      <LunchPanel key={example} run={run} locked={locked || !view} text={text} language={language} onApply={applyLunch}/>
       <BufferPanel key={`${example}-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyBuffers}/>
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
       <p className="scroll-note">{text.scroll}</p>

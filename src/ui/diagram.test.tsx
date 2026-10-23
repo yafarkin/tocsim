@@ -34,7 +34,7 @@ describe('diagram derived from configuration and snapshot', () => {
     expect(svg).toContain('Текстовое представление');
     expect(svg).toContain('Выход / Готово'); expect(svg).toContain('Без буфера');
     expect(svg).not.toMatch(/NaN|Infinity|0\/0/);
-    expect(svg).toContain(`viewBox="0 0 ${FIRST_X + 3 * NODE_GAP + 130} 480"`);
+    expect(svg).toContain(`viewBox="0 0 ${FIRST_X + 3 * NODE_GAP + 130} 512"`);
     runner.dispose();
   });
   it('translates state and material reasons without changing model data', () => {
