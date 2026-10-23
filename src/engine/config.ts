@@ -4,7 +4,7 @@ import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.21.0';
+export const ENGINE_VERSION = '0.22.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -26,7 +26,7 @@ export interface RecipeConfig {
   inputs: { materialId: string; quantity: string }[];
   output: { materialId: string; quantity: string };
 }
-export type ProcessingConfig = {mode: 'sequential' | 'simultaneous'; repetitions: number} & (
+export type ProcessingConfig = {mode: 'sequential' | 'simultaneous'; repetitions: number; defectProbability?: number} & (
   {timeMs: number; cv: number; distribution?: never} | {distribution: DurationDistribution; timeMs?: never; cv?: never}
 );
 export type MaintenanceConfig = {enabled: false} | {
@@ -71,6 +71,7 @@ export interface ResolvedPlanRow {
   id: string; recipeId: string; batches: number;
   mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
   distribution?: BoundedDistribution;
+  defectProbability?: number;
 }
 export interface ResolvedConfig {
   seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
@@ -346,7 +347,9 @@ export function compileConfig(value: unknown): RunConfig {
       const recipe = recipes.find(recipe => recipe.id === recipeId);
       if (!recipe) pr.at('recipeId').fail('reference', `Рецепт ${recipeId} не найден.`, `Recipe ${recipeId} was not found.`);
       const batches = pr.at('batches').integer(row.batches, 1);
-      const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv', 'distribution']);
+      const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv', 'distribution', 'defectProbability']);
+      const defectProbability = processing.defectProbability === undefined ? 0 : processing.defectProbability;
+      if (typeof defectProbability !== 'number' || !Number.isFinite(defectProbability) || defectProbability < 0 || defectProbability > 1) pr.at('processing').at('defectProbability').fail('value', 'Вероятность дефекта должна быть числом от 0 до 1.', 'Defect probability must be a number from 0 to 1.');
       const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
       const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
       for (const amount of [...recipe!.inputs, recipe!.output]) {
@@ -379,7 +382,7 @@ export function compileConfig(value: unknown): RunConfig {
           if (minMs === maxMs) distribution = undefined;
         }
       }
-      return {id: planId, recipeId, batches, mode, repetitions, timeMs, cv, ...(distribution ? {distribution} : {})};
+      return {id: planId, recipeId, batches, mode, repetitions, timeMs, cv, ...(distribution ? {distribution} : {}), ...(defectProbability ? {defectProbability: defectProbability as number} : {})};
     });
     const first = plan[0]!;
     const plannedRecipes = plan.map(row => recipes.find(recipe => recipe.id === row.recipeId)!);

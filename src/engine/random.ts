@@ -103,3 +103,13 @@ export function processingDuration(meanMs: number, cv: number, seed: number, sta
   if (!Number.isSafeInteger(duration)) throw new RandomError({ru: 'Случайная длительность превысила безопасный диапазон времени.', en: 'Sampled duration exceeded the safe time range.'});
   return duration;
 }
+
+/** Independent per-output quality stream. Endpoints need no uniform sample. */
+export function defectOccurs(probability: number, seed: number, stationId: string, recipeId: string, ordinal: number, sampleIndex: number): boolean {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1
+    || !Number.isInteger(seed) || seed < 0 || seed > 0xffffffff || !stationId || !recipeId
+    || !Number.isSafeInteger(ordinal) || ordinal < 0 || !Number.isSafeInteger(sampleIndex) || sampleIndex < 0) {
+    throw new RandomError({ru: 'Некорректные параметры генерации дефекта.', en: 'Invalid defect sampling parameters.'});
+  }
+  return probability === 1 || (probability > 0 && uniform(seed, stationId, recipeId, ordinal, 'defect', sampleIndex) < probability);
+}

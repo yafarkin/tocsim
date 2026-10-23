@@ -1,3 +1,4 @@
+import {defectOccurs} from './random';
 import { addMoney, ArithmeticError, MAX_UNITS, splitCost } from './arithmetic';
 import type { DeepReadonly, ResolvedBuffer, RunConfig } from './config';
 import type { InventoryState, Provenance, StockState } from './state';
@@ -210,36 +211,95 @@ export function reserveInputs(state: InventoryState, stationId: string, inputs: 
   });
 }
 
-/** Consume a reserved kit (or the entire reservation) and create its output lot. */
+/** Complete one repetition or an explicitly homogeneous aggregate. Caller owns the transaction. */
+function produceDraft(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
+  const draft = state;
+  address({ownerId: stationId, location: 'held'});
+  quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId, false); quantity(readyAtMs, stationId, false);
+  if (!output.materialId || output.quantity % 1_000_000 !== 0) fail('value', stationId, 'Производственный выход должен быть целым положительным числом изделий.', 'Production output must be a positive whole number of items.');
+  if (kit && (kit.length === 0 || new Set(kit.map(input => input.materialId)).size !== kit.length)) fail('value', stationId, 'Нужен уникальный непустой комплект.', 'A unique nonempty kit is required.');
+  const inputs = kit ? kit.flatMap(input => takeFIFO(draft, {ownerId: stationId, location: 'reserved'}, input.materialId, input.quantity))
+    : draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
+  if (inputs.length === 0 || (!kit && draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held'))) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
+  let cost = 0n;
+  const provenance: Provenance = {origin: {kind: 'unreleased'}, defective: false, defectSourceIds: [], processingMs: {}};
+  const times = new Map<string, bigint>();
+  const defects = new Set<string>();
+  for (const stock of inputs) {
+    cost = addMoney(cost, stock.cost);
+    const p = stock.provenance;
+    if (p.origin.kind === 'unreleased') fail('value', stock.id, 'В производстве не может быть незапущенного сырья.', 'Unreleased raw material cannot be in production.');
+    if (p.origin.kind === 'unknown') provenance.origin = {kind: 'unknown'};
+    else if (provenance.origin.kind !== 'unknown' && (provenance.origin.kind === 'unreleased' || provenance.origin.startedAtMs > p.origin.startedAtMs)) provenance.origin = {...p.origin};
+    provenance.defective ||= p.defective;
+    p.defectSourceIds.forEach(id => defects.add(id));
+    for (const [station, time] of Object.entries(p.processingMs)) times.set(station, addMoney(times.get(station) ?? 0n, time));
+  }
+  times.set(stationId, addMoney(times.get(stationId) ?? 0n, BigInt(actualProcessingMs)));
+  provenance.processingMs = Object.fromEntries([...times.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+  provenance.defectSourceIds = [...defects].sort();
+  const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId, quantity: output.quantity, cost, readyAtMs, provenance};
+  draft.stocks = draft.stocks.filter(stock => !inputs.includes(stock));
+  draft.stocks.push(result);
+  return result;
+}
+
+
+/** Existing single-repetition accounting operation. */
 export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
+  quantity(actualProcessingMs, stationId);
+  return transaction(state, draft => produceDraft(draft, stationId, output, actualProcessingMs, readyAtMs, kit));
+}
+export interface ProductionQuality {probability: number; seed: number; recipeId: string; operationOrdinal: number}
+
+/** Preserve each simultaneous repetition's kit. Split outputs only where quality differs.
+ * FIFO, value and attributed time are committed together, including all repetitions.
+ */
+export function completeProductionBatch(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number,
+  readyAtMs: number, kit: readonly MaterialAmount[], repetitions: number, quality?: ProductionQuality): StockState[] {
   return transaction(state, draft => {
-    address({ownerId: stationId, location: 'held'});
-    quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId); quantity(readyAtMs, stationId, false);
-    if (!output.materialId || output.quantity % 1_000_000 !== 0) fail('value', stationId, 'Производственный выход должен быть целым положительным числом изделий.', 'Production output must be a positive whole number of items.');
-    if (kit && (kit.length === 0 || new Set(kit.map(input => input.materialId)).size !== kit.length)) fail('value', stationId, 'Нужен уникальный непустой комплект.', 'A unique nonempty kit is required.');
-    const inputs = kit ? kit.flatMap(input => takeFIFO(draft, {ownerId: stationId, location: 'reserved'}, input.materialId, input.quantity))
-      : draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
-    if (inputs.length === 0 || (!kit && draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held'))) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
-    let cost = 0n;
-    const provenance: Provenance = {origin: {kind: 'unreleased'}, defective: false, defectSourceIds: [], processingMs: {}};
-    const times = new Map<string, bigint>();
-    const defects = new Set<string>();
-    for (const stock of inputs) {
-      cost = addMoney(cost, stock.cost);
-      const p = stock.provenance;
-      if (p.origin.kind === 'unreleased') fail('value', stock.id, 'В производстве не может быть незапущенного сырья.', 'Unreleased raw material cannot be in production.');
-      if (p.origin.kind === 'unknown') provenance.origin = {kind: 'unknown'};
-      else if (provenance.origin.kind !== 'unknown' && (provenance.origin.kind === 'unreleased' || provenance.origin.startedAtMs > p.origin.startedAtMs)) provenance.origin = {...p.origin};
-      provenance.defective ||= p.defective;
-      p.defectSourceIds.forEach(id => defects.add(id));
-      for (const [station, time] of Object.entries(p.processingMs)) times.set(station, addMoney(times.get(station) ?? 0n, time));
+    quantity(actualProcessingMs, stationId); quantity(repetitions, stationId);
+    quantity(output.quantity, output.materialId);
+    if (output.quantity % 1_000_000 !== 0) fail('value', stationId, 'Нужен целый положительный выход повторения.', 'A positive whole output per repetition is required.');
+    if (BigInt(output.quantity) * BigInt(repetitions) > MAX_UNITS) fail('range', stationId, 'Полный выход партии превышает диапазон.', 'Full batch output exceeds range.');
+    const probability = quality?.probability ?? 0;
+    const ownDefect = (sampleIndex: number) => quality ? defectOccurs(probability, quality.seed, stationId, quality.recipeId, quality.operationOrdinal, sampleIndex) : false;
+    const firstDefect = quality ? ownDefect(0) : false; // Validate before touching inventory.
+    const markOwnDefect = (stock: StockState) => {
+      stock.provenance.defective = true;
+      stock.provenance.defectSourceIds = [...new Set([...stock.provenance.defectSourceIds, stationId])].sort();
+    };
+    const results: StockState[] = [], perRepeat = output.quantity / 1_000_000;
+    let remainingWork = BigInt(actualProcessingMs);
+    for (let repeat = 0; repeat < repetitions; repeat++) {
+      const share = remainingWork / BigInt(repetitions - repeat); remainingWork -= share;
+      const result = produceDraft(draft, stationId, output, Number(share), readyAtMs, kit);
+      if (probability === 0 || probability === 1) {
+        if (probability === 1) markOwnDefect(result);
+        results.push(result); continue;
+      }
+      const spans: {quantity: number; defective: boolean}[] = [];
+      for (let piece = 0; piece < perRepeat; piece++) {
+        const sampleIndex = repeat * perRepeat + piece;
+        const defective = sampleIndex === 0 ? firstDefect : ownDefect(sampleIndex), last = spans[spans.length - 1];
+        if (last && last.defective === defective) last.quantity += 1_000_000;
+        else spans.push({quantity: 1_000_000, defective});
+      }
+      draft.stocks.splice(draft.stocks.indexOf(result), 1);
+      let consumed = 0n;
+      const total = BigInt(result.quantity);
+      // Prefix shares make allocation independent of the quality run boundaries.
+      const shareBetween = (value: bigint, end: bigint) => value * end / total - value * consumed / total;
+      for (let index = 0; index < spans.length; index++) {
+        const span = spans[index]!, end = consumed + BigInt(span.quantity);
+        const stock: StockState = {...result, id: index === 0 ? result.id : newId(draft), quantity: span.quantity,
+          cost: shareBetween(result.cost, end), provenance: copyProvenance(result.provenance)};
+        for (const [id, time] of Object.entries(result.provenance.processingMs)) stock.provenance.processingMs[id] = shareBetween(time, end);
+        if (span.defective) markOwnDefect(stock);
+        consumed = end;
+        draft.stocks.push(stock); results.push(stock);
+      }
     }
-    times.set(stationId, addMoney(times.get(stationId) ?? 0n, BigInt(actualProcessingMs)));
-    provenance.processingMs = Object.fromEntries([...times.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
-    provenance.defectSourceIds = [...defects].sort();
-    const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId, quantity: output.quantity, cost, readyAtMs, provenance};
-    draft.stocks = draft.stocks.filter(stock => !inputs.includes(stock));
-    draft.stocks.push(result);
-    return result;
+    return results;
   });
 }

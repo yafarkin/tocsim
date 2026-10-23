@@ -6,7 +6,7 @@ import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
 import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
-import { completeProduction, consumeStock, reserveInputs, transferStock } from './inventory';
+import { completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
 
@@ -236,7 +236,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         station.maintenanceRepetitions = addMaintenanceCounter(station.maintenanceRepetitions, multiplier, station.stationId);
         markMaintenanceDue(ctx, station, config);
       }
-      completeProduction(ctx.state, config.id, {...recipe.output, quantity: recipe.output.quantity * multiplier}, station.operationDurationMs!, ctx.timeMs, recipe.inputs.map(input => ({...input, quantity: input.quantity * multiplier})));
+      completeProductionBatch(ctx.state, config.id, recipe.output, station.operationDurationMs!, ctx.timeMs, recipe.inputs, multiplier, {probability: row.defectProbability ?? 0, seed: run.resolved.seed, recipeId: recipe.id, operationOrdinal: station.operationOrdinal - 1});
       for (const input of recipe.inputs) {
         const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
         inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity * multiplier);
