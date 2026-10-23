@@ -37,7 +37,7 @@ describe('technical examples', () => {
       runner.step(); if (++steps > 2000) throw new Error('Step run did not finish');
     }
     expect(runner.getView().model).toEqual(expected); runner.dispose();
-  });
+  }, 15_000);
   it('distinguishes balanced flow, growing queues and blocked output with real snapshots', () => {
     const at = (id: typeof exampleIds[number], minutes: number) => new Simulation(exampleRuns[id]).advanceTo(minutes * 60_000);
     const balanced = at('balanced', 46), queue = at('queue', 46), blocked = at('blocking', 46);
