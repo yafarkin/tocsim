@@ -60,6 +60,7 @@ describe('shift-based input capacity', () => {
   });
   it('has the same calculation identity and execution as equivalent explicit capacities', () => {
     const c = line(); c.stations[1]!.inputBuffer = {kind: 'shift', shifts: '0.5'};
+    c.sources[0]!.intervalMs = 6 * M;
     const a = compileConfig(c); c.stations[1]!.inputBuffer = {kind: 'quantity', quantity: '160'};
     const b = compileConfig(c);
     expect(a.resolved).toEqual(b.resolved); expect(a.calculationHash).toBe(b.calculationHash);
