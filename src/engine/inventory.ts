@@ -303,3 +303,35 @@ export function completeProductionBatch(state: InventoryState, stationId: string
     return results;
   });
 }
+
+/** Filter reserved volume without production, merging, or new defect generation.
+ * Existing cost/time portions remain individual; inspection time is apportioned
+ * by checked volume, including the portions that are scrapped.
+ */
+export function completeInspection(state: InventoryState, stationId: string, materialId: string, actualProcessingMs: number,
+  readyAtMs: number, repetitions = 1): {passed: StockState[]; scrapped: StockState[]} {
+  return transaction(state, draft => {
+    address({ownerId: stationId, location: 'held'});
+    quantity(actualProcessingMs, stationId); quantity(readyAtMs, stationId, false); quantity(repetitions, stationId);
+    if (!materialId || BigInt(repetitions) * 1_000_000n > MAX_UNITS) fail('value', stationId, 'Некорректный объём контроля.', 'Invalid inspection volume.');
+    const checked = BigInt(repetitions) * 1_000_000n;
+    const parts = takeFIFO(draft, {ownerId: stationId, location: 'reserved'}, materialId, Number(checked));
+    const passed: StockState[] = [], scrapped: StockState[] = [];
+    let priorQuantity = 0n;
+    for (const part of parts) {
+      if (part.provenance.origin.kind === 'unreleased') fail('value', part.id, 'В контроле не может быть незапущенного сырья.', 'Unreleased raw material cannot be inspected.');
+      const end = priorQuantity + BigInt(part.quantity);
+      const work = BigInt(actualProcessingMs) * end / checked - BigInt(actualProcessingMs) * priorQuantity / checked;
+      const times = new Map(Object.entries(part.provenance.processingMs));
+      times.set(stationId, addMoney(times.get(stationId) ?? 0n, work));
+      part.provenance.processingMs = Object.fromEntries(times);
+      priorQuantity = end;
+      if (part.provenance.defective) scrapped.push(part);
+      else {
+        part.location = 'held'; part.readyAtMs = readyAtMs;
+        draft.stocks.push(part); passed.push(part);
+      }
+    }
+    return {passed, scrapped};
+  });
+}

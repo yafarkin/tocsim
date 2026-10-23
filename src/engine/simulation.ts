@@ -6,7 +6,7 @@ import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
 import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
-import { completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
+import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
 
@@ -101,6 +101,20 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     if (total > MAX_UNITS) throw new EventError('value', stationId, {ru: 'Счётчик обслуживания превысил безопасный диапазон.', en: 'Maintenance counter exceeded the safe range.'});
     return Number(total);
   }
+  function recordScrap(state: EngineState, detectedAtId: string, part: StockState) {
+    const counter = state.line!.counters.find(c => c.materialId === part.materialId)!;
+    counter.scrapped = addQuantity(counter.scrapped, part.quantity); counter.scrapCost = addMoney(counter.scrapCost, part.cost);
+    const ids = [...part.provenance.defectSourceIds].sort();
+    let summary = state.line!.scraps.find(s => s.detectedAtId === detectedAtId && s.materialId === part.materialId && JSON.stringify(s.defectSourceIds) === JSON.stringify(ids));
+    if (!summary) {
+      summary = {detectedAtId, materialId: part.materialId, defectSourceIds: ids, quantity: 0, cost: 0n, processingMs: {}};
+      state.line!.scraps.push(summary);
+    }
+    summary.quantity = addQuantity(summary.quantity, part.quantity); summary.cost = addMoney(summary.cost, part.cost);
+    const times = new Map(Object.entries(summary.processingMs));
+    for (const [id, time] of Object.entries(part.provenance.processingMs)) times.set(id, addMoney(times.get(id) ?? 0n, time));
+    summary.processingMs = Object.fromEntries(times);
+  }
   function deliver(ctx: EventContext, config: Station, location: 'held' | 'output', materialId: string, limit: number): boolean {
     let available = Math.min(limit, count(ctx.state, config.id, location, materialId));
     if (available === 0) return false;
@@ -110,7 +124,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const portions = consumeStock(ctx.state, from, materialId, available);
       const counter = ctx.state.line!.counters.find(c => c.materialId === materialId)!;
       for (const part of portions) {
-        if (part.provenance.defective) {counter.scrapped = addQuantity(counter.scrapped, part.quantity); counter.scrapCost = addMoney(counter.scrapCost, part.cost);}
+        if (part.provenance.defective) recordScrap(ctx.state, 'market', part);
         else {counter.sold = addQuantity(counter.sold, part.quantity); counter.soldCost = addMoney(counter.soldCost, part.cost);}
         ctx.state.line!.transfers.push({fromId: config.id, toId: 'market', fromLocation: location,
           materialId: part.materialId, quantity: part.quantity, cost: part.cost, kind: part.provenance.defective ? 'scrap' : 'sale'});
@@ -236,13 +250,31 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         station.maintenanceRepetitions = addMaintenanceCounter(station.maintenanceRepetitions, multiplier, station.stationId);
         markMaintenanceDue(ctx, station, config);
       }
-      completeProductionBatch(ctx.state, config.id, recipe.output, station.operationDurationMs!, ctx.timeMs, recipe.inputs, multiplier, {probability: row.defectProbability ?? 0, seed: run.resolved.seed, recipeId: recipe.id, operationOrdinal: station.operationOrdinal - 1});
-      for (const input of recipe.inputs) {
-        const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
-        inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity * multiplier);
+      if (recipe.kind === 'inspection') {
+        const result = completeInspection(ctx.state, config.id, recipe.output.materialId, station.operationDurationMs!, ctx.timeMs, multiplier);
+        let counter = ctx.state.line!.inspections.find(c => c.stationId === config.id && c.materialId === recipe.output.materialId);
+        if (!counter) {
+          counter = {stationId: config.id, materialId: recipe.output.materialId, completedRepetitions: 0, checkedQuantity: 0, passedQuantity: 0, scrappedQuantity: 0, processingMs: 0n};
+          ctx.state.line!.inspections.push(counter);
+        }
+        counter.completedRepetitions = addQuantity(counter.completedRepetitions, multiplier);
+        counter.checkedQuantity = addQuantity(counter.checkedQuantity, multiplier * recipe.output.quantity);
+        counter.processingMs = addMoney(counter.processingMs, BigInt(station.operationDurationMs!));
+        counter.passedQuantity = addQuantity(counter.passedQuantity, result.passed.reduce((sum, part) => addQuantity(sum, part.quantity), 0));
+        counter.scrappedQuantity = addQuantity(counter.scrappedQuantity, result.scrapped.reduce((sum, part) => addQuantity(sum, part.quantity), 0));
+        for (const part of result.scrapped) {
+          recordScrap(ctx.state, config.id, part);
+          ctx.state.line!.transfers.push({fromId: config.id, toId: config.id, fromLocation: 'reserved', materialId: part.materialId, quantity: part.quantity, cost: part.cost, kind: 'scrap'});
+        }
+      } else {
+        completeProductionBatch(ctx.state, config.id, recipe.output, station.operationDurationMs!, ctx.timeMs, recipe.inputs, multiplier, {probability: row.defectProbability ?? 0, seed: run.resolved.seed, recipeId: recipe.id, operationOrdinal: station.operationOrdinal - 1});
+        for (const input of recipe.inputs) {
+          const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
+          inputCounter.consumed = addQuantity(inputCounter.consumed, input.quantity * multiplier);
+        }
+        const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
+        outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity * multiplier);
       }
-      const outputCounter = ctx.state.line!.counters.find(c => c.materialId === recipe.output.materialId)!;
-      outputCounter.produced = addQuantity(outputCounter.produced, recipe.output.quantity * multiplier);
       const batchComplete = !hasStock(ctx.state, config.id, 'reserved');
       station.transferReady = count(ctx.state, config.id, 'held', recipe.output.materialId) >= config.transportThreshold
         || batchComplete;
@@ -343,7 +375,7 @@ export class Simulation {
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
-    state.line = {transferPending: true, dispatchPending: false,
+    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [],
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);
     this.scheduler = new EventScheduler(run, state, handlers);

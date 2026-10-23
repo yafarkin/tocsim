@@ -4,7 +4,7 @@ import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.22.0';
+export const ENGINE_VERSION = '0.23.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -22,7 +22,7 @@ export interface MaterialConfig {
   purchasePrice?: string; salePrice?: string;
 }
 export interface RecipeConfig {
-  id: string; name: string; kind: 'production';
+  id: string; name: string; kind: 'production' | 'inspection';
   inputs: { materialId: string; quantity: string }[];
   output: { materialId: string; quantity: string };
 }
@@ -76,7 +76,7 @@ export interface ResolvedPlanRow {
 export interface ResolvedConfig {
   seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
-  recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
+  recipes: { id: string; kind: RecipeConfig['kind']; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
     plan: ResolvedPlanRow[];
     setupMs: number; initialRecipeId: string; maintenance: ResolvedMaintenance; lunchReplacement: boolean;
@@ -280,25 +280,26 @@ export function compileConfig(value: unknown): RunConfig {
     return found;
   }
   const recipes = byId(entries('recipes', ['id', 'name', 'kind', 'inputs', 'output']).map(({object: recipe, reader: r, id}) => {
-    r.at('name').text(recipe.name); r.at('kind').literal(recipe.kind, 'production');
+    r.at('name').text(recipe.name); const kind = r.at('kind').choice(recipe.kind, ['production', 'inspection']);
     const inputReader = r.at('inputs');
     const rows = inputReader.array(recipe.inputs);
     if (rows.length === 0) inputReader.fail('value', 'Рецепту нужен хотя бы один вход.', 'A recipe requires at least one input.');
     const output = r.at('output').object(recipe.output, ['materialId', 'quantity']);
     const outputMaterial = material(output.materialId, r.at('output').at('materialId'));
-    if (outputMaterial.role === 'raw') r.at('output').fail('topology', 'Производство не может выпускать сырьё.', 'Production cannot output raw material.');
+    if (kind === 'production' && outputMaterial.role === 'raw') r.at('output').fail('topology', 'Производство не может выпускать сырьё.', 'Production cannot output raw material.');
     const seenInputs = new Set<string>();
     const inputs = rows.map((value, index) => {
       const ir = inputReader.at(index), input = ir.object(value, ['materialId', 'quantity']);
       const inputMaterial = material(input.materialId, ir.at('materialId'));
-      if (inputMaterial.role === 'finished' || inputMaterial.id === outputMaterial.id) ir.fail('topology', 'Производство должно вести от сырья через полуфабрикаты к конечному изделию.', 'Production must lead from raw material through intermediates to a finished material.');
+      if (kind === 'production' && (inputMaterial.role === 'finished' || inputMaterial.id === outputMaterial.id)) ir.fail('topology', 'Производство должно вести от сырья через полуфабрикаты к конечному изделию.', 'Production must lead from raw material through intermediates to a finished material.');
       if (seenInputs.has(inputMaterial.id)) ir.at('materialId').fail('reference', 'Материал повторяется во входах рецепта.', 'Duplicate input material in recipe.');
       seenInputs.add(inputMaterial.id);
       return {materialId: inputMaterial.id, quantity: ir.at('quantity').quantity(input.quantity, true)};
     }).sort((a, b) => a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0);
     const outputQuantity = r.at('output').at('quantity').quantity(output.quantity, true);
     if (outputQuantity % 1_000_000 !== 0) r.at('output').at('quantity').fail('value', 'Выход рецепта должен быть целым положительным числом.', 'Recipe output must be a positive whole number.');
-    return {id, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
+    if (kind === 'inspection' && (inputs.length !== 1 || inputs[0]!.materialId !== outputMaterial.id || inputs[0]!.quantity !== 1_000_000 || outputQuantity !== 1_000_000)) r.fail('value', 'Контроль должен задавать номинальный профиль 1 A → 1 A для одного и того же материала.', 'Inspection requires the nominal profile 1 A → 1 A for the same material.');
+    return {id, kind, inputs, output: {materialId: outputMaterial.id, quantity: outputQuantity}};
   }));
   const defaultsReader = root.at('bufferDefaults');
   const defaults = config.bufferDefaults === undefined ? {} : defaultsReader.object(config.bufferDefaults, ['input', 'output']);
@@ -350,6 +351,7 @@ export function compileConfig(value: unknown): RunConfig {
       const processing = pr.at('processing').object(row.processing, ['mode', 'repetitions', 'timeMs', 'cv', 'distribution', 'defectProbability']);
       const defectProbability = processing.defectProbability === undefined ? 0 : processing.defectProbability;
       if (typeof defectProbability !== 'number' || !Number.isFinite(defectProbability) || defectProbability < 0 || defectProbability > 1) pr.at('processing').at('defectProbability').fail('value', 'Вероятность дефекта должна быть числом от 0 до 1.', 'Defect probability must be a number from 0 to 1.');
+      if (recipe!.kind === 'inspection' && defectProbability !== 0) pr.at('processing').at('defectProbability').fail('value', 'Контроль не создаёт дефект: вероятность должна быть нулевой.', 'Inspection does not create defects: probability must be zero.');
       const mode = pr.at('processing').at('mode').choice(processing.mode, ['sequential', 'simultaneous']);
       const repetitions = pr.at('processing').at('repetitions').integer(processing.repetitions, 1);
       for (const amount of [...recipe!.inputs, recipe!.output]) {

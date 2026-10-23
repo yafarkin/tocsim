@@ -245,7 +245,7 @@ describe('sources, termination and snapshot diagnostics', () => {
     sim.advanceTo(5 * minute); expect(old.stations[0]!.progress).toBeCloseTo(0.4);
     expect(sim.getSnapshot().line!.transfers[0]).toMatchObject({kind: 'sale', quantity: q(1), cost: '10000000'});
     expect(Object.isFrozen(sim.getSnapshot().line!.counters)).toBe(true);
-    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(14);
+    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(15);
   });
 
   it('reports an error separately from a user stop and keeps the last consistent time', () => {

@@ -94,10 +94,28 @@ export interface MaterialCounter {
   scrapped: number;
   scrapCost: bigint;
 }
+/** Aggregates by detector/material/source set, not an event history. */
+export interface ScrapSummary {
+  detectedAtId: string;
+  materialId: string;
+  defectSourceIds: string[];
+  quantity: number;
+  cost: bigint;
+  processingMs: Record<string, bigint>;
+}
+export interface InspectionCounter {
+  stationId: string;
+  materialId: string;
+  completedRepetitions: number;
+  checkedQuantity: number;
+  passedQuantity: number;
+  scrappedQuantity: number;
+  processingMs: bigint;
+}
 export interface LineTransfer {
   fromId: string;
   toId: string;
-  fromLocation: 'held' | 'output';
+  fromLocation: 'held' | 'output' | 'reserved';
   materialId: string;
   quantity: number;
   cost: bigint;
@@ -107,6 +125,8 @@ export interface LineState {
   transferPending: boolean;
   dispatchPending: boolean;
   counters: MaterialCounter[];
+  inspections: InspectionCounter[];
+  scraps: ScrapSummary[];
   transfers: LineTransfer[];
 }
 export interface StationSnapshot extends Omit<StationState, 'operationVersion' | 'operationOrdinal'> {
@@ -123,6 +143,8 @@ export interface LineSnapshot {
   flow: 'normal' | 'exhausted' | 'missingInput' | 'blocked';
   counters: (Omit<MaterialCounter, 'soldCost' | 'scrapCost'> & {soldCost: string; scrapCost: string})[];
   transfers: (Omit<LineTransfer, 'cost'> & {cost: string})[];
+  inspections: (Omit<InspectionCounter, 'processingMs'> & {processingMs: string})[];
+  scraps: (Omit<ScrapSummary, 'cost' | 'processingMs'> & {cost: string; processingMs: Record<string, string>})[];
 }
 export interface EngineState extends InventoryState {
   timeMs: number;
@@ -132,7 +154,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 14;
+  schemaVersion: 15;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -147,7 +169,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 14,
+    schemaVersion: 15,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -191,6 +213,8 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
       counters: state.line.counters.map(c => ({...c, soldCost: moneyToJSON(c.soldCost), scrapCost: moneyToJSON(c.scrapCost)})),
+      inspections: state.line.inspections.map(c => ({...c, processingMs: moneyToJSON(c.processingMs)})),
+      scraps: state.line.scraps.map(s => ({...s, cost: moneyToJSON(s.cost), processingMs: Object.fromEntries(Object.entries(s.processingMs).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([id, time]) => [id, moneyToJSON(time)]))})),
       transfers: state.line.transfers.map(t => ({...t, cost: moneyToJSON(t.cost)})),
     } : null,
     sources: state.sources.map(source => ({
