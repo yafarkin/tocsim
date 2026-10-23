@@ -49,7 +49,7 @@ export const DurationPanel = memo(function DurationPanel({run, locked, text, lan
   const format = (value: number) => value.toLocaleString(language, {maximumFractionDigits: 6});
   const field = (key: 'time' | 'cv' | 'min' | 'peak' | 'max', label: string) => <label>{label}<input aria-label={label} inputMode="decimal" value={draft[key]} onChange={e => setDraft({...draft, [key]: e.target.value})}/></label>;
   return <details className="batch-editor duration-editor" open><summary>{text.processingTime}: {text.work}</summary><fieldset className="batch-settings" disabled={locked}>
-    <legend>{text.processingTime}: {text.work}</legend><p>{text.durationHelp}</p><p>{text.durationStatsHelp}</p>
+    <legend>{text.processingTime}: {text.work}</legend><div className="settings-layout"><div className="settings-help"><p>{text.durationHelp}</p><p>{text.durationStatsHelp}</p></div><div className="settings-fields">
     <div className="batch-settings-row"><label>{text.processingTime}<select aria-label={text.processingTime} value={draft.kind} onChange={e => setDraft({...draft, kind: e.target.value as Draft['kind']})}>
       <option value="constant">{text.constantTime}</option><option value="lognormal">{text.lognormalTime}</option><option value="uniform">{text.uniformTime}</option><option value="triangular">{text.triangularTime}</option>
     </select></label>
@@ -59,5 +59,5 @@ export const DurationPanel = memo(function DurationPanel({run, locked, text, lan
       {candidate!.bufferCalculations.filter(c => c.stationId === 'work').map(c => <p key={c.materialId}>{text.input}: {nameFor(c.materialId, candidate!.source.materials.find(m => m.id === c.materialId)!.name, text)} {text.calculated} {format(c.roundedQuantity / 1_000_000)}{c.raisedToKit && ` · ${text.raisedKit}`}</p>)}
     </div>}
     <button type="button" disabled={!!error} onClick={() => distribution && onApply(distribution)}>{text.applyProcessingTime}</button><p className="duration-applied">{text.current}: {text.mean} {format(run.resolved.stations.find(s => s.id === 'work')!.timeMs / 60_000)} {text.minutes}; CV {format(run.resolved.stations.find(s => s.id === 'work')!.cv)}.</p>
-  </fieldset></details>;
+  </div></div></fieldset></details>;
 });

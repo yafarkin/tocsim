@@ -63,16 +63,16 @@
 .scenario-panel>h2,.simulation-panel>h2{font-size:22px;line-height:1.3;margin:0 0 18px}
 .scenario-panel .example-picker{margin-bottom:18px}
 .scenario-panel .example-guide{margin:0;padding:18px 0 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}
-.scenario-panel .example-guide p{max-width:90ch}
+.scenario-panel .example-guide p{max-width:none}
 .line-settings{min-width:0;padding:18px;margin-bottom:22px;background:var(--soft);border:1px solid var(--line);border-radius:8px}
-.line-settings>h3{font-size:18px;margin:0 0 16px}
+.line-settings-header{display:flex;align-items:center;justify-content:space-between;gap:16px 32px;flex-wrap:wrap}.line-settings-header h3{font-size:20px;margin:0}
 .run-settings{display:flex;align-items:end;flex-wrap:wrap;gap:16px 24px}
 .run-settings .speed-picker{flex-direction:column;align-items:flex-start;font-size:16px}
 .line-settings .variability-note{margin:12px 0 0;font-size:14px}
 .line-settings .batch-editor{margin:18px 0 0;padding-top:16px;border-top:1px solid var(--border)}
 .line-settings .batch-settings{margin:14px 0 0;padding:0;border:0;background:transparent}
 .line-settings .batch-settings>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.line-settings .batch-settings p{max-width:90ch}
+.line-settings .batch-settings p{max-width:none}
 .line-settings .batch-settings-row{display:flex;align-items:end;gap:16px 24px}
 .line-settings .batch-settings-row label,.line-settings .buffer-rule>label,.line-settings .station-buffer-fields>label{flex:0 1 auto;display:flex;flex-direction:column;align-items:flex-start;gap:6px;max-width:100%}
 .line-settings select{max-width:100%}
@@ -91,3 +91,22 @@
 .line-settings .buffer-fields-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px}
 .line-settings .buffer-fields-grid>*{min-width:0}
 @media(max-width:700px){.line-settings .buffer-fields-grid{grid-template-columns:1fr;gap:0}}
+
+/* Give the explanation and the experiment their own share of the available width. */
+.scenario-panel .example-guide h2{font-size:20px}
+.scenario-panel .example-guide p,.scenario-panel .example-guide summary{font-size:18px;line-height:1.6}
+.scenario-panel .example-guide .comparison-help{font-size:16px}
+.experiment-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px 32px;margin:18px 0}
+.experiment-steps p{min-width:0}
+.experiment-steps strong{display:block;margin-bottom:8px;color:var(--text)}
+.experiment-explanation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 32px;margin-top:12px}
+.settings-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px 40px;align-items:start}
+.settings-layout>div{min-width:0}
+.line-settings .settings-help p{font-size:16px;line-height:1.6}
+.line-settings .settings-fields .batch-settings-row{margin-top:0}
+.line-settings .batch-settings-row label{flex:1 1 150px}
+.line-settings .batch-settings-row select,.line-settings .batch-settings-row input:not([type=checkbox]){width:100%;min-width:0}
+.line-settings .settings-fields>button{max-width:100%;white-space:normal}
+.line-settings .settings-fields .maintenance-enable{margin-top:0}
+@media(max-width:1000px){.experiment-steps{grid-template-columns:1fr}.experiment-steps strong{display:inline}.experiment-explanation,.settings-layout{grid-template-columns:1fr;gap:12px}.experiment-steps{gap:8px;margin:12px 0}}
+@media(max-width:600px){.line-settings-header{align-items:flex-start;flex-direction:column}.line-settings-header .run-settings{width:100%}.scenario-panel .example-guide p,.scenario-panel .example-guide summary{font-size:18px}.line-settings .batch-settings-row label{flex-basis:140px}}

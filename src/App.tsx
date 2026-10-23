@@ -107,11 +107,11 @@ export function App() {
     <section className="simulation-panel" aria-labelledby="simulation-title">
     <h2 id="simulation-title">{text.simulationControls}</h2>
     <section className="line-settings" aria-labelledby="line-settings-title">
-      <h3 id="line-settings-title">{text.lineSettings}</h3>
+      <div className="line-settings-header"><h3 id="line-settings-title">{text.lineSettings}</h3>
       <div className="run-settings">
           {example !== 'queue' && <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>}
           <label className="speed-picker">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
-      </div>
+      </div></div>
       {example !== 'queue' && <p className="variability-note">{text.cvHelp}</p>}
       {example === 'plans' && <details className="batch-editor" open><summary>{text.planSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
         <legend>{text.planSettings}</legend><p>{text.planSettingsHelp}</p>

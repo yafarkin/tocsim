@@ -15,7 +15,7 @@ export const MaintenancePanel = memo(function MaintenancePanel({run, locked, tex
   catch (cause) {if (!(cause instanceof ConfigError)) throw cause; error = cause;}
   const field = (key: 'duration' | 'hours' | 'repetitions', label: string) => <label>{label}<input aria-label={label} inputMode={key === 'repetitions' ? 'numeric' : 'decimal'} value={draft[key]} onChange={e => setDraft({...draft, [key]: e.target.value})}/></label>;
   return <details className="batch-editor maintenance-editor" open><summary>{text.maintenanceSettings}: {text.prep}</summary><fieldset className="batch-settings" disabled={locked}>
-    <legend>{text.maintenanceSettings}: {text.prep}</legend><p>{text.maintenanceHelp}</p>
+    <legend>{text.maintenanceSettings}: {text.prep}</legend><div className="settings-layout"><div className="settings-help"><p>{text.maintenanceHelp}</p></div><div className="settings-fields">
     <label className="maintenance-enable"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({...draft, enabled: e.target.checked})}/>{text.enableMaintenance}</label>
     <fieldset disabled={!draft.enabled}><legend>{text.maintenanceThresholds}</legend><div className="batch-settings-row">
       {field('duration', text.maintenanceDuration)}{field('hours', text.maintenanceHours)}{field('repetitions', text.maintenanceRepeatLimit)}
@@ -23,5 +23,5 @@ export const MaintenancePanel = memo(function MaintenancePanel({run, locked, tex
     {error ? <p role="alert" className="maintenance-error">{error.messages[language]} <span>{error.path}</span></p> : candidate && <p aria-live="polite">{text.bufferPreview}: {settingsText(candidate, text)}</p>}
     <button type="button" disabled={!!error} onClick={() => candidate && onApply(candidate)}>{text.applyMaintenance}</button>
     <p className="maintenance-applied">{text.current}: {settingsText(applied as MaintenanceConfig, text)}</p>
-  </fieldset></details>;
+  </div></div></fieldset></details>;
 });
