@@ -53,4 +53,4 @@ it('calibrates the balanced variability experiment over the fixed seed series wi
   const outputs=Array.from({length:30},(_,seed)=>{const s=run(previewConfig('balanced',0.5,seed));s.runToEnd();return sold(s);}).sort((a,b)=>a-b);
   const median=(outputs[14]!+outputs[15]!)/2;
   expect(median).toBeLessThan(sold(base));expect(sold(base)).toBe(158);
-});
+}, 15_000); // Thirty full runs need headroom on shared CI runners.
