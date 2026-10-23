@@ -1,5 +1,5 @@
 import type { DeepReadonly, ResolvedBuffer, RunConfig } from '../engine/config';
-export const NODE_GAP = 350, FIRST_X = 235;
+export const NODE_GAP = 490, FIRST_X = 335;
 export function quantityText(value: number | string): string {
   const units = BigInt(value), whole = units / 1_000_000n;
   const fraction = (units % 1_000_000n).toString().padStart(6, '0').replace(/0+$/, '');
@@ -49,7 +49,7 @@ export function graphLayout(run: RunConfig) {
     layer.forEach((id, row) => nodes.set(id, {depth, x: id === 'market' ? FIRST_X + (depth - 1) * nodeGap - 30 : depth === 0 ? 22 : FIRST_X + (depth - 1) * nodeGap, y: row * rowPitch}));
   }
   const baseHeight = rows * rowPitch + 60;
-  const paths = new Map<string, {path: string; x: number; y: number}>();
+  const paths = new Map<string, {path: string; x: number; y: number; labelX: number; labelY: number}>();
   let lanes = 0;
   for (const route of run.resolved.routes) {
     const from = nodes.get(route.fromId)!, to = nodes.get(route.toId)!;
@@ -64,7 +64,7 @@ export function graphLayout(run: RunConfig) {
     const path = to.depth - from.depth > 1
       ? `M ${x1} ${y1} H ${x1 + 12} V ${baseHeight - 30 + lanes++ * 26} H ${x2 - 12} V ${y2} H ${x2}`
       : y1 === y2 ? `M ${x1} ${y1} H ${x2}` : `M ${x1} ${y1} H ${middle} V ${y2} H ${x2}`;
-    paths.set(route.id, {path, x: x2, y: y2});
+    paths.set(route.id, {path, x: x2, y: y2, labelX: (x1 + x2) / 2, labelY: to.depth - from.depth > 1 ? baseHeight - 30 + (lanes - 1) * 26 : y2});
   }
   const order = run.resolved.stations.map(s => s.id).sort((a, b) => nodes.get(a)!.depth - nodes.get(b)!.depth || nodes.get(a)!.y - nodes.get(b)!.y);
   return {nodes, paths, order, width: nodes.get('market')!.x + 160, height: baseHeight + lanes * 26};

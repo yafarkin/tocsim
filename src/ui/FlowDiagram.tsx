@@ -4,6 +4,7 @@ import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
 import type { StationSnapshot } from '../engine/state';
 import { fillRatio, graphLayout, quantityText, tokenFills, multiInputY, stationReasonY, stationReasonHeight } from './diagram';
+import { routeCapacities } from './buffers';
 import { nameFor } from './i18n';
 import type { Labels } from './i18n';
 
@@ -88,7 +89,11 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           <text x="78" y="242" textAnchor="middle" className="small">{materialName(source.materialId)}</text>
           {run.resolved.sources.length > 1 && <text x="78" y="286" textAnchor="middle" className="tiny">{source.id}</text>}
         </g>)}
-        {run.resolved.routes.map(route => <path key={route.id} d={layout.paths.get(route.id)!.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{`${objectName(route.fromId)} → ${objectName(route.toId)}: ${materialName(route.materialId)}`}</title></path>)}
+        {run.resolved.routes.map(route => {const geometry = layout.paths.get(route.id)!, caps = routeCapacities(run, route);
+          const label = `${text.output} ${caps.output} + ${text.input} ${caps.input} = ${caps.total}`;
+          return <g key={route.id} data-route-capacity={route.id}><path d={geometry.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{`${objectName(route.fromId)} → ${objectName(route.toId)}: ${materialName(route.materialId)}; ${label}`}</title></path>
+            <text x={geometry.labelX} y={geometry.labelY - 24} textAnchor="middle" className="tiny route-capacity"><title>{`${materialName(route.materialId)}: ${label}`}</title>{caps.output} + {caps.input} = {caps.total}</text>
+          </g>;})}
         {order.map((id, index) => {
           const x = xOf(id), config = run.resolved.stations.find(s => s.id === id)!;
           const state = view.model.stations.find(s => s.stationId === id)!, row = config.plan[state.planIndex]!, input = state.inputs[0]!, inputColor = materialColor(input.materialId), outputColor = materialColor(state.output.materialId);
@@ -197,7 +202,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
         })}
       </svg>
     </div>
-    <p className="flow-note">{text.note}</p>
+    <p className="flow-note">{text.note} {text.routeCapacity}: {text.output} + {text.input} = {text.capacitySum}. —: {text.source} / {text.market}.</p>
     <details className="scheme-help"><summary>{text.schemeHelp}</summary><dl>
       <div><dt>{text.input}</dt><dd>{text.inputHelp}</dd></div>
       <div><dt>{text.reserved}</dt><dd>{text.reserveHelp}</dd></div>
@@ -208,7 +213,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.output} / {text.readyOutput}</th></tr></thead><tbody>
         {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}{planPosition(state, run, text) && <span>{planPosition(state, run, text)}</span>}<span>{stationReason(state, run, text)}</span></th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
-      <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)}</li>)}</ul>
+      <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)} · {text.output} {routeCapacities(run, route).output} + {text.input} {routeCapacities(run, route).input} = {routeCapacities(run, route).total}</li>)}</ul>
     </details>
   </>;
 }
