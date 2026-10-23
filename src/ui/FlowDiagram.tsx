@@ -106,11 +106,14 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           const inputFill = fillRatio(input.quantity, inputCapacity(config, input.materialId)), outputFill = fillRatio(state.output.quantity, outputBuffer);
           const recipe = run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!;
           const repetition = row.repetitions - state.inputs.find(input => input.materialId === recipe.inputs[0]!.materialId)!.reservedQuantity / recipe.inputs[0]!.quantity + 1;
-          const operation = row.mode === 'simultaneous' ? text.cycle : `${text.repetition} ${repetition}/${row.repetitions}`;
+          const operation = recipe.kind === 'inspection' ? text.inspecting : row.mode === 'simultaneous' ? text.cycle : `${text.repetition} ${repetition}/${row.repetitions}`;
           const progress = operationProgress(state), settingUp = state.remainingSetupMs !== null, servicing = state.remainingMaintenanceMs !== null;
           const lunchMessage = lunchStatus(state, run, view.model.timeMs, text);
           const maintenanceMessage = maintenanceNotice(state, run, text);
           const outputStatus = batchOutputStatus(state, config.transportThreshold, text);
+          const inspection = view.model.line!.inspections.find(entry => entry.stationId === id && entry.materialId === recipe.output.materialId);
+          const rejected = view.model.line!.scraps.filter(entry => entry.detectedAtId === id).reduce((sum, entry) => sum + entry.quantity, 0);
+          const isInspection = recipe.kind === 'inspection';
           const direct = outputBuffer.kind === 'quantity' && outputBuffer.quantity === 0;
           const cap = (buffer: DeepReadonly<ResolvedBuffer>) => buffer.kind === 'infinite' ? '∞' : quantityText(buffer.quantity);
           return <g key={id} transform={`translate(0 ${yOf(id)})`} data-station={id} data-lunch-enabled={config.lunchReplacement} data-lunch-busy-ms={state.lunchBusyMs} data-lunch-cost={state.lunchCost} data-state={state.status} data-duration-ms={state.operationDurationMs ?? undefined} data-transfer-ready={state.transferReady} data-held-quantity={state.output.heldQuantity} data-setup-remaining-ms={state.remainingSetupMs ?? undefined} data-maintenance-remaining-ms={state.remainingMaintenanceMs ?? undefined} data-maintenance-due-ms={state.maintenanceDueAtMs ?? undefined}>
@@ -146,7 +149,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
             </>}
             <rect x={x} y="150" width="176" height="164" rx="8" className={`station-body state-${state.status}`}/>
             <circle cx={x + 16} cy="172" r="4" className={`state-dot state-${state.status}`}/>
-            <text x={x + 28} y="177" className="state-label">{state.reason === 'notStarted' ? text.notStarted : state.status === 'paused' && state.reason ? text[state.reason === 'input' || state.reason === 'output' ? 'paused' : state.reason] : text[state.status]}</text>
+            <text x={x + 28} y="177" className="state-label">{state.reason === 'notStarted' ? text.notStarted : state.status === 'paused' && state.reason ? text[state.reason === 'input' || state.reason === 'output' ? 'paused' : state.reason] : isInspection && state.status === 'processing' ? text.inspecting : text[state.status]}</text>
             <text x={x + 14} y="204" className="tiny">{servicing || settingUp || state.remainingProcessingMs !== null ? `${servicing ? text.maintenance : settingUp ? text.setup : operation}: ${Math.round((progress ?? 0) * 100)}%` : ' '}</text>
             <rect x={x + 14} y="216" width="148" height="7" rx="3" fill="var(--track)"/>
             <rect className={servicing ? 'maintenance-progress' : undefined} x={x + 14} y="216" width={148 * (progress ?? 0)} height="7" rx="3" fill="var(--progress)"/>
@@ -181,7 +184,14 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
                 </g>;
               })}
             </>}
-            <foreignObject x={x - 5} y={stationReasonY(Math.max(state.inputs.length, state.outputs.length))} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.outputs.length, state.blockedBy.length), config.setupMs > 0, config.plan.length > 1, config.maintenance.enabled, config.lunchReplacement)}><div className={`reason reason-${state.status}`}>{config.plan.length > 1 && <div className="plan-position" data-plan-row={state.planIndex + 1}>{planPosition(state, run, text)}</div>}<div>{stationReason(state, run, text)}</div>{maintenanceMessage && <div className="maintenance-notice" data-maintenance-notice={id}>{maintenanceMessage}</div>}{config.maintenance.enabled && <div className="maintenance-counters">{maintenanceCounters(state, run, text)}</div>}<div className={`lunch-info${lunchMessage === text.lunchActive ? " lunch-active" : ""}`} data-lunch-info={id}><div>{lunchMessage}</div>{config.lunchReplacement && <><div>{text.lunchBusy}: {workMinutes(state.lunchBusyMs)} {text.minutes}</div><div>{text.lunchCharge}: {quantityText(state.lunchCost)} {text.moneyUnit}</div></>}</div></div></foreignObject>
+            {(isInspection || rejected > 0) && <g className="scrap-outlet" data-scrap-at={id} data-scrap-quantity={rejected}>
+              <path d={`M ${x + 150} 314 V 326 H ${x + 298} V 350`} markerEnd="url(#flow-arrow)"/>
+              <rect x={x + 280} y="359" width="36" height="28" rx="3"/>
+              <path d={`M ${x + 286} 365 L ${x + 310} 381 M ${x + 310} 365 L ${x + 286} 381`}/>
+              <text x={x + 298} y="410" textAnchor="middle" className="small">{text.scrappedAmount}: {quantityText(rejected)}</text>
+              <title>{text.rejectFlow}: {quantityText(rejected)} {text.unit}</title>
+            </g>}
+            <foreignObject x={x - 5} y={stationReasonY(Math.max(state.inputs.length, state.outputs.length))} width="252" height={stationReasonHeight(Math.max(state.inputs.length, state.outputs.length, state.blockedBy.length), config.setupMs > 0, config.plan.length > 1, config.maintenance.enabled, config.lunchReplacement, isInspection)}><div className={`reason reason-${state.status}`}>{config.plan.length > 1 && <div className="plan-position" data-plan-row={state.planIndex + 1}>{planPosition(state, run, text)}</div>}<div>{stationReason(state, run, text)}</div>{isInspection && <div className="inspection-info"><div>{text.checked}: {quantityText(inspection?.checkedQuantity ?? 0)}</div><div>{text.passedInspection}: {quantityText(inspection?.passedQuantity ?? 0)}</div><div>{text.scrappedInspection}: {quantityText(inspection?.scrappedQuantity ?? 0)}</div></div>}{maintenanceMessage && <div className="maintenance-notice" data-maintenance-notice={id}>{maintenanceMessage}</div>}{config.maintenance.enabled && <div className="maintenance-counters">{maintenanceCounters(state, run, text)}</div>}<div className={`lunch-info${lunchMessage === text.lunchActive ? " lunch-active" : ""}`} data-lunch-info={id}><div>{lunchMessage}</div>{config.lunchReplacement && <><div>{text.lunchBusy}: {workMinutes(state.lunchBusyMs)} {text.minutes}</div><div>{text.lunchCharge}: {quantityText(state.lunchCost)} {text.moneyUnit}</div></>}</div></div></foreignObject>
           </g>;
         })}
         <g className="endpoint"><rect x={marketX} y="147" width="130" height={finished.length === 1 ? 118 : 56 + finished.length * 46} rx="8"/><text x={marketX + 65} y="173" textAnchor="middle" className="small">{text.market}</text>
@@ -193,7 +203,18 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
             <text x={marketX + 65} y={218 + index * 46} textAnchor="middle" className="small">{quantityText(sold(material.id))}</text>
           </g>)}
         </g>
+        {view.model.line!.scraps.some(entry => entry.detectedAtId === 'market') && <g className="scrap-outlet" data-scrap-at="market"><path d={`M ${marketX + 65} 268 V 302`} markerEnd="url(#flow-arrow)"/><text x={marketX + 65} y="325" textAnchor="middle" className="small">{text.scrappedAmount}: {quantityText(view.model.line!.scraps.filter(entry => entry.detectedAtId === 'market').reduce((sum, entry) => sum + entry.quantity, 0))}</text><text x={marketX + 65} y="346" textAnchor="middle" className="tiny">{text.finalInspection}</text></g>}
         {overlay.visible && overlay.sequence === view.transfers.sequence && view.transfers.items.map(transfer => {
+          if (transfer.kind === 'scrap') {
+            const atMarket = transfer.toId === 'market';
+            const x = atMarket ? marketX + 65 : xOf(transfer.toId) + 298, y = atMarket ? 285 : yOf(transfer.toId) + 338;
+            return <g key={`${view.transfers.sequence}:scrap:${transfer.fromId}:${transfer.toId}:${transfer.materialId}`} className="scrap-token" transform={`translate(${x} ${y})`} data-scrap-transfer={transfer.toId}>
+              <title>{text.rejectFlow}: {quantityText(transfer.quantity)} {materialName(transfer.materialId)}</title>
+              {moving && <animateTransform attributeName="transform" type="translate" from={`${x} ${y - 30}`} to={`${x} ${y + 12}`} dur="0.5s" fill="freeze"/>}
+              <circle r="9"/><path d="M -4 -4 L 4 4 M 4 -4 L -4 4"/>
+              <text x="16" y="4" className="small">−{quantityText(transfer.quantity)}</text>
+            </g>;
+          }
           const edge = transfer.kind === 'buffer' ? null : run.resolved.routes.find(route => route.fromId === transfer.fromId && route.toId === transfer.toId && route.materialId === transfer.materialId);
           const bufferOutputs = view.model.stations.find(station => station.stationId === transfer.fromId)?.outputs ?? [];
           const bufferY = yOf(transfer.fromId) + (bufferOutputs.length > 1 ? multiInputY(bufferOutputs.findIndex(output => output.materialId === transfer.materialId)) : 215);
@@ -219,7 +240,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
     </dl></details>
     <details className="text-view"><summary>{text.textView}</summary>
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.output} / {text.readyOutput}</th></tr></thead><tbody>
-        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}{planPosition(state, run, text) && <span>{planPosition(state, run, text)}</span>}<span>{stationReason(state, run, text)}</span>{maintenanceNotice(state, run, text) && <span>{maintenanceNotice(state, run, text)}</span>}<span>{maintenanceCounters(state, run, text)}</span><span>{lunchStatus(state, run, view.model.timeMs, text)}</span>{run.resolved.stations.find(s => s.id === id)!.lunchReplacement && <span>{text.lunchBusy}: {workMinutes(state.lunchBusyMs)} {text.minutes}. {text.lunchCharge}: {quantityText(state.lunchCost)} {text.moneyUnit}</span>}</th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingMaintenanceMs !== null ? `${text.maintenance}: ` : state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
+        {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}{planPosition(state, run, text) && <span>{planPosition(state, run, text)}</span>}<span>{stationReason(state, run, text)}</span>{view.model.line!.inspections.filter(entry => entry.stationId === id).map(entry => <span key={entry.materialId}>{text.inspectionNote}: {quantityText(entry.checkedQuantity)} / {quantityText(entry.passedQuantity)} / {quantityText(entry.scrappedQuantity)}</span>)}{maintenanceNotice(state, run, text) && <span>{maintenanceNotice(state, run, text)}</span>}<span>{maintenanceCounters(state, run, text)}</span><span>{lunchStatus(state, run, view.model.timeMs, text)}</span>{run.resolved.stations.find(s => s.id === id)!.lunchReplacement && <span>{text.lunchBusy}: {workMinutes(state.lunchBusyMs)} {text.minutes}. {text.lunchCharge}: {quantityText(state.lunchCost)} {text.moneyUnit}</span>}</th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingMaintenanceMs !== null ? `${text.maintenance}: ` : state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
       <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)} · {text.output} {routeCapacities(run, route).output} + {text.input} {routeCapacities(run, route).input} = {routeCapacities(run, route).total}</li>)}</ul>
     </details>

@@ -17,6 +17,10 @@ import { withBuffers } from './ui/buffers';
 import type { BufferSettings } from './ui/buffers';
 import { FlowDiagram } from './ui/FlowDiagram';
 import { ExampleGuide } from './ui/ExampleGuide';
+import {QualityPanel} from './ui/QualityPanel';
+import {QualitySummary} from './ui/QualitySummary';
+import {defaultQuality, withQuality} from './ui/quality';
+import type {QualitySettings} from './ui/quality';
 import { RunSummary } from './ui/RunSummary';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
@@ -38,8 +42,9 @@ export function App() {
   const [duration, setDuration] = useState<DurationDistribution>({kind: 'constant', timeMs: 480_000});
   const [maintenance, setMaintenance] = useState<MaintenanceConfig>({enabled: false});
   const [lunch, setLunch] = useState<LunchSettings>({});
+  const [quality, setQuality] = useState<QualitySettings>(defaultQuality);
   const [buffers, setBuffers] = useState<BufferSettings | null>(null);
-  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); return compileConfig(buffers ? withBuffers(config, buffers) : config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch]);
+  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); return compileConfig(config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
@@ -91,6 +96,10 @@ export function App() {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setLunch(previous => ({...previous, [id]: setting}));
   }, [locked]);
+  const applyQuality = (settings: QualitySettings) => {
+    if (locked) return;
+    setConfigurationError(null); runner.current?.dispose(); setView(null); setQuality(settings);
+  };
   const reset = () => {runner.current?.dispose(); setView(null); setGeneration(value => value + 1);};
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
   return <main>
@@ -101,7 +110,7 @@ export function App() {
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <ExampleGuide key={`guide-${example}`} example={example} text={text} language={language}/>
     </section>
     <section className="simulation-panel" aria-labelledby="simulation-title">
@@ -109,10 +118,10 @@ export function App() {
     <section className="line-settings" aria-labelledby="line-settings-title">
       <div className="line-settings-header"><h3 id="line-settings-title">{text.lineSettings}</h3>
       <div className="run-settings">
-          {example !== 'queue' && <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>}
+          {example !== 'queue' && example !== 'quality' && <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>}
           <label className="speed-picker">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
       </div></div>
-      {example !== 'queue' && <p className="variability-note">{text.cvHelp}</p>}
+      {example !== 'queue' && example !== 'quality' && <p className="variability-note">{text.cvHelp}</p>}
       {example === 'plans' && <details className="batch-editor" open><summary>{text.planSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
         <legend>{text.planSettings}</legend><p>{text.planSettingsHelp}</p>
         <div className="batch-settings-row">
@@ -140,6 +149,7 @@ export function App() {
       </fieldset></details>}
       {example === 'batches' && <MaintenancePanel key={`maintenance-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyMaintenance}/>}
       {example === 'queue' && <DurationPanel key={`duration-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyDuration}/>}
+      {example === 'quality' && <QualityPanel key={`quality-settings-${JSON.stringify(run.source)}`} run={run} settings={quality} locked={locked || !view} text={text} language={language} onApply={applyQuality}/>}
       <LunchPanel key={example} run={run} locked={locked || !view} text={text} language={language} onApply={applyLunch}/>
       <BufferPanel key={`${example}-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyBuffers}/>
     </section>
@@ -157,8 +167,9 @@ export function App() {
       {view && <RunSummary run={run} view={view} text={text} language={language}/>}
       {configurationError && <p role="alert" className="run-error">{configurationError.messages[language]} {configurationError.path}</p>}
       {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
-      <div className="diagram-context"><p>{example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <div className="diagram-context"><p>{example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
+      {example === 'quality' && view && <QualitySummary key={example} run={run} view={view} text={text}/>}
       <p className="scroll-note">{text.scroll}</p>
       <div className="material-key" aria-label={text.material}>{run.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>
     </section>

@@ -1,6 +1,7 @@
 import { compileConfig } from '../engine/config';
 import type { EditorConfig } from '../engine/config';
-export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches', 'plans'] as const;
+import {defaultQuality, withQuality} from './quality';
+export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches', 'plans', 'quality'] as const;
 export type ExampleId = typeof exampleIds[number];
 export interface PlanProfile {batchesA: number; batchesB: number; setupMinutes: number; supplyB: boolean}
 export const defaultPlanProfile: PlanProfile = {batchesA: 2, batchesB: 1, setupMinutes: 7, supplyB: true};
@@ -109,6 +110,13 @@ export function previewConfig(example: ExampleId = 'queue', cv = 0, seed = 42, b
       {id: 'output-a', fromId: 'planner', toId: 'market', materialId: 'product-a'},
       {id: 'output-b', fromId: 'planner', toId: 'market', materialId: 'product-b'},
     ];
+  }
+  if (example === 'quality') {
+    config.stations.forEach(station => {
+      station.plan[0]!.processing.cv = 0;
+      station.inputBuffer = {kind: 'quantity', quantity: '8'};
+    });
+    return withQuality(config, defaultQuality);
   }
   return config;
 }

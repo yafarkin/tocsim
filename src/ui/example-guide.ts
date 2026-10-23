@@ -3,6 +3,12 @@ import type {Language} from './i18n';
 export interface ExampleExperiment {question: string; action: string; watch: string; explanation: string}
 const experiments: Record<Language, Record<ExampleId, ExampleExperiment>> = {
   ru: {
+    quality: {
+      question: 'Сколько времени медленной Обработки тратится на изделия со скрытым браком, если контроль стоит после неё?',
+      action: 'Завершите исходный прогон с браком на Подготовке и ранним контролем. В новом прогоне перенесите только контроль после Обработки. Сохраните вероятность 25%, seed и остальные настройки.',
+      watch: 'Смотрите на прохождение контроля и удаление списанных деталей из потока. Сравните годный выпуск и минуты Обработки на обнаруженные списанные изделия.',
+      explanation: 'Ранний контроль удаляет уже плохие детали до медленного поста. Поздний обнаруживает их после того, как Обработка потратила своё время. Для границы эффекта повторите сравнение с источником дефекта на Обработке: проверка до неё не предотвращает новый дефект. Источник меняет ключ случайных исходов; при его смене это другой эксперимент.',
+    },
     balanced: {
       question: 'Если среднее время каждого поста остаётся 3 минуты, сохранится ли выпуск при разбросе времени?',
       action: 'Сравните прогон с CV 0 и новый прогон с CV 0.5. Сохраните seed, буферы и остальные настройки.',
@@ -47,6 +53,12 @@ const experiments: Record<Language, Record<ExampleId, ExampleExperiment>> = {
     },
   },
   en: {
+    quality: {
+      question: 'How much of slow Processing time is spent on hidden defective items when inspection follows it?',
+      action: 'Finish the original run with defects at Preparation and early inspection. In a new run, move only inspection after Processing. Keep probability at 25%, the seed and all other settings unchanged.',
+      watch: 'Watch inspection and the removal of rejected parts from the flow. Compare good output and Processing minutes attributed to detected scrapped items.',
+      explanation: 'Early inspection removes items already defective before the slow station. Late inspection finds them after Processing has spent time on them. To explore the limit, repeat the comparison with defects originating at Processing: an earlier check cannot prevent a new defect. Changing the defect source changes the random key and starts a different experiment.',
+    },
     balanced: {
       question: 'If every station still averages 3 minutes, will output stay the same when processing times vary?',
       action: 'Compare a run at CV 0 with a new run at CV 0.5. Keep the seed, buffers and other settings unchanged.',

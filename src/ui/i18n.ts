@@ -1,6 +1,12 @@
 export type Language = 'ru' | 'en';
 export const messages = {
   ru: {
+    quality: 'Ранний и поздний контроль', qc: 'Контроль', qualitySettings: 'Брак и место контроля', qualityProbability: 'Вероятность брака, %', qualitySource: 'Источник дефекта', qualityPosition: 'Место контроля', qualityEarly: 'Перед Обработкой', qualityLate: 'После Обработки', qualityApply: 'Применить настройки контроля', qualityProbabilityError: 'Введите вероятность от 0 до 100%, не более шести знаков после точки или запятой.',
+    qualityHelp: 'Подготовка и Отделка работают по 3 минуты, Обработка 8, Контроль 1 минуту. Выберите источник скрытого дефекта и место проверки. Для сравнения раннего и позднего контроля меняйте только его место, затем примените настройки. После старта параметры зафиксированы.',
+    qualityRngHelp: 'До проверки все изделия выглядят одинаково. Ранний контроль не предотвращает дефект следующего поста. При смене источника дефекта меняется ключ случайных исходов, даже с тем же seed.',
+    qualityHint: 'Контроль проверяет ту же деталь, пропускает годную и удаляет плохую. На конечном выходе бесплатная проверка исключает продажу оставшегося брака. Поток: Подготовка 3 мин → Обработка 8 мин → Отделка 3 мин; Контроль 1 мин перед Обработкой или после неё.',
+    qualityResults: 'Обнаружение и потери времени', qualityResultHelp: 'Текущие итоги поста контроля. Для сравнения завершите оба прогона на одинаковом горизонте и запишите результаты. Годный выпуск учитывает только готовую продукцию.', checked: 'Проверено', passedInspection: 'Пропущено контролем', scrappedInspection: 'Списано контролем', goodOutput: 'Годный выпуск', lossStation: 'Пост для оценки потерь', lostTime: 'Время на списанные изделия', qualityLossHelp: 'Минуты включают только обработку выбранного поста, приписанную уже обнаруженным списанным изделиям. Скрытый брак в запасе пока не учтён; это не всё время простоя или все потери мощности.', detectedScraps: 'Обнаруженные списания', detectedAt: 'Место обнаружения', scrappedAmount: 'Списано', finalInspection: 'Финальная проверка', noDetectedScraps: 'Обнаруженных списаний пока нет.', inspecting: 'Проверяет', rejectFlow: 'Удалено из потока', inspectionNote: 'Проверено / пропущено / списано',
+
     scenario: 'Сценарий', simulationControls: 'Управление', lineSettings: 'Параметры линии',
     experimentTitle: 'Предположите и проверьте', experimentBaseline: 'Для исходных настроек выбранного примера.', predict: 'Прогноз', tryExperiment: 'Эксперимент', watchExperiment: 'Что наблюдать', experimentExplanation: 'Разбор: почему так происходит', comparisonHelp: 'Вопрос относится к исходным настройкам примера. Сначала завершите базовый прогон, затем нажмите «Новый прогон» и измените только указанный фактор. Сравнивайте один и тот же интервал; остальные настройки и seed сохраните. Изменённые условия могут дать другой результат.',
 
@@ -47,6 +53,12 @@ export const messages = {
     raw: 'Заготовка', prepared: 'Деталь', processed: 'Обработанная деталь', product: 'Изделие',
   },
   en: {
+    quality: 'Early and late inspection', qc: 'Inspection', qualitySettings: 'Defects and inspection position', qualityProbability: 'Defect probability, %', qualitySource: 'Defect source', qualityPosition: 'Inspection position', qualityEarly: 'Before Processing', qualityLate: 'After Processing', qualityApply: 'Apply quality settings', qualityProbabilityError: 'Enter a probability from 0 to 100%, with up to six decimal places.',
+    qualityHelp: 'Preparation and Finishing take 3 minutes, Processing 8 and Inspection 1 minute. Choose the hidden defect source and check position. To compare early and late inspection, change only its position and apply settings. Parameters are locked after start.',
+    qualityRngHelp: 'All items look the same before inspection. Early inspection cannot prevent a defect at a later station. Moving the defect source changes the random key even with the same seed.',
+    qualityHint: 'Inspection checks the same part, passes good units and removes bad units. A free final check prevents selling any remaining defective output. Flow: Preparation 3 min → Processing 8 min → Finishing 3 min; Inspection 1 min before or after Processing.',
+    qualityResults: 'Detection and lost processing time', qualityResultHelp: 'Current inspection station totals. Finish both runs at the same horizon and note results to compare. Good output counts only finished goods.', checked: 'Checked', passedInspection: 'Passed inspection', scrappedInspection: 'Rejected at inspection', goodOutput: 'Good output', lossStation: 'Station for lost time', lostTime: 'Time on scrapped items', qualityLossHelp: 'Minutes include only selected station processing attributed to already detected scrapped items. Hidden defects still in stock are not counted; this is not total idle time or all capacity loss.', detectedScraps: 'Detected scrap', detectedAt: 'Detected at', scrappedAmount: 'Scrapped', finalInspection: 'Final inspection', noDetectedScraps: 'No scrap detected yet.', inspecting: 'Inspecting', rejectFlow: 'Removed from flow', inspectionNote: 'Checked / passed / rejected',
+
     scenario: 'Scenario', simulationControls: 'Controls', lineSettings: 'Line settings',
     experimentTitle: 'Predict and test', experimentBaseline: 'For the original settings of the selected example.', predict: 'Prediction', tryExperiment: 'Experiment', watchExperiment: 'What to observe', experimentExplanation: 'Explanation: why it happens', comparisonHelp: 'The question refers to the original example settings. Finish the baseline run, then choose New run and change only the stated factor. Compare the same interval and keep other settings and the seed unchanged. Different conditions may give a different result.',
 
@@ -98,5 +110,5 @@ export function labels(language: Language): Labels {return messages[language];}
 export function nameFor(id: string, fallback: string, text: Labels): string {
   const planNames: Record<string, keyof Labels> = {'planner': 'planner', 'recipe-a': 'recipeA', 'recipe-b': 'recipeB', 'raw-a': 'rawA', 'raw-b': 'rawB', 'product-a': 'productA', 'product-b': 'productB'};
   if (Object.hasOwn(planNames, id)) return text[planNames[id]!];
-  return ['assembly', 'source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof Labels] : fallback;
+  return ['qc', 'assembly', 'source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof Labels] : fallback;
 }
