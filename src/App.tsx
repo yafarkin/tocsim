@@ -16,6 +16,7 @@ import { BufferPanel } from './ui/BufferPanel';
 import { withBuffers } from './ui/buffers';
 import type { BufferSettings } from './ui/buffers';
 import { FlowDiagram } from './ui/FlowDiagram';
+import { ExampleGuide } from './ui/ExampleGuide';
 import { RunSummary } from './ui/RunSummary';
 import { labels, nameFor } from './ui/i18n';
 import type { Language } from './ui/i18n';
@@ -116,6 +117,7 @@ export function App() {
       {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
       {example !== 'queue' && <p className="variability-note">{text.cvHelp}</p>}
       <div className="diagram-context"><p>{example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <ExampleGuide key={`guide-${example}`} example={example} text={text} language={language}/>
       {example === 'plans' && <details className="batch-editor" open><summary>{text.planSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
         <legend>{text.planSettings}</legend><p>{text.planSettingsHelp}</p>
         <div className="batch-settings-row">

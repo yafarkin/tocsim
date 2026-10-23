@@ -54,3 +54,6 @@
 .table-scroll:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
 
 .lunch-editor fieldset{min-inline-size:0}.lunch-editor input:not([type=checkbox]){width:125px;min-height:36px;padding:6px 8px;border:1px solid var(--control-border);border-radius:6px;color:var(--text);background:var(--surface);cursor:text}.lunch-editor select{max-width:100%}.lunch-editor .buffer-error{color:var(--error)}.lunch-editor .lunch-applied{margin-top:12px}.lunch-editor button{max-width:100%;white-space:normal}.lunch-editor p{overflow-wrap:anywhere}.lunch-info{margin-top:8px;font-size:12px}.lunch-active{color:var(--success);font-weight:600}
+
+.example-guide{margin:18px 22px;padding:14px 16px;border:1px solid var(--border);border-radius:6px;background:var(--soft);overflow-wrap:anywhere;min-width:0}.example-guide h2{margin:0 0 10px;font-size:16px;font-weight:600}.example-guide p{margin:8px 0;font-size:13px;max-width:100ch;color:var(--muted)}.example-guide .experiment-question{color:var(--text)}.example-guide summary{color:var(--accent);font-size:13px;width:fit-content}.example-guide details{margin-top:12px}.example-guide .comparison-help{font-size:12px}
+@media(max-width:480px){.example-guide{margin:14px;padding:12px}.example-guide h2{font-size:15px}}
