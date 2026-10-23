@@ -125,3 +125,12 @@ export function moneyFromJSON(value: unknown): bigint {
   }
   return checkedMoney(BigInt(value));
 }
+
+/** Charge cumulative occupied lunch time once, nearest micro-unit, ties up.
+ * Computing from the cumulative integer duration avoids frame-dependent rounding.
+ */
+export function lunchCost(hourlyRate: bigint, occupiedMs: number): bigint {
+  checkedMoney(hourlyRate); checkedQuantity(occupiedMs);
+  if (hourlyRate < 0n) throw new ArithmeticError('range');
+  return checkedMoney((hourlyRate * BigInt(occupiedMs) + 1_800_000n) / 3_600_000n);
+}

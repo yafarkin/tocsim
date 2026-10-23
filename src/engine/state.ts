@@ -1,4 +1,4 @@
-import { moneyToJSON } from './arithmetic';
+import { lunchCost, moneyToJSON } from './arithmetic';
 import { freezeData, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 
@@ -13,6 +13,8 @@ export interface MaintenanceRecord {
 /** Internal operation token is deliberately excluded from UI snapshots. */
 export interface StationState {
   stationId: string;
+  /** Occupied processing, setup and maintenance time during paid lunch. */
+  lunchBusyMs: number;
   /** Zero-based row and number of fully processed batches within that row. */
   planIndex: number;
   completedBatches: number;
@@ -108,6 +110,7 @@ export interface LineState {
   transfers: LineTransfer[];
 }
 export interface StationSnapshot extends Omit<StationState, 'operationVersion' | 'operationOrdinal'> {
+  lunchCost: string;
   progress: number | null;
   inputs: {materialId: string; quantity: number; missingQuantity: number; reservedQuantity: number}[];
   /** Material of held work, or the next recipe output when the station is clear. */
@@ -129,7 +132,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 13;
+  schemaVersion: 14;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -144,7 +147,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 13,
+    schemaVersion: 14,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -162,7 +165,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
-        stationId: station.stationId, planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
+        stationId: station.stationId, lunchBusyMs: station.lunchBusyMs, lunchCost: moneyToJSON(lunchCost(config.costs.perLunchHour, station.lunchBusyMs)), planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
         configuredRecipeId: station.configuredRecipeId, targetRecipeId: station.targetRecipeId, remainingSetupMs: station.remainingSetupMs,
         remainingMaintenanceMs: station.remainingMaintenanceMs, maintenanceProcessingMs: station.maintenanceProcessingMs,
         maintenanceRepetitions: station.maintenanceRepetitions, maintenanceDueAtMs: station.maintenanceDueAtMs,

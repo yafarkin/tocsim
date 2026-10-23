@@ -1,4 +1,4 @@
-import { addMoney, addQuantity, MAX_UNITS } from './arithmetic';
+import { addMoney, addQuantity, lunchCost, MAX_UNITS } from './arithmetic';
 import { activeWorkMs, calendarForDuration, canStart, DAY_MS } from './calendar';
 import { freezeData, inputCapacity, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig, ResolvedBuffer } from './config';
@@ -20,6 +20,8 @@ function free(capacity: DeepReadonly<ResolvedBuffer>, occupied: number): number 
 }
 function createLineHandlers(run: RunConfig): EventHandlers {
   const push = createPushHandlers(run), calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
+  const calendars = new Map(run.resolved.stations.map(s => [s.id, calendarForDuration(run.resolved.calendar, run.resolved.durationMs, s.lunchReplacement)]));
+  const stationCalendar = (id: string) => calendars.get(id)!;
   const firstId = run.resolved.stations[0]!.id;
   const stations = [...run.resolved.stations].sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const rowOf = (state: EngineState, config: Station) => config.plan[state.stations.find(s => s.stationId === config.id)!.planIndex]!;
@@ -32,7 +34,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     }
   }
   function wakeDispatch(ctx: EventContext) {
-    if (canStart(calendar, ctx.timeMs) && !ctx.state.line!.dispatchPending) {
+    if (stations.some(s => canStart(stationCalendar(s.id), ctx.timeMs)) && !ctx.state.line!.dispatchPending) {
       ctx.state.line!.dispatchPending = true;
       ctx.schedule({kind: 'dispatch', stationId: firstId, id: WAKE, timeMs: ctx.timeMs});
     }
@@ -45,7 +47,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
   function refresh(ctx: EventContext) {
     for (const config of stations) {
       const station = ctx.state.stations.find(s => s.stationId === config.id)!;
-      if (!canStart(calendar, ctx.timeMs)) {station.status = 'paused'; station.reason = calendarReason(ctx.timeMs);}
+      if (!canStart(stationCalendar(config.id), ctx.timeMs)) {station.status = 'paused'; station.reason = calendarReason(ctx.timeMs);}
       else if (station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) continue;
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(ctx.state, config);
@@ -154,8 +156,15 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     integrate: (state, from, to) => {
       push.integrate(state, from, to);
       state.line!.transfers = [];
-      const elapsed = activeWorkMs(calendar, from, to);
+      const commonElapsed = activeWorkMs(calendar, from, to);
       for (const station of state.stations) {
+        const config = stations.find(s => s.id === station.stationId)!;
+        const elapsed = activeWorkMs(stationCalendar(station.stationId), from, to);
+        if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) {
+          station.lunchBusyMs = addMaintenanceCounter(station.lunchBusyMs, elapsed - commonElapsed, station.stationId);
+          // Validate the accumulated charge within this atomic transition.
+          lunchCost(config.costs.perLunchHour, station.lunchBusyMs);
+        }
         if (station.maintenanceDueAtMs !== null && station.remainingMaintenanceMs === null && to > from) {
           const reasons = station.maintenanceDeferredBy;
           const addReason = (reason: typeof reasons[number]) => {if (!reasons.includes(reason)) reasons.push(reason);};
@@ -187,7 +196,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     },
     calendar: (ctx, event) => {
       if (event.boundary === 'close') {
-        for (const station of ctx.state.stations) if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) {
+        const lunchClose = ctx.timeMs % DAY_MS === calendar.schedule.lunchStartMs - calendar.schedule.shiftStartMs;
+        for (const station of ctx.state.stations) {
+          if (lunchClose && stationCalendar(station.stationId).workDuringLunch) continue;
+          if (station.remainingProcessingMs === null && station.remainingSetupMs === null && station.remainingMaintenanceMs === null) continue;
           ctx.invalidateOperation(station.stationId);
           // A 24:00 close may coincide with the next 00:00 opening. Mark the
           // operation paused explicitly so dispatch still replaces its token.
@@ -272,9 +284,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     },
     dispatch: ctx => {
       ctx.state.line!.dispatchPending = false;
-      if (!canStart(calendar, ctx.timeMs)) {refresh(ctx); return;}
       let started = false;
       for (const config of stations) {
+        if (!canStart(stationCalendar(config.id), ctx.timeMs)) continue;
         const station = ctx.state.stations.find(s => s.stationId === config.id)!, recipe = recipeOf(ctx.state, config);
         if (station.remainingMaintenanceMs !== null) {
           if (station.status !== 'maintenance') {station.status = 'maintenance'; station.reason = null; planCompletion(ctx, config.id);}
