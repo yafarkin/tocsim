@@ -6,14 +6,15 @@ import type { DeepReadonly, RunConfig } from './config';
 export const MAX_TRANSITIONS_PER_TIMESTAMP = 10_000;
 type EventBase = { id: string; timeMs: number };
 export type CompletionEvent = EventBase & {kind: 'completion'; stationId: string; operationVersion: number};
+export type MaintenanceDueEvent = EventBase & {kind: 'maintenanceDue'; stationId: string; operationVersion: number};
 export type CalendarEvent = EventBase & {kind: 'calendar'; boundary: 'open' | 'close'; stationId: string | null};
 export type SourceEvent = EventBase & {kind: 'source'; sourceId: string};
 export type TransferEvent = EventBase & {kind: 'transfer'; producerId: string};
 export type DispatchEvent = EventBase & {kind: 'dispatch'; stationId: string};
-export type ModelEvent = CompletionEvent | CalendarEvent | SourceEvent | TransferEvent | DispatchEvent;
+export type ModelEvent = CompletionEvent | MaintenanceDueEvent | CalendarEvent | SourceEvent | TransferEvent | DispatchEvent;
 type HorizonEvent = EventBase & {kind: 'horizon'};
 type QueuedEvent = ModelEvent | HorizonEvent;
-const phase = {completion: 0, calendar: 1, horizon: 1, source: 2, transfer: 3, dispatch: 4} as const;
+const phase = {completion: 0, maintenanceDue: 0, calendar: 1, horizon: 1, source: 2, transfer: 3, dispatch: 4} as const;
 const compare = (a: QueuedEvent, b: QueuedEvent) => a.timeMs - b.timeMs || phase[a.kind] - phase[b.kind] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 export interface EventContext {
@@ -27,6 +28,7 @@ export interface EventContext {
 export interface EventHandlers {
   integrate?(state: EngineState, fromMs: number, toMs: number): void;
   completion?(context: EventContext, event: DeepReadonly<CompletionEvent>): void;
+  maintenanceDue?(context: EventContext, event: DeepReadonly<MaintenanceDueEvent>): void;
   calendar?(context: EventContext, event: DeepReadonly<CalendarEvent>): void;
   source?(context: EventContext, event: DeepReadonly<SourceEvent>): void;
   transfer?(context: EventContext, event: DeepReadonly<TransferEvent>): void;
@@ -91,7 +93,7 @@ export class EventScheduler {
     integer(event.timeMs, event.id);
     if (!event.id || event.id === '@horizon' || !Object.hasOwn(phase, event.kind)) fail('value', event.id, 'Некорректный ID или вид события.', 'Invalid event ID or kind.');
     if (event.timeMs < state.timeMs || event.timeMs > this.run.resolved.durationMs) fail('value', event.id, 'Время события должно быть между текущим временем и горизонтом.', 'Event time must be between current time and horizon.');
-    if (event.kind === 'completion') { station(state, event.stationId); integer(event.operationVersion, event.id); }
+    if (event.kind === 'completion' || event.kind === 'maintenanceDue') { station(state, event.stationId); integer(event.operationVersion, event.id); }
     if (event.kind === 'dispatch') station(state, event.stationId);
     if (event.kind === 'calendar' && event.stationId !== null) station(state, event.stationId);
     if (active && event.timeMs === state.timeMs && phase[event.kind] < phase[active.kind]
@@ -153,6 +155,7 @@ export class EventScheduler {
         processedEvents++;
         if (active.kind === 'horizon') continue;
         if (timeMs === this.run.resolved.durationMs && (active.kind === 'source' || active.kind === 'dispatch')) continue;
+        if (active.kind === 'maintenanceDue' && station(draft, active.stationId).operationVersion !== active.operationVersion) continue;
         if (active.kind === 'completion') {
           if (station(draft, active.stationId).operationVersion !== active.operationVersion) { staleCompletions++; continue; }
           // Consume the token before calling the handler, invalidating duplicate completions.
@@ -163,6 +166,7 @@ export class EventScheduler {
         // Discriminated dispatch preserves the handler's event type.
         switch (active.kind) {
           case 'completion': this.handlers.completion!(context, freezeData(active)); break;
+          case 'maintenanceDue': this.handlers.maintenanceDue!(context, freezeData(active)); break;
           case 'calendar': this.handlers.calendar!(context, freezeData(active)); break;
           case 'source': this.handlers.source!(context, freezeData(active)); break;
           case 'transfer': this.handlers.transfer!(context, freezeData(active)); break;

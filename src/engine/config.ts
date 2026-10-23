@@ -4,7 +4,7 @@ import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.19.0';
+export const ENGINE_VERSION = '0.20.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -29,6 +29,12 @@ export interface RecipeConfig {
 export type ProcessingConfig = {mode: 'sequential' | 'simultaneous'; repetitions: number} & (
   {timeMs: number; cv: number; distribution?: never} | {distribution: DurationDistribution; timeMs?: never; cv?: never}
 );
+export type MaintenanceConfig = {enabled: false} | {
+  enabled: true; durationMs: number; processingThresholdMs?: number; repetitionsThreshold?: number;
+};
+export type ResolvedMaintenance = {enabled: false} | {
+  enabled: true; durationMs: number; processingThresholdMs: number | null; repetitionsThreshold: number | null;
+};
 export interface StationConfig {
   id: string; name: string; priority: number;
   plan: {
@@ -38,7 +44,7 @@ export interface StationConfig {
   inputBuffer: InputBufferConfig; outputBuffer: OutputBufferConfig;
   transportThreshold?: string;
   initialRecipeId?: string;
-  setupMs: number; maintenance: { enabled: false }; lunchReplacement: false;
+  setupMs: number; maintenance: MaintenanceConfig; lunchReplacement: false;
   costs: { perShift: string; perLunchHour: string; capital: string };
 }
 export interface SourceConfig {
@@ -72,7 +78,7 @@ export interface ResolvedConfig {
   recipes: { id: string; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
     plan: ResolvedPlanRow[];
-    setupMs: number; initialRecipeId: string;
+    setupMs: number; initialRecipeId: string; maintenance: ResolvedMaintenance;
     // Static first-row fields remain for existing configuration consumers; execution selects from plan.
     id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
     inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; transportThreshold: number;
@@ -381,8 +387,19 @@ export function compileConfig(value: unknown): RunConfig {
     const setupMs = r.at('setupMs').integer(station.setupMs);
     const initialRecipeId = station.initialRecipeId === undefined ? first.recipeId : r.at('initialRecipeId').text(station.initialRecipeId);
     if (!recipes.some(recipe => recipe.id === initialRecipeId)) r.at('initialRecipeId').fail('reference', `Начальный рецепт ${initialRecipeId} не найден.`, `Initial recipe ${initialRecipeId} was not found.`);
-    const maintenance = r.at('maintenance').object(station.maintenance, ['enabled']);
-    r.at('maintenance').at('enabled').literal(maintenance.enabled, false);
+    const mr = r.at('maintenance');
+    const rawMaintenance = mr.object(station.maintenance, ['enabled', 'durationMs', 'processingThresholdMs', 'repetitionsThreshold']);
+    let maintenance: ResolvedMaintenance;
+    if (rawMaintenance.enabled === false) {
+      mr.object(rawMaintenance, ['enabled']); maintenance = {enabled: false};
+    } else {
+      mr.at('enabled').literal(rawMaintenance.enabled, true);
+      const durationMs = mr.at('durationMs').integer(rawMaintenance.durationMs, 1);
+      const processingThresholdMs = rawMaintenance.processingThresholdMs === undefined ? null : mr.at('processingThresholdMs').integer(rawMaintenance.processingThresholdMs) || null;
+      const repetitionsThreshold = rawMaintenance.repetitionsThreshold === undefined ? null : mr.at('repetitionsThreshold').integer(rawMaintenance.repetitionsThreshold) || null;
+      if (processingThresholdMs === null && repetitionsThreshold === null) mr.fail('value', 'Для обслуживания нужен положительный порог времени обработки или числа повторений.', 'Maintenance requires a positive processing-time or repetition threshold.');
+      maintenance = {enabled: true, durationMs, processingThresholdMs, repetitionsThreshold};
+    }
     r.at('lunchReplacement').literal(station.lunchReplacement, false);
     const costs = r.at('costs').object(station.costs, ['perShift', 'perLunchHour', 'capital']);
     const br = r.at('inputBuffer');
@@ -424,7 +441,7 @@ export function compileConfig(value: unknown): RunConfig {
       const capacity = inputBuffers.find(buffer => buffer.materialId === input.materialId)!.capacity;
       if (capacity.kind === 'quantity' && capacity.quantity < input.quantity * row.repetitions) br.fail('capacity', `Входной буфер ${input.materialId} не вмещает полный комплект партии.`, `Input buffer ${input.materialId} cannot hold a complete batch kit.`);
     }
-    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, setupMs, initialRecipeId, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
+    return {id: stationId, priority: r.at('priority').integer(station.priority, -Number.MAX_SAFE_INTEGER), transportThreshold, setupMs, initialRecipeId, maintenance, plan, planId: first.id, recipeId: first.recipeId, mode: first.mode, repetitions: first.repetitions,
       timeMs: first.timeMs, cv: first.cv, inputBuffers,
       outputBuffers,
       costs: {perShift: r.at('costs').at('perShift').money(costs.perShift), perLunchHour: r.at('costs').at('perLunchHour').money(costs.perLunchHour), capital: r.at('costs').at('capital').money(costs.capital)}};

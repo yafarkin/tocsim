@@ -9,7 +9,7 @@ import { line } from './test-fixtures';
 
 function initial(): EngineState {
   const run = compileConfig(line());
-  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, planIndex: 0, completedBatches: 0, configuredRecipeId: s.initialRecipeId, targetRecipeId: null, remainingSetupMs: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
+  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, planIndex: 0, completedBatches: 0, configuredRecipeId: s.initialRecipeId, targetRecipeId: null, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
 }
 const run = () => compileConfig(line());
 function scheduler(handlers: EventHandlers = {}) { return new EventScheduler(run(), initial(), handlers); }
@@ -262,5 +262,24 @@ describe('diagnostics and atomic timestamp failures', () => {
     loop.advanceTo(10);
     errorCode(() => loop.schedule(transfer('c', 10)), 'order');
     errorCode(() => loop.advanceTo(9), 'value');
+  });
+});
+
+
+describe('maintenance threshold operation tokens', () => {
+  it('does not consume the processing completion token when marking the time threshold', () => {
+    const seen: string[] = [], loop = scheduler({maintenanceDue: () => {seen.push('due');}, completion: () => {seen.push('completion');}});
+    loop.schedule({kind: 'maintenanceDue', id: 'threshold', stationId: 's1', operationVersion: 0, timeMs: 5});
+    loop.schedule({kind: 'completion', id: 'completion', stationId: 's1', operationVersion: 0, timeMs: 10});
+    loop.advanceTo(10); expect(seen).toEqual(['due', 'completion']);
+  });
+  it('ignores stale thresholds after operation invalidation and validates station and version', () => {
+    const seen: number[] = [], loop = scheduler({maintenanceDue: (_ctx, event) => {seen.push(event.timeMs);}});
+    loop.schedule({kind: 'maintenanceDue', id: 'old-threshold', stationId: 's1', operationVersion: 0, timeMs: 5});
+    loop.invalidateOperation('s1');
+    loop.schedule({kind: 'maintenanceDue', id: 'new-threshold', stationId: 's1', operationVersion: 1, timeMs: 10});
+    loop.advanceTo(10); expect(seen).toEqual([10]);
+    errorCode(() => loop.schedule({kind: 'maintenanceDue', id: 'invalid', stationId: 'missing', operationVersion: 1, timeMs: 11}), 'value');
+    errorCode(() => loop.schedule({kind: 'maintenanceDue', id: 'invalid', stationId: 's1', operationVersion: -1, timeMs: 11}), 'value');
   });
 });

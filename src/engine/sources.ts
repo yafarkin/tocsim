@@ -27,7 +27,7 @@ function warehouseQuantity(state: EngineState, material: string): number {
 
 export function createPushState(run: RunConfig): EngineState {
   return {...createInventory(run), timeMs: 0,
-    stations: run.resolved.stations.map(station => ({stationId: station.id, planIndex: 0, completedBatches: 0, configuredRecipeId: station.initialRecipeId, targetRecipeId: null, remainingSetupMs: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false,
+    stations: run.resolved.stations.map(station => ({stationId: station.id, planIndex: 0, completedBatches: 0, configuredRecipeId: station.initialRecipeId, targetRecipeId: null, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false,
       status: 'idle', reason: 'notStarted', remainingProcessingMs: null})),
     sources: run.resolved.sources.map(source => ({sourceId: source.id, nextOrdinal: 0, pendingQuantity: 0,
       attempts: 0, releasedQuantity: 0, purchasedCost: 0n, lastAttempt: null})), sourceTransfers: [], line: null};

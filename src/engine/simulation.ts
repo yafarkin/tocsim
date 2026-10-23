@@ -8,7 +8,7 @@ import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
 import { completeProduction, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
-import type { EngineState, Snapshot, StockState } from './state';
+import type { EngineState, Snapshot, StockState, StationState } from './state';
 
 const WAKE = '@line';
 type Station = RunConfig['resolved']['stations'][number];
@@ -46,7 +46,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     for (const config of stations) {
       const station = ctx.state.stations.find(s => s.stationId === config.id)!;
       if (!canStart(calendar, ctx.timeMs)) {station.status = 'paused'; station.reason = calendarReason(ctx.timeMs);}
-      else if (station.remainingSetupMs !== null) continue;
+      else if (station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) continue;
       else if (station.remainingProcessingMs === null) {
         const recipe = recipeOf(ctx.state, config);
         if (station.transferReady && hasStock(ctx.state, config.id, 'held')) {station.status = 'blocked'; station.reason = 'output';}
@@ -71,10 +71,33 @@ function createLineHandlers(run: RunConfig): EventHandlers {
   }
   function planCompletion(ctx: EventContext, id: string) {
     const station = ctx.state.stations.find(s => s.stationId === id)!;
-    const due = BigInt(ctx.timeMs) + BigInt(station.remainingSetupMs ?? station.remainingProcessingMs!);
+    const due = BigInt(ctx.timeMs) + BigInt(station.remainingMaintenanceMs ?? station.remainingSetupMs ?? station.remainingProcessingMs!);
     // A calendar close invalidates this provisional completion. No work beyond horizon.
     if (due <= BigInt(calendar.endTimeMs)) ctx.schedule({kind: 'completion', stationId: id,
       operationVersion: station.operationVersion, id: `completion:${id}:${station.operationVersion}`, timeMs: Number(due)});
+    const config = stations.find(s => s.id === id)!;
+    if (station.remainingProcessingMs !== null && station.maintenanceDueAtMs === null && config.maintenance.enabled && config.maintenance.processingThresholdMs !== null) {
+      const remaining = config.maintenance.processingThresholdMs - station.maintenanceProcessingMs;
+      const thresholdAt = BigInt(ctx.timeMs) + BigInt(remaining);
+      // Equality is handled by processing completion, including both thresholds.
+      if (remaining > 0 && remaining < station.remainingProcessingMs && thresholdAt <= BigInt(calendar.endTimeMs)) {
+        ctx.schedule({kind: 'maintenanceDue', stationId: id, operationVersion: station.operationVersion,
+          id: `maintenance-due:${id}:${station.operationVersion}`, timeMs: Number(thresholdAt)});
+      }
+    }
+  }
+  function markMaintenanceDue(ctx: EventContext, station: StationState, config: Station) {
+    if (!config.maintenance.enabled) return;
+    if (station.maintenanceDueAtMs !== null && station.maintenanceDueAtMs !== ctx.timeMs) return;
+    const triggers: StationState['maintenanceDueBy'] = [];
+    if (config.maintenance.processingThresholdMs !== null && station.maintenanceProcessingMs >= config.maintenance.processingThresholdMs) triggers.push('processingTime');
+    if (config.maintenance.repetitionsThreshold !== null && station.maintenanceRepetitions >= config.maintenance.repetitionsThreshold) triggers.push('repetitions');
+    if (triggers.length) {station.maintenanceDueAtMs = ctx.timeMs; station.maintenanceDueBy = triggers;}
+  }
+  function addMaintenanceCounter(value: number, increment: number, stationId: string): number {
+    const total = BigInt(value) + BigInt(increment);
+    if (total > MAX_UNITS) throw new EventError('value', stationId, {ru: 'Счётчик обслуживания превысил безопасный диапазон.', en: 'Maintenance counter exceeded the safe range.'});
+    return Number(total);
   }
   function deliver(ctx: EventContext, config: Station, location: 'held' | 'output', materialId: string, limit: number): boolean {
     let available = Math.min(limit, count(ctx.state, config.id, location, materialId));
@@ -133,20 +156,38 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       state.line!.transfers = [];
       const elapsed = activeWorkMs(calendar, from, to);
       for (const station of state.stations) {
+        if (station.maintenanceDueAtMs !== null && station.remainingMaintenanceMs === null && to > from) {
+          const reasons = station.maintenanceDeferredBy;
+          const addReason = (reason: typeof reasons[number]) => {if (!reasons.includes(reason)) reasons.push(reason);};
+          if (elapsed > 0) {
+            if (station.transferReady && hasStock(state, station.stationId, 'held')) addReason('output');
+            else if (station.remainingProcessingMs !== null || hasStock(state, station.stationId, 'reserved')) addReason('batch');
+          }
+          if (to - from > elapsed) addReason('calendar');
+        }
+        if (station.remainingMaintenanceMs !== null) {
+          station.remainingMaintenanceMs -= elapsed;
+          if (station.remainingMaintenanceMs < 0) throw new EventError('value', station.stationId, {ru: 'Пропущено завершение обслуживания.', en: 'Maintenance completion was skipped.'});
+        }
         if (station.remainingSetupMs !== null) {
           station.remainingSetupMs -= elapsed;
           if (station.remainingSetupMs < 0) throw new EventError('value', station.stationId, {ru: 'Пропущено завершение переналадки.', en: 'Setup completion was skipped.'});
         }
         if (station.remainingProcessingMs !== null) {
+          if (stations.find(s => s.id === station.stationId)!.maintenance.enabled) station.maintenanceProcessingMs = addMaintenanceCounter(station.maintenanceProcessingMs, elapsed, station.stationId);
           station.remainingProcessingMs -= elapsed;
           if (station.remainingProcessingMs < 0) throw new EventError('value', station.stationId, {ru: 'Пропущено завершение обработки.', en: 'Processing completion was skipped.'});
         }
       }
     },
     source: push.source,
+    maintenanceDue: (ctx, event) => {
+      const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
+      if (station.remainingProcessingMs !== null) markMaintenanceDue(ctx, station, stations.find(s => s.id === event.stationId)!);
+    },
     calendar: (ctx, event) => {
       if (event.boundary === 'close') {
-        for (const station of ctx.state.stations) if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null) {
+        for (const station of ctx.state.stations) if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) {
           ctx.invalidateOperation(station.stationId);
           // A 24:00 close may coincide with the next 00:00 opening. Mark the
           // operation paused explicitly so dispatch still replaces its token.
@@ -157,6 +198,16 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     },
     completion: (ctx, event) => {
       const station = ctx.state.stations.find(s => s.stationId === event.stationId)!;
+      if (station.remainingMaintenanceMs !== null) {
+        if (station.remainingMaintenanceMs !== 0) throw new EventError('value', event.stationId, {ru: 'Обслуживание ещё не завершено.', en: 'Maintenance is not complete yet.'});
+        station.lastMaintenance = {dueAtMs: station.maintenanceDueAtMs!, dueBy: [...station.maintenanceDueBy], deferredBy: [...station.maintenanceDeferredBy],
+          startedAtMs: station.maintenanceStartedAtMs!, completedAtMs: ctx.timeMs,
+          processingMs: station.maintenanceProcessingMs, repetitions: station.maintenanceRepetitions};
+        station.maintenanceProcessingMs = 0; station.maintenanceRepetitions = 0;
+        station.maintenanceDueAtMs = null; station.maintenanceDueBy = []; station.maintenanceDeferredBy = []; station.maintenanceStartedAtMs = null;
+        station.remainingMaintenanceMs = null; station.operationDurationMs = null; station.status = 'idle'; station.reason = null;
+        wakeTransfer(ctx); return;
+      }
       if (station.remainingSetupMs !== null) {
         if (station.remainingSetupMs !== 0) throw new EventError('value', event.stationId, {ru: 'Переналадка ещё не завершена.', en: 'Setup is not complete yet.'});
         station.configuredRecipeId = station.targetRecipeId!;
@@ -169,6 +220,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const config = stations.find(s => s.id === event.stationId)!, recipe = recipeOf(ctx.state, config);
       const row = rowOf(ctx.state, config);
       const multiplier = row.mode === 'simultaneous' ? row.repetitions : 1;
+      if (config.maintenance.enabled) {
+        station.maintenanceRepetitions = addMaintenanceCounter(station.maintenanceRepetitions, multiplier, station.stationId);
+        markMaintenanceDue(ctx, station, config);
+      }
       completeProduction(ctx.state, config.id, {...recipe.output, quantity: recipe.output.quantity * multiplier}, station.operationDurationMs!, ctx.timeMs, recipe.inputs.map(input => ({...input, quantity: input.quantity * multiplier})));
       for (const input of recipe.inputs) {
         const inputCounter = ctx.state.line!.counters.find(c => c.materialId === input.materialId)!;
@@ -221,6 +276,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       let started = false;
       for (const config of stations) {
         const station = ctx.state.stations.find(s => s.stationId === config.id)!, recipe = recipeOf(ctx.state, config);
+        if (station.remainingMaintenanceMs !== null) {
+          if (station.status !== 'maintenance') {station.status = 'maintenance'; station.reason = null; planCompletion(ctx, config.id);}
+          continue;
+        }
         if (station.remainingSetupMs !== null) {
           if (station.status !== 'setup') {station.status = 'setup'; station.reason = null; planCompletion(ctx, config.id);}
           continue;
@@ -232,6 +291,14 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         if (station.transferReady && hasStock(ctx.state, config.id, 'held')) continue;
         const reserved = ctx.state.stocks.some(stock => stock.ownerId === config.id && stock.location === 'reserved');
         if (!reserved) {
+          if (station.maintenanceDueAtMs !== null && config.maintenance.enabled) {
+            if (hasStock(ctx.state, config.id, 'held')) continue;
+            station.remainingMaintenanceMs = config.maintenance.durationMs;
+            station.maintenanceStartedAtMs = ctx.timeMs; station.operationDurationMs = config.maintenance.durationMs;
+            station.status = 'maintenance'; station.reason = null;
+            ctx.invalidateOperation(config.id); planCompletion(ctx, config.id); started = true;
+            continue;
+          }
           const kit = recipe.inputs.map(input => ({...input, quantity: input.quantity * rowOf(ctx.state, config).repetitions}));
           if (kit.some(input => count(ctx.state, config.id, 'input', input.materialId) < input.quantity)) continue;
           const setupMs = setupDurationMs(config.setupMs, station.configuredRecipeId, recipe.id);

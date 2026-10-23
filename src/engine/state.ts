@@ -2,6 +2,14 @@ import { moneyToJSON } from './arithmetic';
 import { freezeData, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 
+export type MaintenanceTrigger = 'processingTime' | 'repetitions';
+export type MaintenanceDeferral = 'batch' | 'output' | 'calendar';
+/** Only the last completed service is retained; no unbounded event history. */
+export interface MaintenanceRecord {
+  dueAtMs: number; dueBy: MaintenanceTrigger[]; deferredBy: MaintenanceDeferral[]; startedAtMs: number; completedAtMs: number;
+  processingMs: number; repetitions: number;
+}
+
 /** Internal operation token is deliberately excluded from UI snapshots. */
 export interface StationState {
   stationId: string;
@@ -11,13 +19,21 @@ export interface StationState {
   configuredRecipeId: string;
   targetRecipeId: string | null;
   remainingSetupMs: number | null;
+  remainingMaintenanceMs: number | null;
+  maintenanceProcessingMs: number;
+  maintenanceRepetitions: number;
+  maintenanceDueAtMs: number | null;
+  maintenanceDueBy: MaintenanceTrigger[];
+  maintenanceDeferredBy: MaintenanceDeferral[];
+  maintenanceStartedAtMs: number | null;
+  lastMaintenance: MaintenanceRecord | null;
   operationVersion: number;
   operationOrdinal: number;
-  /** Full duration of the current processing or setup operation. */
+  /** Full duration of the current processing, setup or maintenance operation. */
   operationDurationMs: number | null;
   /** Once released, every remaining held item stays eligible until fully unloaded. */
   transferReady: boolean;
-  status: 'idle' | 'setup' | 'processing' | 'blocked' | 'starved' | 'paused';
+  status: 'idle' | 'maintenance' | 'setup' | 'processing' | 'blocked' | 'starved' | 'paused';
   reason: 'notStarted' | 'input' | 'output' | 'offShift' | 'lunch' | 'complete' | 'horizon' | null;
   remainingProcessingMs: number | null;
 }
@@ -113,7 +129,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 12;
+  schemaVersion: 13;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -128,7 +144,7 @@ export interface Snapshot {
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
   return freezeData({
-    schemaVersion: 12,
+    schemaVersion: 13,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -148,8 +164,12 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       return {
         stationId: station.stationId, planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
         configuredRecipeId: station.configuredRecipeId, targetRecipeId: station.targetRecipeId, remainingSetupMs: station.remainingSetupMs,
+        remainingMaintenanceMs: station.remainingMaintenanceMs, maintenanceProcessingMs: station.maintenanceProcessingMs,
+        maintenanceRepetitions: station.maintenanceRepetitions, maintenanceDueAtMs: station.maintenanceDueAtMs,
+        maintenanceDueBy: station.maintenanceDueBy, maintenanceDeferredBy: station.maintenanceDeferredBy, maintenanceStartedAtMs: station.maintenanceStartedAtMs,
+        lastMaintenance: station.lastMaintenance,
         transferReady: station.transferReady, remainingProcessingMs: station.remainingProcessingMs, operationDurationMs: station.operationDurationMs,
-        progress: station.remainingSetupMs !== null ? null : station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
+        progress: station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null ? null : station.remainingProcessingMs === null ? (held > 0 ? 1 : null) : Math.max(0, Math.min(1, 1 - station.remainingProcessingMs / (station.operationDurationMs ?? row.timeMs))),
         inputs: config.inputBuffers.map(input => ({materialId: input.materialId, quantity: count('input', input.materialId), missingQuantity: station.remainingProcessingMs === null && count('reserved', input.materialId) === 0 ? Math.max(0, (recipe.inputs.find(component => component.materialId === input.materialId)?.quantity ?? 0) * row.repetitions - count('input', input.materialId)) : 0, reservedQuantity: count('reserved', input.materialId)})),
         output: {materialId: outputMaterialId, quantity: count('output', outputMaterialId), heldQuantity: held},
         outputs: [...new Set(config.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort().map(materialId => ({
@@ -160,7 +180,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
     }),
     line: state.line ? {
       termination: state.timeMs === run.resolved.durationMs ? 'horizon' : 'running',
-      flow: state.stations.some(s => s.remainingProcessingMs !== null) || run.resolved.stations.some(s => {
+      flow: state.stations.some(s => s.remainingProcessingMs !== null || s.remainingSetupMs !== null || s.remainingMaintenanceMs !== null) || run.resolved.stations.some(s => {
         const row = s.plan[state.stations.find(station => station.stationId === s.id)!.planIndex]!;
         const inputs = run.resolved.recipes.find(r => r.id === row.recipeId)!.inputs;
         return inputs.every(input => state.stocks.filter(stock => stock.ownerId === s.id && stock.location === 'input' && stock.materialId === input.materialId).reduce((sum, stock) => sum + stock.quantity, 0) >= input.quantity * row.repetitions);
