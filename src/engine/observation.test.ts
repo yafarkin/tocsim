@@ -59,7 +59,7 @@ describe('exact observed calendar and available work time', () => {
     expect(stopped.stations[0]!.remainingProcessingMs).not.toBeNull();
     expect(sim.getSnapshot()).toEqual(stopped);
     expect(Object.isFrozen(stopped.observation)).toBe(true);
-    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(17);
+    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(18);
   });
 
   it('observes the full requested horizon after raw material runs out', () => {

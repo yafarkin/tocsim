@@ -123,12 +123,21 @@ export interface LineTransfer {
   kind: 'buffer' | 'route' | 'sale' | 'scrap';
 }
 export interface ShiftOutput {dayIndex: number; materialId: string; quantity: number}
+/** One bounded aggregate per physical place/material, in micro-units × ms. */
+export interface StockTime {
+  ownerId: string;
+  materialId: string;
+  location: Exclude<StockState['location'], 'warehouse'>;
+  calendarQuantityMs: bigint;
+  workQuantityMs: bigint;
+}
 export interface LineState {
   transferPending: boolean;
   dispatchPending: boolean;
   counters: MaterialCounter[];
   inspections: InspectionCounter[];
   shiftOutput: ShiftOutput[];
+  stockTime: StockTime[];
   scraps: ScrapSummary[];
   transfers: LineTransfer[];
 }
@@ -145,6 +154,7 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion' |
 }
 export interface LineSnapshot {
   shiftOutput: ShiftOutput[];
+  stockTime: (Omit<StockTime, 'calendarQuantityMs' | 'workQuantityMs'> & {calendarQuantityMs: string; workQuantityMs: string})[];
   termination: 'running' | 'horizon' | 'stopped' | 'error';
   flow: 'normal' | 'exhausted' | 'missingInput' | 'blocked';
   counters: (Omit<MaterialCounter, 'soldCost' | 'scrapCost'> & {soldCost: string; scrapCost: string})[];
@@ -160,7 +170,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 17;
+  schemaVersion: 18;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -180,7 +190,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 17,
+    schemaVersion: 18,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -226,6 +236,8 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
       shiftOutput: state.line.shiftOutput.map(row => ({...row})).sort((a,b) => a.dayIndex - b.dayIndex || (a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0)),
+      stockTime: state.line.stockTime.map(row => ({...row, calendarQuantityMs: String(row.calendarQuantityMs), workQuantityMs: String(row.workQuantityMs)}))
+        .sort((a,b) => a.ownerId < b.ownerId ? -1 : a.ownerId > b.ownerId ? 1 : a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : a.location < b.location ? -1 : a.location > b.location ? 1 : 0),
       counters: state.line.counters.map(c => ({...c, soldCost: moneyToJSON(c.soldCost), scrapCost: moneyToJSON(c.scrapCost)})),
       inspections: state.line.inspections.map(c => ({...c, processingMs: moneyToJSON(c.processingMs)})),
       scraps: state.line.scraps.map(s => ({...s, cost: moneyToJSON(s.cost), processingMs: Object.fromEntries(Object.entries(s.processingMs).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([id, time]) => [id, moneyToJSON(time)]))})),

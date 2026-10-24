@@ -8,6 +8,7 @@ import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
 import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
+import { integrateStockTime } from './stock-time';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
 
 const WAKE = '@line';
@@ -178,7 +179,9 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     integrate: (state, from, to) => {
       push.integrate(state, from, to);
       state.line!.transfers = [];
-      const commonElapsed = elapsedTime(calendar, from, to).workMs;
+      const interval = elapsedTime(calendar, from, to);
+      integrateStockTime(state.stocks, state.line!.stockTime, interval);
+      const commonElapsed = interval.workMs;
       for (const station of state.stations) {
         const config = stations.find(s => s.id === station.stationId)!;
         const elapsed = elapsedTime(stationCalendar(station.stationId), from, to).workMs;
@@ -383,7 +386,7 @@ export class Simulation {
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
-    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [],
+    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [], stockTime: [],
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);
     this.scheduler = new EventScheduler(run, state, handlers);
