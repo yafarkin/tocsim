@@ -1,6 +1,13 @@
 export type Language = 'ru' | 'en';
 export const messages = {
   ru: {
+    investments: 'Запасы, вложения и ROI', investmentAmounts: 'Запасы и вложения', currentStockValue: 'Текущие запасы (I stock)', stationCapital: 'Капитал постов', currentInvestment: 'Текущие вложения (I total)', meanStockValue: 'Средние запасы', meanInvestment: 'Средние вложения', periodRoi: 'ROI периода', investmentNoValue: 'Не определено',
+    investmentPeriod: 'Показатели относятся к фактическому интервалу отчёта выше.',
+    investmentBoundary: 'В оценку входят склад сырья и все остатки в линии, включая незавершённую работу и материал до годной приёмки. Виртуальное сырьё до закупки не входит. Вложения равны сырьевой стоимости запасов плюс капитал всех постов. Капитал не списывается в операционные расходы.',
+    investmentRoiHelp: 'ROI = чистый результат NP / средние вложения. Это доходность фактического периода, без пересчёта на год. Средние рассчитаны по календарному времени, включая обед и ночи между сменами.',
+    investmentZeroPeriod: 'При нулевой длительности периода средние значения и ROI не определены.', investmentZeroMean: 'ROI не определён: средние вложения за период равны нулю.',
+    investmentRounding: 'Суммы и проценты показаны с точностью до двух знаков. Знак ≈ означает округление. Малые ненулевые значения показаны границей или интервалом. Расчёт ROI использует точные средние.',
+
     financialResult: 'Денежный результат', financialAmount: 'Сумма',
     revenue: 'Выручка (Revenue)', tvcSold: 'Сырьё проданных изделий (TVC sold)', throughput: 'Проход (T)', scrapExpense: 'Потери брака (Scrap expense)', fixedExpense: 'Фиксированные расходы', lunchExpense: 'Дополнительные обеденные расходы', operatingExpense: 'Операционные расходы (OE)', netProfit: 'Чистый результат (NP)',
     financialHelp: 'За фактический интервал отчёта выше. T = Revenue − TVC sold. OE = фиксированные расходы + обеденные расходы + потери брака. NP = T − OE. Фиксированные расходы идут по рабочему времени общей смены без обеда, включая простой. Обед оплачивается по активной занятости с подменой.',
@@ -85,6 +92,13 @@ export const messages = {
     raw: 'Заготовка', prepared: 'Деталь', processed: 'Обработанная деталь', product: 'Изделие',
   },
   en: {
+    investments: 'Stock, investments and ROI', investmentAmounts: 'Stock and investments', currentStockValue: 'Current stock (I stock)', stationCapital: 'Station capital', currentInvestment: 'Current investment (I total)', meanStockValue: 'Average stock', meanInvestment: 'Average investment', periodRoi: 'Period ROI', investmentNoValue: 'Not defined',
+    investmentPeriod: 'Values cover the actual report interval above.',
+    investmentBoundary: 'Valuation includes the raw warehouse and all stock in the line, including work in progress and material awaiting good acceptance. Virtual raw material before purchase is excluded. Investment equals raw material stock cost plus the capital of all stations. Capital is not charged to operating expenses.',
+    investmentRoiHelp: 'ROI = net result NP / average investment. This is the return for the actual period, without annualizing it. Averages use calendar time, including lunch and nights between shifts.',
+    investmentZeroPeriod: 'Averages and ROI are not defined for a zero-length period.', investmentZeroMean: 'ROI is not defined: average investment for the period is zero.',
+    investmentRounding: 'Amounts and percentages use two decimal places. The ≈ sign marks rounding. Small nonzero values use a bound or interval. ROI is calculated using exact averages.',
+
     financialResult: 'Financial result', financialAmount: 'Amount',
     revenue: 'Revenue', tvcSold: 'Raw material cost of sales (TVC sold)', throughput: 'Throughput (T)', scrapExpense: 'Scrap expense', fixedExpense: 'Fixed expenses', lunchExpense: 'Additional lunch expenses', operatingExpense: 'Operating expenses (OE)', netProfit: 'Net result (NP)',
     financialHelp: 'For the actual report interval above. T = Revenue − TVC sold. OE = fixed expenses + lunch expenses + scrap expense. NP = T − OE. Fixed expenses accrue over common shift working time excluding lunch, including idle time. Lunch charges cover active work with replacement.',

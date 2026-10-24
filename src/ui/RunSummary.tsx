@@ -7,6 +7,7 @@ import { nameFor } from './i18n';
 import type { Labels, Language } from './i18n';
 import {FlowCharts} from './FlowCharts';
 import {FlowTimeReport} from './FlowTimeReport';
+import {InvestmentReport} from './InvestmentReport';
 import {FinancialReport} from './FinancialReport';
 import {RunMetrics} from './RunMetrics';
 
@@ -52,6 +53,7 @@ export function RunSummary({run, view, text, language}: Props) {
       </details>
     </details>
     <FinancialReport run={run} model={view.model} text={text}/>
+    <InvestmentReport run={run} model={view.model} text={text}/>
     <RunMetrics run={run} model={view.model} text={text}/>
     <FlowTimeReport run={run} model={view.model} text={text}/>
     <FlowCharts run={run} history={view.history} text={text} language={language}/>

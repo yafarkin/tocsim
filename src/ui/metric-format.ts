@@ -1,3 +1,4 @@
+import type {InvestmentAverage, InvestmentRoi} from '../engine/investment-report';
 import type {StockAverage} from '../engine/stock-time';
 
 function decimal(value: bigint, places: number): string {
@@ -35,4 +36,26 @@ export function meanDurationText(quantityMs: string, quantity: string | number, 
 }
 export function quantityShareText(quantity: string | number, total: string | number): string | null {
   return BigInt(total) === 0n ? null : `${fractionText(BigInt(quantity) * 100n, BigInt(total), 1)}%`;
+}
+
+/** Round signed exact ratios to two decimal places only for display. */
+function fixedMoneyRatio(n: bigint, d: bigint): string {
+  const absolute = n < 0n ? -n : n;
+  const cents = (2n * absolute * 100n + d) / (2n * d);
+  return `${absolute * 100n % d ? '≈ ' : ''}${n < 0n && cents !== 0n ? '−' : ''}${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+}
+function investmentAmountRatio(n: bigint, d: bigint): string {
+  return n > 0n && n * 100n < d ? '< 0.01' : fixedMoneyRatio(n, d);
+}
+export function investmentMoneyText(value: string): string {
+  return investmentAmountRatio(BigInt(value), 1_000_000n);
+}
+export function investmentAverageText(average: InvestmentAverage | null, unavailable: string): string {
+  return average === null ? unavailable : investmentAmountRatio(BigInt(average.costMs), BigInt(average.durationMs) * 1_000_000n);
+}
+export function investmentRoiText(roi: InvestmentRoi | null, unavailable: string): string {
+  if (roi === null) return unavailable;
+  const n = BigInt(roi.numerator) * 100n, d = BigInt(roi.denominator), absolute = n < 0n ? -n : n;
+  if (absolute > 0n && absolute * 100n < d) return n < 0n ? '−0.01% < ROI < 0%' : '0% < ROI < 0.01%';
+  return `${fixedMoneyRatio(n, d)}%`;
 }
