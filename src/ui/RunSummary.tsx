@@ -5,6 +5,7 @@ import type { RunnerView } from '../runner/runner';
 import { quantityText } from './diagram';
 import { nameFor } from './i18n';
 import type { Labels, Language } from './i18n';
+import {FlowCharts} from './FlowCharts';
 import {FlowTimeReport} from './FlowTimeReport';
 import {RunMetrics} from './RunMetrics';
 
@@ -51,5 +52,6 @@ export function RunSummary({run, view, text, language}: Props) {
     </details>
     <RunMetrics run={run} model={view.model} text={text}/>
     <FlowTimeReport run={run} model={view.model} text={text}/>
+    <FlowCharts run={run} history={view.history} text={text} language={language}/>
   </section>;
 }
