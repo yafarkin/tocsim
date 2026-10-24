@@ -1,3 +1,4 @@
+import type {FlowBoundaryMoments} from './flow-identity';
 import {stockCost} from './stock-value';
 import {stockAge} from './stock-age';
 import type {StockAge} from './stock-age';
@@ -180,6 +181,7 @@ export interface LineState {
   stockTime: StockTime[];
   /** Micro-money × calendar milliseconds over the actual observation interval. */
   stockCostMs: bigint;
+  flowBoundary: FlowBoundaryMoments | null;
   scraps: ScrapSummary[];
   transfers: LineTransfer[];
 }
@@ -195,6 +197,7 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion' |
   blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
 export interface LineSnapshot {
+  flowBoundary: {[K in keyof FlowBoundaryMoments]: string} | null;
   /** All physical inventory, including warehouse; integral is unbounded. */
   stockValue: {currentCost: string; calendarCostMs: string};
   stockAge: StockAge;
@@ -216,7 +219,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 23;
+  schemaVersion: 24;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -236,7 +239,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 23,
+    schemaVersion: 24,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -282,6 +285,12 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
+      flowBoundary: state.line.flowBoundary ? {
+        admissionCalendarQuantityMs: String(state.line.flowBoundary.admissionCalendarQuantityMs),
+        admissionWorkQuantityMs: String(state.line.flowBoundary.admissionWorkQuantityMs),
+        exitCalendarQuantityMs: String(state.line.flowBoundary.exitCalendarQuantityMs),
+        exitWorkQuantityMs: String(state.line.flowBoundary.exitWorkQuantityMs),
+      } : null,
       stockValue: {currentCost: moneyToJSON(stockCost(state.stocks)), calendarCostMs: String(state.line.stockCostMs)},
       stockAge: stockAge(state.stocks, run.resolved.materials.map(m => m.id), calendar, state.timeMs),
       flowTime: state.line.flowTime.map(row => ({materialId: row.materialId,

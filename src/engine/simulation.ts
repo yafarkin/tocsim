@@ -9,6 +9,7 @@ import { processingDuration, RandomError } from './random';
 import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, startProcessingInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { recordFlowTime, emptyFlowTime } from './flow-time';
+import {emptyFlowBoundaryMoments, flowIdentityReason, recordFlowBoundary} from './flow-identity';
 import {FlowHistoryCollector} from './flow-history';
 import {stockCostIntegral} from './stock-value';
 import { integrateStockTime } from './stock-time';
@@ -132,6 +133,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       for (const part of portions) {
         if (part.provenance.defective) recordScrap(ctx.state, 'market', part);
         else {
+          if (ctx.state.line!.flowBoundary) recordFlowBoundary(ctx.state.line!.flowBoundary, 'exit', part.quantity, ctx.timeMs, calendar);
           recordFlowTime(ctx.state.line!.flowTime.find(row => row.materialId === materialId)!, part, calendar, ctx.timeMs);
           counter.sold = addQuantity(counter.sold, part.quantity); counter.soldCost = addMoney(counter.soldCost, part.cost);
           // Include the closing boundary in its shift, even when it is exactly 24:00.
@@ -309,7 +311,14 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       wakeTransfer(ctx);
     },
     transfer: (ctx, event) => {
-      if (event.producerId === '@sources') {push.transfer(ctx, event); wakeTransfer(ctx); return;}
+      if (event.producerId === '@sources') {
+        const before = ctx.state.sourceTransfers.length;
+        push.transfer(ctx, event);
+        if (ctx.state.line!.flowBoundary) for (const transfer of ctx.state.sourceTransfers.slice(before)) {
+          recordFlowBoundary(ctx.state.line!.flowBoundary, 'admission', transfer.quantity, ctx.timeMs, calendar);
+        }
+        wakeTransfer(ctx); return;
+      }
       if (event.producerId !== WAKE) throw new EventError('value', event.id, {ru: 'Неизвестная передача линии.', en: 'Unknown line transfer.'});
       ctx.state.line!.transferPending = false;
       let moved = distribute(ctx);
@@ -401,7 +410,7 @@ export class Simulation {
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
-    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [], stockTime: [], stockCostMs: 0n,
+    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [], stockTime: [], stockCostMs: 0n, flowBoundary: flowIdentityReason(run) === null ? emptyFlowBoundaryMoments() : null,
       flowTime: run.resolved.materials.filter(m => m.role === 'finished').map(m => ({materialId: m.id, admission: emptyFlowTime(), firstProcessing: emptyFlowTime()})),
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);

@@ -166,6 +166,6 @@ describe('cumulative charge and repeatability', () => {
       runner.resume(); drain(); expect(runner.getView().model).toEqual(direct);
       runner.repeat(); drain(); expect(runner.getView().model).toEqual(direct); runner.dispose();
     }
-    expect(JSON.parse(JSON.stringify(direct)).schemaVersion).toBe(23);
+    expect(JSON.parse(JSON.stringify(direct)).schemaVersion).toBe(24);
   });
 });

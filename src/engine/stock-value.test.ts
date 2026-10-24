@@ -134,7 +134,7 @@ describe('physical inventory value over calendar time', () => {
     const c=finite();c.durationMs+=99*DAY_MS;c.initialStocks[0]!.quantity='0.5';c.initialStocks[0]!.cost='9007199254.740991';
     const model=new Simulation(compileConfig(c)).runToEnd(), integral=MAX_UNITS*BigInt(c.durationMs);
     expect(value(model)).toEqual({currentCost:String(MAX_UNITS),calendarCostMs:String(integral)});
-    expect(integral>MAX_UNITS).toBe(true);expect(model.schemaVersion).toBe(23);expect(model.engineVersion).toBe('0.32.0');
+    expect(integral>MAX_UNITS).toBe(true);expect(model.schemaVersion).toBe(24);expect(model.engineVersion).toBe('0.33.0');
     expect(JSON.parse(JSON.stringify(model)).line.stockValue).toEqual(value(model));expect(Object.isFrozen(value(model))).toBe(true);
   });
   it('does not charge station capital or operating expenses to inventory', () => {
@@ -150,7 +150,7 @@ describe('physical inventory value over calendar time', () => {
   });
   it('rolls the integral back when an endpoint event fails', () => {
     const run=compileConfig(finite()), state=createPushState(run);
-    state.line={transferPending:false,dispatchPending:false,counters:[],inspections:[],scraps:[],shiftOutput:[],flowTime:[],stockTime:[],stockCostMs:0n,transfers:[]};
+    state.line={transferPending:false,dispatchPending:false,counters:[],inspections:[],scraps:[],shiftOutput:[],flowTime:[],stockTime:[],stockCostMs:0n,flowBoundary:null,transfers:[]};
     const loop=new EventScheduler(run,state,{
       integrate:(s,from,to)=>{s.line!.stockCostMs+=stockCostIntegral(s.stocks,to-from);},
       transfer:()=>{throw new Error('failed endpoint');},

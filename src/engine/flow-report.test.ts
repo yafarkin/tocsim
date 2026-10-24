@@ -50,7 +50,7 @@ describe('output by shift from actual good deliveries',()=>{
     for(const c of [previewConfig('plans'),withQuality(previewConfig('quality'),{...defaultQuality,position:'late'})]){
       const end=run(c).runToEnd();
       for(const material of c.materials.filter(m=>m.role==='finished')) expect(end.line!.shiftOutput.filter(r=>r.materialId===material.id).reduce((s,r)=>s+r.quantity,0)).toBe(end.line!.counters.find(r=>r.materialId===material.id)!.sold);
-      expect(JSON.parse(JSON.stringify(end)).schemaVersion).toBe(23);expect(Object.isFrozen(end.line!.shiftOutput)).toBe(true);
+      expect(JSON.parse(JSON.stringify(end)).schemaVersion).toBe(24);expect(Object.isFrozen(end.line!.shiftOutput)).toBe(true);
     }
   });
   it('is identical under irregular advancement, step and reversed input arrays',()=>{

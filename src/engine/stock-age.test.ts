@@ -135,10 +135,10 @@ describe('age of current disjoint physical stocks', () => {
 
   it('copies, freezes and serializes age data without retaining mutable state', () => {
     const run = compileConfig(single()), state = createPushState(run);
-    state.line = {transferPending: false, dispatchPending: false, counters: [], inspections: [], shiftOutput: [], stockTime: [], stockCostMs: 0n, flowTime: [], scraps: [], transfers: []};
+    state.line = {transferPending: false, dispatchPending: false, counters: [], inspections: [], shiftOutput: [], stockTime: [], stockCostMs: 0n, flowBoundary: null, flowTime: [], scraps: [], transfers: []};
     state.stocks = [lot('input', Q)]; state.timeMs = M;
     const snapshot = createSnapshot(run, state), saved = JSON.parse(JSON.stringify(snapshot));
-    expect(snapshot.schemaVersion).toBe(23); expect(Object.isFrozen(snapshot.line!.stockAge.materials[1]!.admission)).toBe(true);
+    expect(snapshot.schemaVersion).toBe(24); expect(Object.isFrozen(snapshot.line!.stockAge.materials[1]!.admission)).toBe(true);
     state.stocks[0]!.quantity = 2 * Q; expect(snapshot).toEqual(saved);
   });
 

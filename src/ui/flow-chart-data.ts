@@ -1,15 +1,11 @@
+import {comparableFlowReason, type ComparableFlowReason} from '../engine/flow-scope';
 import type {DeepReadonly, RunConfig} from '../engine/config';
 import type {FlowHistory, FlowPoint} from '../engine/flow-history';
 
 export const LINE_SCOPE = '@line';
 export type TimeScale = 'calendar' | 'work';
-export type GlobalCfdReason = 'assembly' | 'quantityChange' | 'mixedProducts' | null;
-export function globalCfdReason(run: RunConfig): GlobalCfdReason {
-  if (run.resolved.recipes.some(r => r.kind === 'production' && r.inputs.length !== 1)) return 'assembly';
-  if (run.resolved.recipes.some(r => r.kind === 'production' && r.inputs[0]!.quantity !== r.output.quantity)) return 'quantityChange';
-  if (run.resolved.materials.filter(m => m.role === 'finished').length !== 1 || run.resolved.materials.filter(m => m.role === 'raw').length !== 1) return 'mixedProducts';
-  return null;
-}
+export type GlobalCfdReason = ComparableFlowReason;
+export const globalCfdReason = comparableFlowReason;
 /** Stable route order, including parallel branches. Config already rejects cycles. */
 export function chartStationOrder(run: RunConfig): string[] {
   const remaining = new Set(run.resolved.stations.map(s => s.id)), order: string[] = [];
