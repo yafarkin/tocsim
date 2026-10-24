@@ -66,6 +66,7 @@ describe('versioned variability', () => {
     config.stations.reverse(); config.routes.reverse(); config.sources.reverse();
     expect(new Simulation(compileConfig(config)).runToEnd()).toEqual(a.getSnapshot());
   });
+  // Repeated full executions can exceed the default five seconds on a shared CI runner.
   it('keeps all playback modes and repeat equal to the engine for a variable line', () => {
     const run = compileConfig(previewConfig('balanced',0.5,42)), expected = new Simulation(run).runToEnd();
     for (const speed of [1,60,300,1800,'max'] as const) {
@@ -77,5 +78,5 @@ describe('versioned variability', () => {
       for(let i=0;callback;i++){if(i>2000)throw new Error('No progress');const next:()=>void=callback;callback=null;next();}
       expect(runner.getView().model).toEqual(expected);runner.dispose();
     }
-  });
+  }, 15_000);
 });

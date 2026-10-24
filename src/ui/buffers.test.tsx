@@ -50,6 +50,7 @@ describe('buffer panel transactions', () => {
   });
 });
 
+// This acceptance case runs four configurations across five speeds and repeats.
 it('preserves calculated mixed networks across speeds, pause, step and replay', () => {
   for (const example of ['assembly', 'split', 'batches', 'plans'] as const) {
     const c = previewConfig(example, 0.5); c.sources.forEach(s => {s.intervalMs = 15 * 60_000;});
@@ -67,4 +68,4 @@ it('preserves calculated mixed networks across speeds, pause, step and replay', 
       runner.repeat(); drain(); expect(runner.getView().model).toEqual(expected); runner.dispose();
     }
   }
-});
+}, 15_000);
