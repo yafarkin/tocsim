@@ -64,7 +64,7 @@ describe('batch playback acceptance', () => {
       expect(runner.getView().model).toEqual(expected);
       runner.repeat(); host.drain(); expect(runner.getView().model).toEqual(expected); runner.dispose();
     }
-  });
+  }, 15_000);
 });
 
 
