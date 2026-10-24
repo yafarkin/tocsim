@@ -1,6 +1,7 @@
 import { freezeData } from '../engine/config';
 import type { DeepReadonly, RunConfig } from '../engine/config';
 import { Simulation } from '../engine/simulation';
+import type {FlowHistory} from '../engine/flow-history';
 import type { Snapshot } from '../engine/state';
 import { collectTransfers } from './transfers';
 import type { TransferBatch, TransferSummary } from './transfers';
@@ -10,7 +11,8 @@ export type PlaybackSpeed = number | 'max';
 export type PlaybackStatus = 'ready' | 'running' | 'paused' | 'finished' | 'stopped' | 'error' | 'disposed';
 export interface RunnerFailure { code: string; messages: {ru: string; en: string} }
 export interface RunnerView {
-  schemaVersion: 2;
+  schemaVersion: 3;
+  history: DeepReadonly<FlowHistory>;
   status: PlaybackStatus;
   speed: PlaybackSpeed;
   model: DeepReadonly<Snapshot>;
@@ -96,8 +98,8 @@ export class Runner {
     return now;
   }
   private makeView(): DeepReadonly<RunnerView> {
-    return freezeData({schemaVersion: 2, transfers: this.transfers, status: this.status, speed: this.speed,
-      model: this.simulation.getSnapshot(), error: this.failure ? failureData(this.failure.error) : null});
+    return Object.freeze({schemaVersion: 3, transfers: freezeData(this.transfers), status: this.status, speed: this.speed,
+      model: this.simulation.getSnapshot(), history: this.simulation.getHistory(), error: freezeData(this.failure ? failureData(this.failure.error) : null)});
   }
   private publish(): DeepReadonly<RunnerView> {
     this.view = this.makeView();

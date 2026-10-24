@@ -1,3 +1,4 @@
+import {exampleIds, previewConfig} from '../ui/preview';
 import { describe, expect, it } from 'vitest';
 import { compileConfig } from '../engine/config';
 import type { DeepReadonly } from '../engine/config';
@@ -309,3 +310,23 @@ it('preserves setup runs across speeds, a pause during setup, step and repeat', 
     expect(runner.getView().model).toEqual(expected); runner.dispose();
   }
 });
+
+
+it.each(exampleIds)('publishes the same bounded flow history at every UI speed, pause, step and repeat in %s', example => {
+  const run = compileConfig(previewConfig(example)), reference = new Simulation(run); reference.runToEnd();
+  const expected = reference.getHistory();
+  for (const speed of [60, 300, 1800, 'max'] as const) {
+    const host = new FakeHost(), runner = new Runner(run, undefined, host);
+    runner.step(); const paused = runner.getView().history;
+    host.time += 50_000; runner.setSpeed(speed);
+    expect(runner.getView().history).toBe(paused);
+    expect(runner.getView().schemaVersion).toBe(3); expect(Object.isFrozen(paused.points)).toBe(true);
+    runner.resume(); host.drain(60_000);
+    expect(runner.getView().status).toBe('finished'); expect(runner.getView().history).toEqual(expected);
+    if (speed === 'max') {
+      runner.repeat(); host.drain(60_000); expect(runner.getView().history).toEqual(expected);
+      const decoded = JSON.parse(JSON.stringify(runner.getView())); expect(decoded.history.schemaVersion).toBe(1);
+    }
+    runner.dispose();
+  }
+}, 15_000);

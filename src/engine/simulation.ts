@@ -9,6 +9,7 @@ import { processingDuration, RandomError } from './random';
 import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, startProcessingInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { recordFlowTime, emptyFlowTime } from './flow-time';
+import {FlowHistoryCollector} from './flow-history';
 import { integrateStockTime } from './stock-time';
 import { integrateStationTime } from './station-time';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
@@ -393,6 +394,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
 /** One deterministic production model; a future runner controls only how it advances. */
 export class Simulation {
   private readonly scheduler: EventScheduler;
+  private readonly history: FlowHistoryCollector;
   private terminal: DeepReadonly<Snapshot> | null = null;
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
@@ -402,6 +404,7 @@ export class Simulation {
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);
     this.scheduler = new EventScheduler(run, state, handlers);
+    this.history = new FlowHistoryCollector(run, this.scheduler.getSnapshot());
     scheduleInitialSources(this.scheduler, run);
     this.scheduler.schedule({kind: 'transfer', id: WAKE, producerId: WAKE, timeMs: 0});
     const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
@@ -409,6 +412,7 @@ export class Simulation {
     this.scheduler.schedule({kind: 'calendar', boundary: 'close', stationId: null, id: '@calendar', timeMs: boundary});
   }
   getSnapshot(): DeepReadonly<Snapshot> { return this.terminal ?? this.scheduler.getSnapshot(); }
+  getHistory() {return this.history.get(this.getSnapshot());}
   nextEventTime(): number | null { return this.terminal ? null : this.scheduler.nextEventTime(); }
   private markTerminal(termination: 'stopped' | 'error'): DeepReadonly<Snapshot> {
     const snapshot = this.scheduler.getSnapshot();
@@ -417,11 +421,24 @@ export class Simulation {
   }
   step(): StepResult | null {
     if (this.terminal) return null;
-    try {return this.scheduler.step();} catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
+    try {
+      const result = this.scheduler.step();
+      if (result) this.history.settled(this.scheduler.getSnapshot());
+      return result;
+    } catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
   }
   advanceTo(timeMs: number): DeepReadonly<Snapshot> {
     if (this.terminal) return this.terminal;
-    try {return this.scheduler.advanceTo(timeMs);} catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
+    try {
+      if (!Number.isSafeInteger(timeMs) || timeMs < this.getSnapshot().timeMs || timeMs > this.run.resolved.durationMs) {
+        throw new EventError('value', 'target', {ru: 'Цель должна быть целой отметкой между текущим временем и горизонтом.', en: 'Target must be an integer timestamp between current time and horizon.'});
+      }
+      let next = this.scheduler.nextEventTime();
+      while (next !== null && next <= timeMs) {this.step(); next = this.scheduler.nextEventTime();}
+      const result = this.scheduler.advanceTo(timeMs);
+      this.history.advanceTime(timeMs);
+      return result;
+    } catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
   }
   runToEnd(): DeepReadonly<Snapshot> { return this.advanceTo(this.run.resolved.durationMs); }
   stop(): DeepReadonly<Snapshot> {
