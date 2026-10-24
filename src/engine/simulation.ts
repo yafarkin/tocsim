@@ -1,5 +1,5 @@
 import { addMoney, addQuantity, lunchCost, MAX_UNITS } from './arithmetic';
-import { activeWorkMs, calendarForDuration, canStart, DAY_MS } from './calendar';
+import { elapsedTime, calendarForDuration, canStart, DAY_MS } from './calendar';
 import { freezeData, inputCapacity, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig, ResolvedBuffer } from './config';
 import { EventError, EventScheduler } from './events';
@@ -178,10 +178,10 @@ function createLineHandlers(run: RunConfig): EventHandlers {
     integrate: (state, from, to) => {
       push.integrate(state, from, to);
       state.line!.transfers = [];
-      const commonElapsed = activeWorkMs(calendar, from, to);
+      const commonElapsed = elapsedTime(calendar, from, to).workMs;
       for (const station of state.stations) {
         const config = stations.find(s => s.id === station.stationId)!;
-        const elapsed = activeWorkMs(stationCalendar(station.stationId), from, to);
+        const elapsed = elapsedTime(stationCalendar(station.stationId), from, to).workMs;
         if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) {
           station.lunchBusyMs = addMaintenanceCounter(station.lunchBusyMs, elapsed - commonElapsed, station.stationId);
           // Validate the accumulated charge within this atomic transition.

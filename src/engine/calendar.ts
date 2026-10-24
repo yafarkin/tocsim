@@ -99,6 +99,14 @@ export function activeWorkMs(calendar: WorkCalendar, fromMs: number, toMs: numbe
   return workedMsUntil(calendar, toMs) - workedMsUntil(calendar, fromMs);
 }
 
+/** Exact observation interval, independent of events, production and display frames.
+ * workMs is available calendar time, not the station's busy/processing time.
+ */
+export function elapsedTime(calendar: WorkCalendar, fromMs: number, toMs: number): {calendarMs: number; workMs: number} {
+  const workMs = activeWorkMs(calendar, fromMs, toMs);
+  return {calendarMs: toMs - fromMs, workMs};
+}
+
 /** Inverse for a completion, choosing the closing boundary at an exact work total. */
 function completionAt(calendar: WorkCalendar, accumulatedMs: number): number {
   const day = Math.floor((accumulatedMs - 1) / calendar.dailyWorkMs);

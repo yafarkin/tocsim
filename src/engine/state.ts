@@ -1,4 +1,5 @@
 import { lunchCost, moneyToJSON } from './arithmetic';
+import { calendarForDuration, elapsedTime } from './calendar';
 import { freezeData, outputCapacity } from './config';
 import type { DeepReadonly, RunConfig } from './config';
 
@@ -132,6 +133,8 @@ export interface LineState {
   transfers: LineTransfer[];
 }
 export interface StationSnapshot extends Omit<StationState, 'operationVersion' | 'operationOrdinal'> {
+  /** Available work in [0, timeMs), including this station's lunch replacement. */
+  availableWorkMs: number;
   lunchCost: string;
   progress: number | null;
   inputs: {materialId: string; quantity: number; missingQuantity: number; reservedQuantity: number}[];
@@ -157,11 +160,13 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 16;
+  schemaVersion: 17;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
   timeMs: number;
+  /** Observed [0, timeMs): common work excludes lunch even with replacement. */
+  observation: {calendarMs: number; workMs: number};
   stations: StationSnapshot[];
   line: LineSnapshot | null;
   sources: (Omit<SourceState, 'nextOrdinal' | 'pendingQuantity' | 'purchasedCost'> & {purchasedCost: string})[];
@@ -171,12 +176,16 @@ export interface Snapshot {
 
 /** Called only at a consistent engine boundary, not during an atomic transition. */
 export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly<Snapshot> {
+  const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
+  const replacement = run.resolved.stations.some(s => s.lunchReplacement)
+    ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 16,
+    schemaVersion: 17,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
     timeMs: state.timeMs,
+    observation: elapsedTime(calendar, 0, state.timeMs),
     stations: state.stations.map(station => {
       const config = run.resolved.stations.find(s => s.id === station.stationId)!;
       const row = config.plan[station.planIndex]!;
@@ -190,6 +199,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
+        availableWorkMs: elapsedTime(config.lunchReplacement ? replacement : calendar, 0, state.timeMs).workMs,
         stationId: station.stationId, lunchBusyMs: station.lunchBusyMs, lunchCost: moneyToJSON(lunchCost(config.costs.perLunchHour, station.lunchBusyMs)), planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
         configuredRecipeId: station.configuredRecipeId, targetRecipeId: station.targetRecipeId, remainingSetupMs: station.remainingSetupMs,
         remainingMaintenanceMs: station.remainingMaintenanceMs, maintenanceProcessingMs: station.maintenanceProcessingMs,
