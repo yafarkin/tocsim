@@ -58,6 +58,7 @@ describe('shift-based input capacity', () => {
     expect(capacity(c)).toEqual({kind: 'quantity', quantity: Q});
     expect(compileConfig(c).bufferCalculations.map(x => x.raisedToKit)).toEqual([false, false]);
   });
+  // Two complete 1:10 network executions need the same CI allowance as other acceptance runs.
   it('has the same calculation identity and execution as equivalent explicit capacities', () => {
     const c = line(); c.stations[1]!.inputBuffer = {kind: 'shift', shifts: '0.5'};
     c.sources[0]!.intervalMs = 6 * M;
@@ -65,7 +66,7 @@ describe('shift-based input capacity', () => {
     const b = compileConfig(c);
     expect(a.resolved).toEqual(b.resolved); expect(a.calculationHash).toBe(b.calculationHash);
     expect(new Simulation(a).runToEnd()).toEqual(new Simulation(b).runToEnd());
-  });
+  }, 15_000);
   it.each(['0', '-1', '0.0000001', 'NaN'])('rejects invalid shift coefficient %s even when unused', shifts => {
     const c = line(); c.bufferDefaults = {input: {kind: 'shift', shifts}};
     expect(() => compileConfig(c)).toThrow(ConfigError);
