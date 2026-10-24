@@ -199,7 +199,7 @@ describe('atomicity, snapshot and deterministic provenance', () => {
     receive(state, 'raw', Q, {kind: 'known', startedAtMs: 5}); state.timeMs = 20;
     const snapshot = createSnapshot(run, state);
     expect(JSON.parse(JSON.stringify(snapshot)).stocks[0].provenance.firstProcessing).toEqual({kind: 'known', startedAtMs: 5});
-    expect(snapshot.schemaVersion).toBe(22); expect(Object.isFrozen(snapshot.stocks[0]!.provenance.firstProcessing)).toBe(true);
+    expect(snapshot.schemaVersion).toBe(23); expect(Object.isFrozen(snapshot.stocks[0]!.provenance.firstProcessing)).toBe(true);
     state.stocks[0]!.provenance.firstProcessing = {kind: 'unknown'};
     expect(snapshot.stocks[0]!.provenance.firstProcessing).toEqual({kind: 'known', startedAtMs: 5});
   });

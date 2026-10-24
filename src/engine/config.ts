@@ -4,7 +4,7 @@ import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.31.0';
+export const ENGINE_VERSION = '0.32.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 

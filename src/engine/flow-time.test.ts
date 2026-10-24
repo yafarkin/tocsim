@@ -98,7 +98,7 @@ describe('completed good quantity-weighted flow time', () => {
 
   it('rolls back accumulated times when a later handler in the timestamp fails', () => {
     const run = compileConfig(single()), state = createPushState(run);
-    state.line = {transferPending: false, dispatchPending: false, counters: [], inspections: [], shiftOutput: [], stockTime: [], scraps: [], transfers: [],
+    state.line = {transferPending: false, dispatchPending: false, counters: [], inspections: [], shiftOutput: [], stockTime: [], stockCostMs: 0n, scraps: [], transfers: [],
       flowTime: [{materialId: 'product', admission: emptyFlowTime(), firstProcessing: emptyFlowTime()}]};
     const scheduler = new EventScheduler(run, state, {transfer: ctx => {
       const row = ctx.state.line!.flowTime[0]!;

@@ -1,3 +1,4 @@
+import {stockCost} from './stock-value';
 import {stockAge} from './stock-age';
 import type {StockAge} from './stock-age';
 import { lunchCost, moneyToJSON } from './arithmetic';
@@ -177,6 +178,8 @@ export interface LineState {
   shiftOutput: ShiftOutput[];
   flowTime: ProductFlowTime[];
   stockTime: StockTime[];
+  /** Micro-money × calendar milliseconds over the actual observation interval. */
+  stockCostMs: bigint;
   scraps: ScrapSummary[];
   transfers: LineTransfer[];
 }
@@ -192,6 +195,8 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion' |
   blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
 export interface LineSnapshot {
+  /** All physical inventory, including warehouse; integral is unbounded. */
+  stockValue: {currentCost: string; calendarCostMs: string};
   stockAge: StockAge;
   shiftOutput: ShiftOutput[];
   flowTime: {materialId: string; admission: FlowTimeSnapshot; firstProcessing: FlowTimeSnapshot}[];
@@ -211,7 +216,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 22;
+  schemaVersion: 23;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -231,7 +236,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 22,
+    schemaVersion: 23,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -277,6 +282,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
+      stockValue: {currentCost: moneyToJSON(stockCost(state.stocks)), calendarCostMs: String(state.line.stockCostMs)},
       stockAge: stockAge(state.stocks, run.resolved.materials.map(m => m.id), calendar, state.timeMs),
       flowTime: state.line.flowTime.map(row => ({materialId: row.materialId,
         admission: flowTimeSnapshot(row.admission), firstProcessing: flowTimeSnapshot(row.firstProcessing),

@@ -10,6 +10,7 @@ import { completeInspection, completeProductionBatch, consumeStock, reserveInput
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { recordFlowTime, emptyFlowTime } from './flow-time';
 import {FlowHistoryCollector} from './flow-history';
+import {stockCostIntegral} from './stock-value';
 import { integrateStockTime } from './stock-time';
 import { integrateStationTime } from './station-time';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
@@ -185,6 +186,7 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       push.integrate(state, from, to);
       state.line!.transfers = [];
       const interval = elapsedTime(calendar, from, to);
+      state.line!.stockCostMs += stockCostIntegral(state.stocks, interval.calendarMs);
       integrateStockTime(state.stocks, state.line!.stockTime, interval);
       const commonElapsed = interval.workMs;
       const shiftElapsed = elapsedTime(shiftCalendar, from, to).workMs;
@@ -399,7 +401,7 @@ export class Simulation {
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
-    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [], stockTime: [],
+    state.line = {transferPending: true, dispatchPending: false, inspections: [], scraps: [], shiftOutput: [], stockTime: [], stockCostMs: 0n,
       flowTime: run.resolved.materials.filter(m => m.role === 'finished').map(m => ({materialId: m.id, admission: emptyFlowTime(), firstProcessing: emptyFlowTime()})),
       counters: run.resolved.materials.map(material => ({materialId: material.id, produced: 0, consumed: 0, sold: 0, soldCost: 0n, scrapped: 0, scrapCost: 0n})), transfers: []};
     const handlers = createLineHandlers(run);
