@@ -5,11 +5,12 @@ import { completeProduction, createInventory, reserveInputs } from './inventory'
 import { EventError, EventScheduler, MAX_TRANSITIONS_PER_TIMESTAMP } from './events';
 import type { EventContext, EventHandlers, ModelEvent } from './events';
 import type { EngineState } from './state';
+import { emptyStationTime } from './station-time';
 import { line } from './test-fixtures';
 
 function initial(): EngineState {
   const run = compileConfig(line());
-  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, planIndex: 0, completedBatches: 0, configuredRecipeId: s.initialRecipeId, targetRecipeId: null, lunchBusyMs: 0, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
+  return {...createInventory(run), timeMs: 0, sources: [], sourceTransfers: [], line: null, stations: run.resolved.stations.map(s => ({stationId: s.id, planIndex: 0, completedBatches: 0, configuredRecipeId: s.initialRecipeId, targetRecipeId: null, timeByState: emptyStationTime(), lunchBusyMs: 0, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'idle', reason: 'notStarted', remainingProcessingMs: null}))};
 }
 const run = () => compileConfig(line());
 function scheduler(handlers: EventHandlers = {}) { return new EventScheduler(run(), initial(), handlers); }

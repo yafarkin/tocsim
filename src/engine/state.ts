@@ -11,9 +11,22 @@ export interface MaintenanceRecord {
   processingMs: number; repetitions: number;
 }
 
+/** Disjoint elapsed milliseconds. Calendar pauses override the working state. */
+export interface StationTime {
+  processingMs: number;
+  setupMs: number;
+  maintenanceMs: number;
+  starvedMs: number;
+  blockedMs: number;
+  idleMs: number;
+  lunchMs: number;
+  offShiftMs: number;
+}
+
 /** Internal operation token is deliberately excluded from UI snapshots. */
 export interface StationState {
   stationId: string;
+  timeByState: StationTime;
   /** Occupied processing, setup and maintenance time during paid lunch. */
   lunchBusyMs: number;
   /** Zero-based row and number of fully processed batches within that row. */
@@ -170,7 +183,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 18;
+  schemaVersion: 19;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -190,7 +203,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 18,
+    schemaVersion: 19,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -209,6 +222,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       const recipients = run.resolved.stations.filter(s => routes.some(r => r.toId === s.id))
         .sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
       return {
+        timeByState: {...station.timeByState},
         availableWorkMs: elapsedTime(config.lunchReplacement ? replacement : calendar, 0, state.timeMs).workMs,
         stationId: station.stationId, lunchBusyMs: station.lunchBusyMs, lunchCost: moneyToJSON(lunchCost(config.costs.perLunchHour, station.lunchBusyMs)), planIndex: station.planIndex, completedBatches: station.completedBatches, status: station.status, reason: station.reason,
         configuredRecipeId: station.configuredRecipeId, targetRecipeId: station.targetRecipeId, remainingSetupMs: station.remainingSetupMs,

@@ -179,7 +179,7 @@ describe('calendar scale, precision, atomicity and reproducibility', () => {
     expect(stockTimeReport(run, stopped).complete).toBe(false);
     expect(sim.runToEnd()).toEqual(stopped);
     expect(Object.isFrozen(stopped.line!.stockTime[0])).toBe(true);
-    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(18);
+    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(19);
   });
 
   it('retains products and aggregate sums beyond the safe-number and money range exactly', () => {

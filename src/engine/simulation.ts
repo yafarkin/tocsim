@@ -9,6 +9,7 @@ import { processingDuration, RandomError } from './random';
 import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { integrateStockTime } from './stock-time';
+import { integrateStationTime } from './station-time';
 import type { EngineState, Snapshot, StockState, StationState } from './state';
 
 const WAKE = '@line';
@@ -21,6 +22,7 @@ function free(capacity: DeepReadonly<ResolvedBuffer>, occupied: number): number 
 }
 function createLineHandlers(run: RunConfig): EventHandlers {
   const push = createPushHandlers(run), calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
+  const shiftCalendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true);
   const calendars = new Map(run.resolved.stations.map(s => [s.id, calendarForDuration(run.resolved.calendar, run.resolved.durationMs, s.lunchReplacement)]));
   const stationCalendar = (id: string) => calendars.get(id)!;
   const firstId = run.resolved.stations[0]!.id;
@@ -182,9 +184,11 @@ function createLineHandlers(run: RunConfig): EventHandlers {
       const interval = elapsedTime(calendar, from, to);
       integrateStockTime(state.stocks, state.line!.stockTime, interval);
       const commonElapsed = interval.workMs;
+      const shiftElapsed = elapsedTime(shiftCalendar, from, to).workMs;
       for (const station of state.stations) {
         const config = stations.find(s => s.id === station.stationId)!;
         const elapsed = elapsedTime(stationCalendar(station.stationId), from, to).workMs;
+        integrateStationTime(station, {workMs: elapsed, lunchMs: shiftElapsed - elapsed, offShiftMs: interval.calendarMs - shiftElapsed});
         if (station.remainingProcessingMs !== null || station.remainingSetupMs !== null || station.remainingMaintenanceMs !== null) {
           station.lunchBusyMs = addMaintenanceCounter(station.lunchBusyMs, elapsed - commonElapsed, station.stationId);
           // Validate the accumulated charge within this atomic transition.

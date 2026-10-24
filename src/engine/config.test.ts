@@ -3,6 +3,7 @@ import { compileConfig, ConfigError } from './config';
 import type { EditorConfig } from './config';
 import { createSnapshot } from './state';
 import type { EngineState } from './state';
+import { emptyStationTime } from './station-time';
 import { line } from './test-fixtures';
 
 
@@ -28,7 +29,7 @@ describe('immutable normalized RunConfig', () => {
     expect(run.resolved.stations[0]).toMatchObject({inputBuffers: [{materialId: 'raw', capacity: {quantity: 2_000_000}}], outputBuffers: [{materialId: 'part', capacity: {quantity: 0}}], costs: {capital: 100_000_000n}});
     expect(run.resolved.stations[1]!.inputBuffers[0]!.capacity).toEqual({kind: 'quantity', quantity: 6_000_000});
     expect(run.source.stations[0]!.inputBuffer).toEqual({kind: 'quantity', quantity: '2'});
-    expect(run.engineVersion).toBe('0.26.0');
+    expect(run.engineVersion).toBe('0.27.0');
     expect(run.rngVersion).toBe('counter32-fixed-distributions-2');
     expect(run.schemaVersion).toBe(1);
   });
@@ -245,7 +246,7 @@ describe('independent JSON-compatible snapshots', () => {
     const run = compileConfig(line());
     const state: EngineState = {
       timeMs: 10, nextStockOrdinal: 0, sources: [], sourceTransfers: [], line: null,
-      stations: [{stationId: 's1', planIndex: 0, completedBatches: 0, configuredRecipeId: 'cut', targetRecipeId: null, lunchBusyMs: 0, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'processing', reason: null, remainingProcessingMs: 100}],
+      stations: [{stationId: 's1', planIndex: 0, completedBatches: 0, configuredRecipeId: 'cut', targetRecipeId: null, timeByState: emptyStationTime(), lunchBusyMs: 0, remainingSetupMs: null, remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0, maintenanceDueAtMs: null, maintenanceDueBy: [], maintenanceDeferredBy: [], maintenanceStartedAtMs: null, lastMaintenance: null, operationVersion: 0, operationOrdinal: 0, operationDurationMs: null, transferReady: false, status: 'processing', reason: null, remainingProcessingMs: 100}],
       stocks: [{readyAtMs: 0, id: 'lot', ownerId: 's1', location: 'reserved', materialId: 'raw', quantity: 300_000, cost: 9_007_199_254_740_991n, provenance: {origin: {kind: 'unknown'}, defective: false, defectSourceIds: [], processingMs: {}}}],
     };
     const snapshot = createSnapshot(run, state);

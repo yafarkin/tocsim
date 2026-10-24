@@ -55,7 +55,7 @@ describe('maintenance execution and batch boundaries', () => {
     const done = station(sim, 6 * M);
     expect(done).toMatchObject({status: 'starved', remainingMaintenanceMs: null, maintenanceProcessingMs: 0, maintenanceRepetitions: 0,
       maintenanceDueAtMs: null, maintenanceDueBy: [], lastMaintenance: {dueAtMs: M, startedAtMs: M, completedAtMs: 6 * M, processingMs: M, repetitions: 1}});
-    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(18);
+    expect(JSON.parse(JSON.stringify(sim.getSnapshot())).schemaVersion).toBe(19);
   });
   it('marks a time threshold at its exact instant inside a long operation and waits for completion', () => {
     const c = serviceLine({enabled: true, durationMs: 5 * M, processingThresholdMs: 4 * M, repetitionsThreshold: 1});
