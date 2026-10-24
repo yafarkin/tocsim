@@ -147,12 +147,33 @@ export interface StockTime {
   calendarQuantityMs: bigint;
   workQuantityMs: bigint;
 }
+/** Quantity-weighted completed flow time; sums use micro-units × milliseconds. */
+export interface FlowTimeTotal {
+  knownQuantity: number;
+  unknownQuantity: number;
+  calendarQuantityMs: bigint;
+  workQuantityMs: bigint;
+}
+export interface ProductFlowTime {
+  materialId: string;
+  admission: FlowTimeTotal;
+  firstProcessing: FlowTimeTotal;
+}
+export interface FlowTimeSnapshot {
+  knownQuantity: number;
+  unknownQuantity: number;
+  calendarQuantityMs: string;
+  workQuantityMs: string;
+  meanCalendarMs: number | null;
+  meanWorkMs: number | null;
+}
 export interface LineState {
   transferPending: boolean;
   dispatchPending: boolean;
   counters: MaterialCounter[];
   inspections: InspectionCounter[];
   shiftOutput: ShiftOutput[];
+  flowTime: ProductFlowTime[];
   stockTime: StockTime[];
   scraps: ScrapSummary[];
   transfers: LineTransfer[];
@@ -170,6 +191,7 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion' |
 }
 export interface LineSnapshot {
   shiftOutput: ShiftOutput[];
+  flowTime: {materialId: string; admission: FlowTimeSnapshot; firstProcessing: FlowTimeSnapshot}[];
   stockTime: (Omit<StockTime, 'calendarQuantityMs' | 'workQuantityMs'> & {calendarQuantityMs: string; workQuantityMs: string})[];
   termination: 'running' | 'horizon' | 'stopped' | 'error';
   flow: 'normal' | 'exhausted' | 'missingInput' | 'blocked';
@@ -186,7 +208,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 20;
+  schemaVersion: 21;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -206,7 +228,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 20,
+    schemaVersion: 21,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -252,6 +274,9 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
+      flowTime: state.line.flowTime.map(row => ({materialId: row.materialId,
+        admission: flowTimeSnapshot(row.admission), firstProcessing: flowTimeSnapshot(row.firstProcessing),
+      })),
       shiftOutput: state.line.shiftOutput.map(row => ({...row})).sort((a,b) => a.dayIndex - b.dayIndex || (a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : 0)),
       stockTime: state.line.stockTime.map(row => ({...row, calendarQuantityMs: String(row.calendarQuantityMs), workQuantityMs: String(row.workQuantityMs)}))
         .sort((a,b) => a.ownerId < b.ownerId ? -1 : a.ownerId > b.ownerId ? 1 : a.materialId < b.materialId ? -1 : a.materialId > b.materialId ? 1 : a.location < b.location ? -1 : a.location > b.location ? 1 : 0),
@@ -276,4 +301,10 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       },
     })),
   });
+}
+
+function flowTimeSnapshot(total: FlowTimeTotal): FlowTimeSnapshot {
+  return {...total, calendarQuantityMs: String(total.calendarQuantityMs), workQuantityMs: String(total.workQuantityMs),
+    meanCalendarMs: total.knownQuantity ? Number(total.calendarQuantityMs) / total.knownQuantity : null,
+    meanWorkMs: total.knownQuantity ? Number(total.workQuantityMs) / total.knownQuantity : null};
 }
