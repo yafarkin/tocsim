@@ -5,6 +5,7 @@ import type { RunnerView } from '../runner/runner';
 import { quantityText } from './diagram';
 import { nameFor } from './i18n';
 import type { Labels, Language } from './i18n';
+import {FlowTimeReport} from './FlowTimeReport';
 import {RunMetrics} from './RunMetrics';
 
 interface Props {run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
@@ -49,5 +50,6 @@ export function RunSummary({run, view, text, language}: Props) {
       </details>
     </details>
     <RunMetrics run={run} model={view.model} text={text}/>
+    <FlowTimeReport run={run} model={view.model} text={text}/>
   </section>;
 }

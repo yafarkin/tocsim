@@ -121,3 +121,6 @@
 
 .run-metrics .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.run-metrics .metric-section>h3{font-size:20px}.metric-periods{display:flex;flex-wrap:wrap;gap:16px 36px;margin:16px 0}.metric-periods>div{min-width:180px}.metric-periods dt{font-size:14px;color:var(--muted)}.metric-periods dd{margin:5px 0 0;font-size:19px;font-variant-numeric:tabular-nums}.run-summary .metric-table th{min-width:110px}.run-summary .metric-table th:first-child{min-width:150px}.metric-table td{white-space:nowrap}.metric-table tr[data-time-state=total]{font-weight:600}.table-scroll:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
 @media(max-width:480px){.metric-periods{gap:14px}.metric-periods>div{min-width:0;width:100%}.run-metrics .metric-section>h3{font-size:19px}}
+
+.flow-time-report .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.flow-time-report .metric-section>h3{font-size:20px}.flow-time-start+.flow-time-start{margin-top:20px}.flow-time-report .quantity-share{font-size:inherit;color:var(--muted)}
+@media(max-width:480px){.flow-time-report .metric-section>h3{font-size:19px}}

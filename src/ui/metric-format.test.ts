@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {averageText, durationText, percentText} from './metric-format';
+import {averageText, durationText, percentText, meanDurationText, quantityShareText} from './metric-format';
 
 describe('exact metric display rounding', () => {
   it('keeps unavailable averages and shares distinct from observed zero', () => {
@@ -33,5 +33,25 @@ describe('exact metric display rounding', () => {
     expect(durationText(60_001)).toBe('0:01:00.001');
     expect(durationText(172_812_345)).toBe('48:00:12.345');
     expect(durationText(2_501_999_792 * 3_600_000 - 1)).toBe('2501999791:59:59.999');
+  });
+});
+
+describe('flow-time display from exact weighted sums', () => {
+  it('distinguishes missing duration, known zero and a positive submillisecond mean', () => {
+    expect(meanDurationText('0', '0', 'Not calculated')).toBe('Not calculated');
+    expect(meanDurationText('0', '1000000', 'n/a')).toBe('0:00:00');
+    expect(meanDurationText('1', '1000000', 'n/a')).toBe('< 0:00:00.001');
+  });
+  it('rounds the exact ratio once to milliseconds across second and day boundaries', () => {
+    expect(meanDurationText('179999', '3', 'n/a')).toBe('≈ 0:01:00');
+    expect(meanDurationText('360001', 2, 'n/a')).toBe('≈ 0:03:00.001');
+    expect(meanDurationText(String(172_812_345n * 9_007_199_254_740_991n), '9007199254740991', 'n/a')).toBe('48:00:12.345');
+  });
+  it('keeps quantity shares exact beyond the safe integer range and omits an empty denominator', () => {
+    expect(quantityShareText('0', '0')).toBeNull();
+    expect(quantityShareText('0', '1')).toBe('0%');
+    expect(quantityShareText('1', '3')).toBe('≈ 33.3%');
+    expect(quantityShareText('9007199254740991', '18014398509481982')).toBe('50%');
+    expect(quantityShareText('1', '9007199254740991')).toBe('< 0.1%');
   });
 });

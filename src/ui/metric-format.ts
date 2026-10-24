@@ -23,3 +23,16 @@ export function durationText(timeMs: number): string {
   const ms = BigInt(timeMs);
   return `${ms / 3_600_000n}:${String(ms / 60_000n % 60n).padStart(2, '0')}:${String(ms / 1000n % 60n).padStart(2, '0')}${ms % 1000n ? `.${String(ms % 1000n).padStart(3, '0')}` : ''}`;
 }
+
+/** Weighted mean duration rounded once to milliseconds, using the exact ratio. */
+export function meanDurationText(quantityMs: string, quantity: string | number, unavailable: string): string {
+  const n = BigInt(quantityMs), d = BigInt(quantity);
+  if (d === 0n) return unavailable;
+  if (n > 0n && n < d) return '< 0:00:00.001';
+  const rounded = (2n * n + d) / (2n * d);
+  // The ratio is a model duration, bounded by the safe-integer run horizon.
+  return `${n % d ? '≈ ' : ''}${durationText(Number(rounded))}`;
+}
+export function quantityShareText(quantity: string | number, total: string | number): string | null {
+  return BigInt(total) === 0n ? null : `${fractionText(BigInt(quantity) * 100n, BigInt(total), 1)}%`;
+}
