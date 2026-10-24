@@ -37,7 +37,7 @@ function same(stock: StockAddress, location: StockAddress) {
   return stock.ownerId === location.ownerId && stock.location === location.location;
 }
 function copyProvenance(value: Provenance): Provenance {
-  return {origin: {...value.origin}, defective: value.defective,
+  return {origin: {...value.origin}, firstProcessing: {...value.firstProcessing}, defective: value.defective,
     defectSourceIds: [...value.defectSourceIds], processingMs: {...value.processingMs}};
 }
 function checkProvenance(stock: StockState) {
@@ -45,6 +45,10 @@ function checkProvenance(stock: StockState) {
   if (!['unreleased', 'known', 'unknown'].includes(p.origin.kind)
     || (p.origin.kind === 'known' && (!Number.isSafeInteger(p.origin.startedAtMs) || p.origin.startedAtMs < 0))
     || (p.origin.kind === 'unreleased' && stock.location !== 'warehouse')
+    || !p.firstProcessing || !['notStarted', 'known', 'unknown'].includes(p.firstProcessing.kind)
+    || (p.firstProcessing.kind === 'known' && (!Number.isSafeInteger(p.firstProcessing.startedAtMs) || p.firstProcessing.startedAtMs < 0
+      || (p.origin.kind === 'known' && p.firstProcessing.startedAtMs < p.origin.startedAtMs)))
+    || (p.origin.kind === 'unreleased' && p.firstProcessing.kind !== 'notStarted')
     || typeof p.defective !== 'boolean' || (!p.defective && p.defectSourceIds.length > 0)
     || p.defectSourceIds.some(id => typeof id !== 'string' || !id)
     || new Set(p.defectSourceIds).size !== p.defectSourceIds.length) {
@@ -116,6 +120,19 @@ function checkCapacity(state: InventoryState, at: StockAddress, materialId: stri
   if (total > MAX_UNITS) fail('range', at.ownerId, 'Суммарное количество превышает диапазон.', 'Aggregate quantity exceeds range.');
   if (capacity.kind === 'quantity' && total > BigInt(capacity.quantity)) fail('capacity', at.ownerId, 'В месте назначения недостаточно свободной ёмкости.', 'Destination does not have enough free capacity.');
 }
+/** Take a prefix share, preserving the same cost/time remainders for starts and completions. */
+function splitStock(state: InventoryState, stock: StockState, count: number): StockState {
+  const portion = {...stock, id: newId(state), quantity: count, provenance: copyProvenance(stock.provenance)};
+  const costs = splitCost(stock.cost, stock.quantity, count);
+  portion.cost = costs.takenCost; stock.cost = costs.remainingCost;
+  for (const [station, time] of Object.entries(stock.provenance.processingMs)) {
+    const shares = splitCost(time, stock.quantity, count);
+    portion.provenance.processingMs[station] = shares.takenCost;
+    stock.provenance.processingMs[station] = shares.remainingCost;
+  }
+  stock.quantity -= count;
+  return portion;
+}
 function takeFIFO(state: InventoryState, at: StockAddress, materialId: string, requested: number): StockState[] {
   quantity(requested, materialId);
   if (totalAt(state, at, materialId) < BigInt(requested)) fail('shortage', at.ownerId, `Недостаточно материала ${materialId}.`, `Not enough material ${materialId}.`);
@@ -129,16 +146,7 @@ function takeFIFO(state: InventoryState, at: StockAddress, materialId: string, r
       state.stocks.splice(state.stocks.indexOf(stock), 1);
       taken.push(stock);
     } else {
-      const portion = {...stock, id: newId(state), quantity: count, provenance: copyProvenance(stock.provenance)};
-      const costs = splitCost(stock.cost, stock.quantity, count);
-      portion.cost = costs.takenCost; stock.cost = costs.remainingCost;
-      for (const [station, time] of Object.entries(stock.provenance.processingMs)) {
-        const shares = splitCost(time, stock.quantity, count);
-        portion.provenance.processingMs[station] = shares.takenCost;
-        stock.provenance.processingMs[station] = shares.remainingCost;
-      }
-      stock.quantity -= count;
-      taken.push(portion);
+      taken.push(splitStock(state, stock, count));
     }
     remaining -= count;
   }
@@ -149,6 +157,7 @@ function takeFIFO(state: InventoryState, at: StockAddress, materialId: string, r
 export function createInventory(run: RunConfig): InventoryState {
   const state: InventoryState = {nextStockOrdinal: 0, stocks: run.resolved.initialStocks.map(stock => ({...stock, readyAtMs: 0,
     provenance: {origin: stock.location === 'warehouse' ? {kind: 'unreleased'} : {kind: 'unknown'},
+      firstProcessing: stock.location === 'warehouse' ? {kind: 'notStarted'} : {kind: 'unknown'},
       defective: false, defectSourceIds: [], processingMs: {}}}))};
   validate(state);
   return state;
@@ -181,6 +190,7 @@ export function transferStock(state: InventoryState, from: StockAddress, to: Sto
       stock.ownerId = to.ownerId; stock.location = to.location;
       if (stock.provenance.origin.kind === 'unreleased' && to.location !== 'warehouse') stock.provenance.origin = {kind: 'known', startedAtMs: timeMs};
       if (stock.provenance.origin.kind === 'known' && stock.provenance.origin.startedAtMs > timeMs) fail('value', stock.id, 'Перенос не может предшествовать запуску материала.', 'Transfer cannot precede material release.');
+      if (stock.provenance.firstProcessing.kind === 'known' && stock.provenance.firstProcessing.startedAtMs > timeMs) fail('value', stock.id, 'Перенос не может предшествовать первой обработке.', 'Transfer cannot precede first processing.');
       draft.stocks.push(stock);
     }
     return moved;
@@ -211,6 +221,35 @@ export function reserveInputs(state: InventoryState, stationId: string, inputs: 
   });
 }
 
+/** Mark only the FIFO kit actually starting now, not all future sequential repetitions.
+ * Known ancestor starts and unknown pre-run history are retained. Setup/resume do not call this.
+ */
+export function startProcessingInputs(state: InventoryState, stationId: string, inputs: readonly MaterialAmount[], timeMs: number): void {
+  transaction(state, draft => {
+    const at: StockAddress = {ownerId: stationId, location: 'reserved'};
+    address(at); quantity(timeMs, stationId, false);
+    if (inputs.length === 0 || new Set(inputs.map(input => input.materialId)).size !== inputs.length) fail('value', stationId, 'Нужен непустой комплект с уникальными материалами.', 'A nonempty kit with unique materials is required.');
+    for (const input of inputs) {
+      quantity(input.quantity, input.materialId);
+      if (totalAt(draft, at, input.materialId) < BigInt(input.quantity)) fail('shortage', stationId, 'Недостаточно зарезервированного материала для начала обработки.', 'Not enough reserved material to start processing.');
+      let remaining = input.quantity;
+      for (const stock of [...draft.stocks]) {
+        if (remaining === 0) break;
+        if (!same(stock, at) || stock.materialId !== input.materialId) continue;
+        const count = Math.min(remaining, stock.quantity), p = stock.provenance;
+        if (stock.readyAtMs > timeMs || p.origin.kind === 'unreleased' || (p.origin.kind === 'known' && p.origin.startedAtMs > timeMs)
+          || (p.firstProcessing.kind === 'known' && p.firstProcessing.startedAtMs > timeMs)) fail('value', stock.id, 'Обработка не может предшествовать происхождению материала.', 'Processing cannot precede material provenance.');
+        if (p.firstProcessing.kind === 'notStarted') {
+          const active = count === stock.quantity ? stock : splitStock(draft, stock, count);
+          active.provenance.firstProcessing = {kind: 'known', startedAtMs: timeMs};
+          if (active !== stock) draft.stocks.splice(draft.stocks.indexOf(stock), 0, active);
+        }
+        remaining -= count;
+      }
+    }
+  });
+}
+
 /** Complete one repetition or an explicitly homogeneous aggregate. Caller owns the transaction. */
 function produceDraft(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
   const draft = state;
@@ -222,7 +261,7 @@ function produceDraft(state: InventoryState, stationId: string, output: Material
     : draft.stocks.filter(stock => stock.ownerId === stationId && stock.location === 'reserved');
   if (inputs.length === 0 || (!kit && draft.stocks.some(stock => stock.ownerId === stationId && stock.location === 'held'))) fail('reservation', stationId, 'Нет единственного готового к завершению резерва.', 'There is no single reservation ready for completion.');
   let cost = 0n;
-  const provenance: Provenance = {origin: {kind: 'unreleased'}, defective: false, defectSourceIds: [], processingMs: {}};
+  const provenance: Provenance = {origin: {kind: 'unreleased'}, firstProcessing: {kind: 'notStarted'}, defective: false, defectSourceIds: [], processingMs: {}};
   const times = new Map<string, bigint>();
   const defects = new Set<string>();
   for (const stock of inputs) {
@@ -231,6 +270,12 @@ function produceDraft(state: InventoryState, stationId: string, output: Material
     if (p.origin.kind === 'unreleased') fail('value', stock.id, 'В производстве не может быть незапущенного сырья.', 'Unreleased raw material cannot be in production.');
     if (p.origin.kind === 'unknown') provenance.origin = {kind: 'unknown'};
     else if (provenance.origin.kind !== 'unknown' && (provenance.origin.kind === 'unreleased' || provenance.origin.startedAtMs > p.origin.startedAtMs)) provenance.origin = {...p.origin};
+    // Missing history is never inferred from worked duration, which may span calendar pauses.
+    if (p.firstProcessing.kind !== 'known') provenance.firstProcessing = {kind: 'unknown'};
+    else {
+      if (p.firstProcessing.startedAtMs > readyAtMs) fail('value', stock.id, 'Завершение не может предшествовать первой обработке.', 'Completion cannot precede first processing.');
+      if (provenance.firstProcessing.kind === 'notStarted' || (provenance.firstProcessing.kind === 'known' && provenance.firstProcessing.startedAtMs > p.firstProcessing.startedAtMs)) provenance.firstProcessing = {...p.firstProcessing};
+    }
     provenance.defective ||= p.defective;
     p.defectSourceIds.forEach(id => defects.add(id));
     for (const [station, time] of Object.entries(p.processingMs)) times.set(station, addMoney(times.get(station) ?? 0n, time));
@@ -320,6 +365,8 @@ export function completeInspection(state: InventoryState, stationId: string, mat
     let priorQuantity = 0n;
     for (const part of parts) {
       if (part.provenance.origin.kind === 'unreleased') fail('value', part.id, 'В контроле не может быть незапущенного сырья.', 'Unreleased raw material cannot be inspected.');
+      if (part.provenance.firstProcessing.kind === 'known' && part.provenance.firstProcessing.startedAtMs > readyAtMs) fail('value', part.id, 'Контроль не может завершиться до первой обработки.', 'Inspection cannot complete before first processing.');
+      if (part.provenance.firstProcessing.kind === 'notStarted') part.provenance.firstProcessing = {kind: 'unknown'};
       const end = priorQuantity + BigInt(part.quantity);
       const work = BigInt(actualProcessingMs) * end / checked - BigInt(actualProcessingMs) * priorQuantity / checked;
       const times = new Map(Object.entries(part.provenance.processingMs));

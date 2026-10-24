@@ -54,8 +54,11 @@ export interface StationState {
   remainingProcessingMs: number | null;
 }
 export type StockOrigin = { kind: 'unreleased' } | { kind: 'known'; startedAtMs: number } | { kind: 'unknown' };
+export type ProcessingOrigin = {kind: 'notStarted'} | {kind: 'known'; startedAtMs: number} | {kind: 'unknown'};
 export interface Provenance {
   origin: StockOrigin;
+  /** Earliest ancestor's actual processing start, separate from admission and reservation. */
+  firstProcessing: ProcessingOrigin;
   defective: boolean;
   defectSourceIds: string[];
   /** Integer milliseconds apportioned with remainder preservation, by station ID. */
@@ -183,7 +186,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 19;
+  schemaVersion: 20;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -203,7 +206,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 19,
+    schemaVersion: 20,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -267,7 +270,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       id: stock.id, ownerId: stock.ownerId, location: stock.location,
       materialId: stock.materialId, quantity: stock.quantity, cost: moneyToJSON(stock.cost), readyAtMs: stock.readyAtMs,
       provenance: {
-        origin: {...stock.provenance.origin}, defective: stock.provenance.defective,
+        origin: {...stock.provenance.origin}, firstProcessing: {...stock.provenance.firstProcessing}, defective: stock.provenance.defective,
         defectSourceIds: [...stock.provenance.defectSourceIds],
         processingMs: Object.fromEntries(Object.entries(stock.provenance.processingMs).map(([id, time]) => [id, moneyToJSON(time)])),
       },

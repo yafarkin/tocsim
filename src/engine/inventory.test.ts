@@ -11,7 +11,7 @@ const infinite = {kind: 'infinite'} as const;
 const input: StockAddress = {ownerId: 's1', location: 'input'};
 const held: StockAddress = {ownerId: 's1', location: 'held'};
 const downstream: StockAddress = {ownerId: 's2', location: 'input'};
-const origin = (startedAtMs = 0): Provenance => ({origin: {kind: 'known', startedAtMs}, defective: false, defectSourceIds: [], processingMs: {}});
+const origin = (startedAtMs = 0): Provenance => ({origin: {kind: 'known', startedAtMs}, firstProcessing: {kind: 'unknown'}, defective: false, defectSourceIds: [], processingMs: {}});
 const empty = (): InventoryState => ({stocks: [], nextStockOrdinal: 0});
 function receive(state: InventoryState, quantity = q('1'), cost = 10n, provenance = origin(), materialId = 'A', at = input) {
   return receiveStock(state, at, {materialId, quantity, cost, provenance}, infinite);
@@ -155,7 +155,7 @@ describe('atomic reservation and production', () => {
     reserveInputs(state, 's1', [{materialId: 'A', quantity: q('1')}, {materialId: 'C', quantity: q('2')}]);
     const result = completeProduction(state, 's1', {materialId: 'B', quantity: q('10')}, 17);
     expect(result.cost).toBe(18n);
-    expect(result.provenance).toEqual({origin: {kind: 'known', startedAtMs: 10}, defective: true, defectSourceIds: ['badStation'], processingMs: {upstream: 72n, other: 5n, s1: 17n}});
+    expect(result.provenance).toEqual({origin: {kind: 'known', startedAtMs: 10}, firstProcessing: {kind: 'unknown'}, defective: true, defectSourceIds: ['badStation'], processingMs: {upstream: 72n, other: 5n, s1: 17n}});
     const two = consumeStock(state, held, 'B', q('2'));
     expect(totalTime(two, 's1')).toBe(3n);
     expect(totalTime(two, 's1') + totalTime(state.stocks, 's1')).toBe(17n);
@@ -246,7 +246,7 @@ describe('range, capacity and transactional failures', () => {
     inventory.stocks[0]!.provenance.processingMs.s1 = 99n;
     inventory.stocks[0]!.provenance.defectSourceIds.push('another');
     const decoded = JSON.parse(JSON.stringify(snapshot));
-    expect(decoded.schemaVersion).toBe(19);
+    expect(decoded.schemaVersion).toBe(20);
     expect(decoded.stocks[0].provenance.processingMs.s1).toBe('13');
     expect(decoded.stocks[0].provenance.defectSourceIds).toEqual(['bad']);
     expect(Object.isFrozen(snapshot.stocks[0]!.provenance.processingMs)).toBe(true);

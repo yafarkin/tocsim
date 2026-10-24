@@ -6,7 +6,7 @@ import { EventError, EventScheduler } from './events';
 import type { EventContext, EventHandlers, StepResult } from './events';
 import { setupDurationMs } from './setup';
 import { processingDuration, RandomError } from './random';
-import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, transferStock } from './inventory';
+import { completeInspection, completeProductionBatch, consumeStock, reserveInputs, startProcessingInputs, transferStock } from './inventory';
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { integrateStockTime } from './stock-time';
 import { integrateStationTime } from './station-time';
@@ -374,6 +374,8 @@ function createLineHandlers(run: RunConfig): EventHandlers {
         if (station.operationOrdinal === Number.MAX_SAFE_INTEGER) throw new RandomError({ru: 'Исчерпан счётчик операций.', en: 'Operation counter is exhausted.'});
         const row = rowOf(ctx.state, config);
         station.operationDurationMs = processingDuration(row.timeMs, row.cv, run.resolved.seed, config.id, row.recipeId, station.operationOrdinal++, row.distribution);
+        const multiplier = row.mode === 'simultaneous' ? row.repetitions : 1;
+        startProcessingInputs(ctx.state, config.id, recipe.inputs.map(input => ({...input, quantity: input.quantity * multiplier})), ctx.timeMs);
         station.remainingProcessingMs = station.operationDurationMs; station.status = 'processing'; station.reason = null;
         ctx.invalidateOperation(config.id); planCompletion(ctx, config.id); started = true;
       }

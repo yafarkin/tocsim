@@ -10,7 +10,7 @@ import {MAX_UNITS} from './arithmetic';
 const Q = 1_000_000, M = 60_000, DAY = 86_400_000, infinite = {kind: 'infinite'} as const;
 const state = (): InventoryState => ({stocks: [], nextStockOrdinal: 0});
 function receive(s: InventoryState, material: string, count: number, cost: bigint, bad = false, prior = 0n) {
-  const provenance: Provenance = {origin: {kind: 'known', startedAtMs: 0}, defective: bad, defectSourceIds: bad ? ['upstream'] : [], processingMs: {upstream: prior}};
+  const provenance: Provenance = {origin: {kind: 'known', startedAtMs: 0}, firstProcessing: {kind: 'unknown'}, defective: bad, defectSourceIds: bad ? ['upstream'] : [], processingMs: {upstream: prior}};
   receiveStock(s, {ownerId: 's1', location: 'input'}, {materialId: material, quantity: count, cost, provenance}, infinite);
 }
 const quality = (probability: number) => ({probability, seed: 42, recipeId: 'cut', operationOrdinal: 0});

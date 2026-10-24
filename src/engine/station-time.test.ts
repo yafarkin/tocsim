@@ -70,7 +70,7 @@ describe('hand-checked time states and availability denominators', () => {
     expect(stopped.stations[0]!.timeByState).toEqual(atLunch.stations[0]!.timeByState);
     expect(sim.runToEnd()).toEqual(stopped);
     expect(Object.isFrozen(stopped.stations[0]!.timeByState)).toBe(true);
-    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(19);
+    expect(JSON.parse(JSON.stringify(stopped)).schemaVersion).toBe(20);
   });
 
   it.each([false, true])('separates overnight time without a final extra night, replacement=%s', replacement => {

@@ -39,7 +39,7 @@ function checkBalance(c:EditorConfig,s:DeepReadonly<Snapshot>) {
   expect(s.line!.scraps.reduce((sum,x)=>sum+BigInt(x.cost),0n)).toBe(s.line!.counters.reduce((sum,x)=>sum+BigInt(x.scrapCost),0n));
 }
 function receive(s:InventoryState,count:number,bad:boolean,cost:bigint,times:Record<string,bigint>) {
-  const provenance:Provenance={origin:{kind:'known',startedAtMs:0},defective:bad,defectSourceIds:bad?['source-of-defect']:[],processingMs:times};
+  const provenance:Provenance={origin:{kind:'known',startedAtMs:0}, firstProcessing: {kind: 'unknown'}, defective:bad,defectSourceIds:bad?['source-of-defect']:[],processingMs:times};
   receiveStock(s,{ownerId:'qc',location:'input'},{materialId:'A',quantity:count,cost,provenance},{kind:'infinite'});
 }
 
@@ -135,7 +135,7 @@ describe('inspection simulation, scrap accounting and routing',()=>{
     expect(qc.completedRepetitions).toBe(12);expect(qc.checkedQuantity).toBe(12*Q);expect(qc.passedQuantity).toBeGreaterThan(0);expect(qc.scrappedQuantity).toBeGreaterThan(0);
     expect(qc.processingMs).toBe(String((mode==='sequential'?12:3)*2*M));
     expect(end.line!.scraps.every(x=>x.detectedAtId==='qc')).toBe(true);expect(end.stocks).toEqual([]);
-    const json=JSON.parse(JSON.stringify(end));expect(json.schemaVersion).toBe(19);expect(Object.isFrozen(end.line!.scraps[0]!.processingMs)).toBe(true);
+    const json=JSON.parse(JSON.stringify(end));expect(json.schemaVersion).toBe(20);expect(Object.isFrozen(end.line!.scraps[0]!.processingMs)).toBe(true);
   });
   it('protects bottleneck time with early detection and attributes late scrap to its true detector',()=>{
     const earlyConfig=inspectionLine(),lateConfig=inspectionLine(true),early=new Simulation(compileConfig(earlyConfig)).runToEnd(),late=new Simulation(compileConfig(lateConfig)).runToEnd();
