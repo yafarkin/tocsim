@@ -134,3 +134,11 @@ export function lunchCost(hourlyRate: bigint, occupiedMs: number): bigint {
   if (hourlyRate < 0n) throw new ArithmeticError('range');
   return checkedMoney((hourlyRate * BigInt(occupiedMs) + 1_800_000n) / 3_600_000n);
 }
+
+/** Cumulative fixed charge per station, nearest micro-unit, ties up. */
+export function fixedCost(perShift: bigint, workMs: number, dailyWorkMs: number): bigint {
+  checkedMoney(perShift); checkedQuantity(workMs); checkedQuantity(dailyWorkMs);
+  if (perShift < 0n || dailyWorkMs === 0) throw new ArithmeticError('range');
+  const denominator = BigInt(dailyWorkMs);
+  return checkedMoney((2n * perShift * BigInt(workMs) + denominator) / (2n * denominator));
+}
