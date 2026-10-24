@@ -1,3 +1,5 @@
+import {stockAge} from './stock-age';
+import type {StockAge} from './stock-age';
 import { lunchCost, moneyToJSON } from './arithmetic';
 import { calendarForDuration, elapsedTime } from './calendar';
 import { freezeData, outputCapacity } from './config';
@@ -190,6 +192,7 @@ export interface StationSnapshot extends Omit<StationState, 'operationVersion' |
   blockedBy: {stationId: string; location: 'input' | 'output'}[];
 }
 export interface LineSnapshot {
+  stockAge: StockAge;
   shiftOutput: ShiftOutput[];
   flowTime: {materialId: string; admission: FlowTimeSnapshot; firstProcessing: FlowTimeSnapshot}[];
   stockTime: (Omit<StockTime, 'calendarQuantityMs' | 'workQuantityMs'> & {calendarQuantityMs: string; workQuantityMs: string})[];
@@ -208,7 +211,7 @@ export interface EngineState extends InventoryState {
   line: LineState | null;
 }
 export interface Snapshot {
-  schemaVersion: 21;
+  schemaVersion: 22;
   engineVersion: string;
   rngVersion: string;
   calculationHash: string;
@@ -228,7 +231,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
   const replacement = run.resolved.stations.some(s => s.lunchReplacement)
     ? calendarForDuration(run.resolved.calendar, run.resolved.durationMs, true) : calendar;
   return freezeData({
-    schemaVersion: 21,
+    schemaVersion: 22,
     engineVersion: run.engineVersion,
     rngVersion: run.rngVersion,
     calculationHash: run.calculationHash,
@@ -274,6 +277,7 @@ export function createSnapshot(run: RunConfig, state: EngineState): DeepReadonly
       }) ? 'normal' : state.stocks.some(s => s.location === 'held' || s.location === 'output') ? 'blocked'
         : run.resolved.sources.every(source => source.availability === 'warehouse' && !state.stocks.some(s => s.location === 'warehouse' && s.materialId === source.materialId))
           ? (state.stocks.length === 0 ? 'exhausted' : 'missingInput') : 'missingInput',
+      stockAge: stockAge(state.stocks, run.resolved.materials.map(m => m.id), calendar, state.timeMs),
       flowTime: state.line.flowTime.map(row => ({materialId: row.materialId,
         admission: flowTimeSnapshot(row.admission), firstProcessing: flowTimeSnapshot(row.firstProcessing),
       })),

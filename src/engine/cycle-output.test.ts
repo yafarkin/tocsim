@@ -37,7 +37,7 @@ describe('cycle output acceptance', () => {
     ]});
     expect(b.stations[0]!.outputs[0]!.heldQuantity).toBe(0);
     expect(Object.isFrozen(blocked.stations[0]!.outputs[0])).toBe(true);
-    expect(JSON.parse(JSON.stringify(blocked)).schemaVersion).toBe(21);
+    expect(JSON.parse(JSON.stringify(blocked)).schemaVersion).toBe(22);
   });
 
   it('partially unloads old A after switching to B and preserves cost, time and readiness', () => {
