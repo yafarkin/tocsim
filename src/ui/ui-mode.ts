@@ -1,4 +1,5 @@
 import {useCallback, useState} from 'react';
+import type {SyntheticEvent} from 'react';
 
 export type UiMode = 'simple' | 'expert';
 export const UI_MODE_STORAGE_KEY = 'toc.uiMode';
@@ -30,4 +31,12 @@ export function useUiMode(): readonly [UiMode, (mode: UiMode) => void] {
     saveUiMode(next);
   }, []);
   return [mode, selectMode];
+}
+
+/** Show the short form without losing the user's expert disclosure state. */
+export function useModeDisclosure(mode: UiMode, initiallyOpen = false) {
+  const [expertOpen, setExpertOpen] = useState(initiallyOpen);
+  return {open: mode === 'simple' || expertOpen, onToggle: (event: SyntheticEvent<HTMLDetailsElement>) => {
+    if (mode === 'expert') setExpertOpen(event.currentTarget.open);
+  }};
 }

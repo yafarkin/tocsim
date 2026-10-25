@@ -72,7 +72,7 @@ function CheckPage() {
   }, [mode]);
   return <>
     <aside aria-label="Проверка режима" style={{padding: 12, borderBottom: '2px solid currentColor'}}>
-      <p>Служебная проверка № 125. В обоих режимах пока показан прежний полный экран.</p>
+      <p>Служебная проверка № 126. Проверяет сохранение расчёта и черновиков при смене представления.</p>
       <button onClick={() => {before.current = capture(); setMode(mode === 'simple' ? 'expert' : 'simple');}}>Сменить режим (проверка)</button>{' '}
       <button onClick={() => {
         if (!current || current.getView().status !== 'finished') {setResult({pass: false, reason: 'Finish the run first'}); return;}
@@ -94,7 +94,7 @@ function CheckPage() {
       <button onClick={restoreStorage}>Восстановить хранение</button>
       <output data-testid="mode-check-result"><pre>{JSON.stringify(result, null, 2)}</pre></output>
     </aside>
-    <App mode={mode}/>
+    <App mode={mode} onModeChange={setMode}/>
   </>;
 }
 createRoot(document.getElementById('root')!).render(<StrictMode><CheckPage/></StrictMode>);

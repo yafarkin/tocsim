@@ -20,7 +20,7 @@ export const WarmupPanel = memo(function WarmupPanel({run, locked, text, languag
   const [draft, setDraft] = useState(() => String(run.resolved.warmupMs / 60_000));
   let value: number | undefined;
   try {value = warmupFromMinutes(draft, run.resolved.durationMs);} catch (error) {if (!(error instanceof ConfigError)) throw error;}
-  return <details className="batch-editor warmup-editor" data-testid="warmup-settings"><summary>{text.warmupSettings}</summary>
+  return <><details className="batch-editor warmup-editor expert-only" data-testid="warmup-settings"><summary>{text.warmupSettings}</summary>
     <fieldset className="batch-settings" disabled={locked}><legend>{text.warmupSettings}</legend>
       <div className="settings-layout"><div className="settings-help"><p id="warmup-help">{text.warmupHelp}</p>
         <p>{text.warmupLimit}: {String(run.resolved.durationMs / 60_000).replace('.', language === 'ru' ? ',' : '.')}</p></div>
@@ -30,5 +30,5 @@ export const WarmupPanel = memo(function WarmupPanel({run, locked, text, languag
         <p data-applied-warmup={run.resolved.warmupMs}>{text.current}: {durationText(run.resolved.warmupMs)}</p>
       </div></div>
     </fieldset>
-  </details>;
+  </details>{value === undefined && <p className="simple-only settings-errors" role="alert">{text.warmupError} {text.hiddenErrorHelp}</p>}</>;
 });

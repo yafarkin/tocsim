@@ -1,6 +1,18 @@
 export type Language = 'ru' | 'en';
 export const messages = {
   ru: {
+    expertMode: 'Экспертный режим', modeOn: 'вкл.', modeOff: 'выкл.', experimentSettings: 'Параметры эксперимента',
+    simpleResult: 'Результат эксперимента', simpleWip: 'Сейчас в линии по материалам', simpleWipHelp: 'Вход, резерв партии, удержанный результат и выход учтены один раз. Склад вне линии; разные материалы не складываются.',
+    showExpert: 'Подробные настройки и отчёты', hiddenSettings: 'Есть расширенные настройки', hiddenErrorHelp: 'Исправьте поле в экспертном режиме.',
+    otherParameters: 'Другие параметры', simpleCvHelp: 'CV 0 означает постоянное время. Чем больше CV, тем сильнее разброс при том же среднем. Пресеты используют логнормальное время.',
+    replaceDistribution: 'Выбор и применение пресета заменит тип распределения, сохранив среднее.', simpleCustomTime: 'Точное изменение этих параметров доступно в экспертном режиме.',
+    simpleBufferHelp: 'Изменится только этот вход. Остальные буферы сохраняются.', replaceBufferRule: 'Новое количество заменит текущее правило после применения.', commonBufferRule: 'Для раздельного изменения компонентов этого общего правила откройте экспертный режим.',
+    experimentCapacity: 'Вместимость входа', applyExperiment: 'Применить параметры', unappliedSettings: 'Есть неприменённые изменения.',
+    hiddenBuffers: 'Другие правила буферов', hiddenVariability: 'Вариативность и режим обработки', hiddenLunch: 'Подмена в обед', hiddenMaintenance: 'Обслуживание', hiddenWarmup: 'Разогрев Литтла',
+    runHorizon: 'Горизонт прогона', fixedContext: 'Условия примера', simpleNeighbours: 'Соседние посты: по 3 мин.', simpleBalancedMean: 'Среднее время всех постов: 3 мин. CV действует на все посты.',
+    simpleSplitPriority: 'Приоритет Обработки 10, Отделки 0.', simpleAssemblyKit: 'Комплект Сборки: 1 деталь + 2 обработанные детали.',
+    processingLossAtWork: 'Время Обработки на обнаруженном браке', blockedAtPreparation: 'Блокировка Подготовки', planSetupTime: 'Время переналадки',
+
     runReports: 'Отчёты прогона', outputGroup: 'Выпуск и запасы', economyGroup: 'Экономика', flowGroup: 'Поток и ограничение',
     otherAveragePlaces: 'Средние запасы в резерве, удержании и на выходе', otherAveragePlacesHelp: 'Показаны места, где материал находился в резерве обработки, в готовом результате на посту или в выходном буфере в течение положительного времени, включая уже опустевшие.', noOtherAveragePlaces: 'Материал ещё не находился в резерве, удержании или на выходе в течение положительного времени.', inputAverageReference: 'Средние входные очереди показаны в таблице очередей ниже.', showOutput: 'Открыть выпуск по продуктам и сменам',
     constraintFacts: 'Признаки ограничения и проверка гипотезы',
@@ -120,6 +132,18 @@ export const messages = {
     raw: 'Заготовка', prepared: 'Деталь', processed: 'Обработанная деталь', product: 'Изделие',
   },
   en: {
+    expertMode: 'Expert mode', modeOn: 'on', modeOff: 'off', experimentSettings: 'Experiment settings',
+    simpleResult: 'Experiment result', simpleWip: 'Current stock in the line by material', simpleWipHelp: 'Input, batch reserves, held results and output are counted once. Warehouse stock is outside the line; different materials are not added together.',
+    showExpert: 'Detailed settings and reports', hiddenSettings: 'Advanced settings are active', hiddenErrorHelp: 'Correct the field in expert mode.',
+    otherParameters: 'Other settings', simpleCvHelp: 'CV 0 means constant time. Higher CV means more variation at the same mean. Presets use lognormal time.',
+    replaceDistribution: 'Choosing and applying a preset replaces the distribution type while keeping its mean.', simpleCustomTime: 'Edit these exact settings in expert mode.',
+    simpleBufferHelp: 'Only this input changes. Other buffers are retained.', replaceBufferRule: 'A new quantity replaces the current rule after applying.', commonBufferRule: 'Use expert mode to edit separate components of this shared rule.',
+    experimentCapacity: 'Input capacity', applyExperiment: 'Apply settings', unappliedSettings: 'There are unapplied changes.',
+    hiddenBuffers: 'Other buffer rules', hiddenVariability: 'Variability and processing mode', hiddenLunch: 'Lunch replacement', hiddenMaintenance: 'Maintenance', hiddenWarmup: 'Little check warmup',
+    runHorizon: 'Run horizon', fixedContext: 'Example conditions', simpleNeighbours: 'Neighbouring stations: 3 min each.', simpleBalancedMean: 'All stations average 3 min. CV applies to all stations.',
+    simpleSplitPriority: 'Processing priority is 10, Finishing priority is 0.', simpleAssemblyKit: 'Assembly kit: 1 part + 2 processed parts.',
+    processingLossAtWork: 'Processing time on detected scrap', blockedAtPreparation: 'Preparation blocked time', planSetupTime: 'Setup time',
+
     runReports: 'Run reports', outputGroup: 'Output and stock', economyGroup: 'Economics', flowGroup: 'Flow and constraint',
     otherAveragePlaces: 'Average reserved, held and output stock', otherAveragePlacesHelp: 'Locations where material spent positive time in processing reserves, held results or output buffers are listed, including locations that are now empty.', noOtherAveragePlaces: 'No material has spent positive time in reserves, held results or output buffers yet.', inputAverageReference: 'Average input queues are shown in the queue table below.', showOutput: 'Open output by product and shift',
     constraintFacts: 'Constraint evidence and hypothesis check',

@@ -29,11 +29,17 @@ import { defaultBatchProfiles, defaultPlanProfile, exampleIds, previewConfig } f
 import type { ExampleId } from './ui/preview';
 import { ThemePicker } from './ui/ThemePicker';
 import { useTheme } from './ui/theme';
-import type { UiMode } from './ui/ui-mode';
+import {useUiMode} from './ui/ui-mode';
+import type {UiMode} from './ui/ui-mode';
+import {BatchPanel, PlanPanel} from './ui/ProductionPanels';
+import {ExperimentContext} from './ui/ExperimentContext';
 
-// The public entry remains expert until the complete simple screen in task 126.
-// Mode is deliberately absent from RunConfig/Runner dependencies and editor keys.
-export function App({mode = 'expert'}: {mode?: UiMode} = {}) {
+// Mode is a viewing preference, absent from RunConfig/Runner dependencies and editor keys.
+export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onModeChange?: (mode: UiMode) => void} = {}) {
+  const [preferredMode, selectMode] = useUiMode();
+  const mode = controlledMode ?? preferredMode;
+  const changeMode = onModeChange ?? selectMode;
+  const showExpert = useCallback(() => changeMode('expert'), [changeMode]);
   const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
@@ -114,54 +120,34 @@ export function App({mode = 'expert'}: {mode?: UiMode} = {}) {
   return <main data-ui-mode={mode}>
     <header className="page-header"><a className="brand" href="#flow">TOC<span>{text.title}</span></a>
       <div className="appearance-controls"><ThemePicker value={theme} onChange={setTheme} text={text}/>
-      <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
+      <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button>
+      <button type="button" className="mode-toggle" aria-label={text.expertMode} aria-pressed={mode === 'expert'} onClick={() => changeMode(mode === 'simple' ? 'expert' : 'simple')}>{text.expertMode}: {mode === 'expert' ? text.modeOn : text.modeOff}</button></div>
     </header>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked ? '' : 'expert-only'}>{locked ? text.locked : text.ready}</p></div>
     <ExampleGuide key={`guide-${example}`} example={example} text={text} language={language}/>
     </section>
     <section className="simulation-panel" aria-labelledby="simulation-title">
     <h2 id="simulation-title">{text.simulationControls}</h2>
     <section className="line-settings" aria-labelledby="line-settings-title">
-      <div className="line-settings-header"><h3 id="line-settings-title">{text.lineSettings}</h3>
+      <div className="line-settings-header"><h3 id="line-settings-title"><span className="expert-only">{text.lineSettings}</span><span className="simple-only">{text.experimentSettings}</span></h3>
       <div className="run-settings">
-          {example !== 'queue' && example !== 'quality' && <label className="speed-picker" title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>}
-          <label className="speed-picker">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
+          {example !== 'queue' && example !== 'quality' && <label className={`speed-picker ${example === 'plans' || example === 'batches' ? 'expert-only' : ''}`} title={text.cvHelp}>{text.variability}<select aria-label={text.variability} value={cv} disabled={locked || !view} onChange={event => {if (Number(event.target.value) === cv) return; runner.current?.dispose(); setView(null); setCv(Number(event.target.value));}}>{[0, 0.1, 0.25, 0.5, 1, 2].map(value => <option key={value} value={value}>{value === 0 ? text.cvZero : `CV ${value}`}</option>)}</select></label>}
+          <label className="speed-picker expert-only">Seed<input className="seed-input" type="text" inputMode="numeric" aria-label="Seed" aria-invalid={!seedValid} value={seedText} disabled={locked || !view} onChange={event => setSeedText(event.target.value)}/></label>
       </div></div>
-      {example !== 'queue' && example !== 'quality' && <p className="variability-note">{text.cvHelp}</p>}
-      {example === 'plans' && <details className="batch-editor" open><summary>{text.planSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
-        <legend>{text.planSettings}</legend><p>{text.planSettingsHelp}</p>
-        <div className="batch-settings-row">
-          {(['batchesA', 'batchesB'] as const).map(key => <label key={key}>{text[key]}<select aria-label={text[key]} value={planProfile[key]} onChange={event => {changeProfiles(batchProfiles, {...planProfile, [key]: Number(event.target.value)});}}>{Array.from({length: 10}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>)}
-          <label>{text.setupMinutes}<select aria-label={text.setupMinutes} value={planProfile.setupMinutes} onChange={event => {changeProfiles(batchProfiles, {...planProfile, setupMinutes: Number(event.target.value)});}}>{[0, 2, 7, 15].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-          <label>{text.supplyB}<select aria-label={text.supplyB} aria-describedby="plan-wait-help" value={String(planProfile.supplyB)} onChange={event => {changeProfiles(batchProfiles, {...planProfile, supplyB: event.target.value === 'true'});}}><option value="true">{text.supplied}</option><option value="false">{text.unavailable}</option></select></label>
-        </div><p id="plan-wait-help">{text.planWaitHelp}</p>
-      </fieldset></details>}
-      {example === 'batches' && <details className="batch-editor"><summary>{text.batchSettings}</summary><fieldset className="batch-settings" disabled={locked || !view}>
-        <legend>{text.batchSettings}</legend>
-        <p>{text.batchSettingsHelp}</p>
-        <p id="batch-threshold-help" className="threshold-help"><strong>{text.threshold}.</strong> {text.thresholdHelp}</p>
-        {(['prep', 'work'] as const).map(id => {
-          const profile = batchProfiles[id];
-          const update = (patch: Partial<typeof profile>) => {
-            changeProfiles({...batchProfiles, [id]: {...batchProfiles[id], ...patch}}, planProfile);
-          };
-          return <div className="batch-settings-row" key={id}>
-            <strong>{nameFor(id, id, text)}</strong>
-            <label>{text.mode}<select aria-label={`${nameFor(id, id, text)}: ${text.mode}`} value={profile.mode} onChange={event => update({mode: event.target.value as typeof profile.mode})}><option value="sequential">{text.sequential}</option><option value="simultaneous">{text.simultaneous}</option></select></label>
-            <label>{text.repetitions}<select aria-label={`${nameFor(id, id, text)}: ${text.repetitions}`} value={profile.repetitions} onChange={event => {const repetitions = Number(event.target.value); update({repetitions, transportThreshold: Math.min(profile.transportThreshold, repetitions)});}}>{Array.from({length: 10}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-            <label>{text.threshold}<select aria-describedby="batch-threshold-help" aria-label={`${nameFor(id, id, text)}: ${text.threshold}`} value={profile.transportThreshold} onChange={event => update({transportThreshold: Number(event.target.value)})}>{Array.from({length: profile.repetitions}, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-          </div>;
-        })}
-      </fieldset></details>}
+      {example !== 'queue' && example !== 'quality' && <p className={`variability-note ${example === 'plans' || example === 'batches' ? 'expert-only' : ''}`}><span className="expert-only">{text.cvHelp}</span><span className="simple-only">{text.simpleCvHelp}</span></p>}
+      {example === 'plans' && <PlanPanel key={`plan-${example}`} run={run} applied={planProfile} locked={locked || !view} text={text} language={language} mode={mode} onApply={next => changeProfiles(batchProfiles, next)}/>}
+      {example === 'batches' && <BatchPanel key={`batches-${example}`} run={run} applied={batchProfiles} locked={locked || !view} text={text} language={language} mode={mode} onApply={next => changeProfiles(next, planProfile)}/>}
       {example === 'batches' && <MaintenancePanel key={`maintenance-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyMaintenance}/>}
-      {example === 'queue' && <DurationPanel key={`duration-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyDuration}/>}
-      {example === 'quality' && <QualityPanel key={`quality-settings-${JSON.stringify(run.source)}`} run={run} settings={quality} locked={locked || !view} text={text} language={language} onApply={applyQuality}/>}
+      {example === 'queue' && <DurationPanel key={`duration-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyDuration} mode={mode}/>}
+      {example === 'quality' && <QualityPanel key={`quality-settings-${JSON.stringify(run.source)}`} run={run} settings={quality} locked={locked || !view} text={text} language={language} onApply={applyQuality} mode={mode}/>}
       <WarmupPanel key={`warmup-${example}-${warmupMs}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyWarmup}/>
       <LunchPanel key={example} run={run} locked={locked || !view} text={text} language={language} onApply={applyLunch}/>
-      <BufferPanel key={`${example}-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyBuffers}/>
+      <BufferPanel key={`${example}-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyBuffers} mode={mode} simpleStationId={example === 'blocking' || example === 'split' ? 'work' : example === 'assembly' ? 'assembly' : undefined}/>
+      <ExperimentContext run={run} example={example} text={text} qualitySource={quality.source} onExpert={showExpert}/>
+      <button type="button" className="simple-only show-expert" onClick={showExpert}>{text.showExpert}</button>
     </section>
     <section id="flow" className="diagram-panel" aria-label={text.diagram} data-time-ms={view?.model.timeMs ?? 0} data-playback={status} data-speed={view?.speed ?? 60} data-reduced={manualReduced || systemReduced}>
       <div className="diagram-controls">
@@ -174,12 +160,12 @@ export function App({mode = 'expert'}: {mode?: UiMode} = {}) {
         </div>
         <div className="model-clock"><span>{text.day} {time.dayIndex + 1}</span><strong>{clock}</strong><span className={`playback-state playback-${status}`}>{status === 'paused' ? text.pausedView : status === 'running' ? text.running : status === 'finished' ? text.finished : status === 'error' ? text.error : status === 'stopped' ? text.stopped : text.ready}</span></div>
       </div>
-      {view && <RunSummary run={run} view={view} text={text} language={language}/>}
-      {configurationError && <p role="alert" className="run-error">{configurationError.messages[language]} {configurationError.path}</p>}
-      {!seedValid && <p role="alert" className="run-error">{text.seedError}</p>}
-      <div className="diagram-context"><p>{example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      {configurationError && <p role="alert" className="run-error">{configurationError.messages[language]} <span className="expert-only">{configurationError.path}</span> <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
+      {!seedValid && <p role="alert" className="run-error">{text.seedError} <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
+      <div className="diagram-context"><p className="expert-only">{example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
       {view && <FlowDiagram key={`${example}-${generation}`} run={run} view={view} text={text} reduced={manualReduced || systemReduced}/>}
-      {example === 'quality' && view && <QualitySummary key={example} run={run} view={view} text={text}/>}
+      {view && <RunSummary run={run} view={view} text={text} language={language} example={example}/>}
+      {example === 'quality' && view && <div className="expert-only"><QualitySummary key={example} run={run} view={view} text={text}/></div>}
       <p className="scroll-note">{text.scroll}</p>
       <div className="material-key" aria-label={text.material}>{run.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>
     </section>

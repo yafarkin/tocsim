@@ -5,6 +5,13 @@ export interface BufferSettings {
   defaults: NonNullable<EditorConfig['bufferDefaults']>;
   stations: Record<string, {input: InputBufferConfig; output: OutputBufferConfig}>;
 }
+/** Patch one existing input without changing any other material or location. */
+export function simpleInputRule(input: InputBufferConfig, materialId: string, quantity: string, inputCount: number): InputBufferConfig {
+  if (input.kind === 'materials') return {...input, materials: input.materials.map(entry =>
+    entry.materialId === materialId ? {...entry, capacity: {kind: 'quantity', quantity}} : entry)};
+  if (inputCount !== 1) throw new Error('Use the expert editor for a shared multi-material rule');
+  return {kind: 'quantity', quantity};
+}
 export function bufferSettings(config: RunConfig['source']): BufferSettings {
   return structuredClone({defaults: config.bufferDefaults ?? {}, stations: Object.fromEntries(config.stations.map(s => [s.id, {input: s.inputBuffer, output: s.outputBuffer}]))}) as BufferSettings;
 }

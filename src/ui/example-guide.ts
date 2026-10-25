@@ -104,3 +104,27 @@ const experiments: Record<Language, Record<ExampleId, ExampleExperiment>> = {
   },
 };
 export const experimentFor = (example: ExampleId, language: Language): ExampleExperiment => experiments[language][example];
+
+const simpleActions: Record<Language, Record<ExampleId, string>> = {
+  ru: {
+    balanced: 'Сравните CV 0 и CV 0,5 при одинаковых остальных условиях.',
+    queue: 'Сравните среднее время Обработки 8 и 6 минут при CV 0.',
+    blocking: 'При CV 0 сравните вместимость входа Обработки 1 и 8 деталей.',
+    split: 'Сравните вход Обработки на 1 и 8 деталей. Следите, когда материал получает другая ветвь.',
+    assembly: 'Измените только вход для «Деталь» с 2 до 8. Вход для «Обработанная деталь» оставьте 4.',
+    batches: 'При партии 6 уменьшите пороги передачи обоих постов с 3 до 1.',
+    plans: 'При переналадке 7 минут сравните серии 2 A / 1 B и 4 A / 2 B.',
+    quality: 'Сравните контроль до и после Обработки при одинаковой вероятности брака 25%.',
+  },
+  en: {
+    balanced: 'Compare CV 0 and CV 0.5, keeping other settings unchanged.',
+    queue: 'Compare mean Processing times of 8 and 6 minutes at CV 0.',
+    blocking: 'At CV 0, compare Processing input capacities of 1 and 8 parts.',
+    split: 'Compare Processing inputs of 1 and 8 parts. Watch when the other branch receives material.',
+    assembly: 'Change only Part input capacity from 2 to 8. Keep Processed part capacity at 4.',
+    batches: 'Keep batch size at 6 and reduce both transfer thresholds from 3 to 1.',
+    plans: 'At a 7-minute setup, compare runs of 2 A / 1 B and 4 A / 2 B.',
+    quality: 'Compare inspection before and after Processing at the same 25% defect probability.',
+  },
+};
+export const simpleActionFor = (example: ExampleId, language: Language) => simpleActions[language][example];

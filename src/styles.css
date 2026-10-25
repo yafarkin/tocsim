@@ -139,3 +139,51 @@
 .report-group>details:first-of-type{margin-top:0;border-top:0;padding-top:0}
 .report-group{min-width:0}.report-group+.report-group{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
 .run-summary .report-group>h2{font-size:18px;margin:0 0 12px}.constraint-report a{color:var(--accent)}
+
+/* Both modes keep the same mounted editors, diagram and chart instances. */
+.simple-only{display:none!important}
+main[data-ui-mode=simple] .expert-only{display:none!important}
+main[data-ui-mode=simple] .simple-only{display:block!important}
+.mode-toggle{font-size:14px;white-space:normal}.mode-toggle[aria-pressed=true]{background:var(--selected);border-color:var(--accent)}
+main[data-ui-mode=simple] .experiment-steps{grid-template-columns:minmax(0,1fr);gap:4px;margin:10px 0}
+main[data-ui-mode=simple] .experiment-steps strong{display:inline}
+main[data-ui-mode=simple] .example-guide h2{display:none}
+main[data-ui-mode=simple] .scenario-panel .example-guide p{font-size:17px;line-height:1.5}
+main[data-ui-mode=simple] .line-settings .settings-layout{display:block}
+main[data-ui-mode=simple] .line-settings .batch-editor{margin-top:14px;padding-top:0;border-top:0}
+main[data-ui-mode=simple] .line-settings .batch-editor>summary,
+main[data-ui-mode=simple] .simple-buffer-target>summary{display:none}
+main[data-ui-mode=simple] .line-settings .batch-settings{margin-top:10px}
+main[data-ui-mode=simple] .simple-buffer-target{margin:0;padding:0;border:0}
+main[data-ui-mode=simple] .simple-buffer-fields{display:flex!important;gap:16px 24px;align-items:end;flex-wrap:wrap}
+.simple-buffer-fields h4{flex-basis:100%;margin:0;font-size:17px}.simple-buffer-fields>p{flex-basis:100%;margin:0;color:var(--muted);font-size:14px}
+.simple-buffer-fields label,.simple-duration label{display:flex;flex-direction:column;gap:6px;max-width:100%;font-size:16px}
+.simple-buffer-fields label{flex:1 1 160px}.simple-buffer-fields label span{font-size:13px;max-width:48ch;color:var(--muted)}
+.simple-buffer-fields input{width:100%;min-height:42px;padding:8px;border:1px solid var(--control-border);border-radius:6px;background:var(--surface);color:var(--text);cursor:text}
+main[data-ui-mode=simple] .duration-editor .settings-fields{display:flex;gap:12px 24px;flex-wrap:wrap;align-items:start}
+main[data-ui-mode=simple] .duration-editor .settings-fields>.batch-settings-row{flex:1 1 220px}
+main[data-ui-mode=simple] .simple-duration{flex:1 1 220px}.simple-duration p{font-size:13px;color:var(--muted);margin:6px 0;max-width:65ch}
+main[data-ui-mode=simple] .duration-editor .duration-preview,main[data-ui-mode=simple] .duration-editor .duration-applied{flex-basis:100%;margin:0;font-size:14px}
+main[data-ui-mode=simple] .duration-editor .duration-preview{display:none}
+.experiment-context{font-size:14px;color:var(--muted)}.experiment-context p{margin:8px 0}.advanced-notice{border-left:3px solid var(--accent);padding:8px 12px;margin:12px 0}.advanced-notice summary{color:var(--text)}.advanced-notice dl>div{margin:8px 0}.advanced-notice dt{font-weight:600}.advanced-notice dd{margin:3px 0 0}
+.show-expert{font-size:14px;margin-top:12px}.settings-errors{color:var(--error);overflow-wrap:anywhere}.settings-errors p{margin:6px 0}
+main[data-ui-mode=simple] .run-summary{margin-top:20px}.experiment-result h2{font-size:20px}.result-columns{display:grid;grid-template-columns:1fr 1fr;gap:20px 36px}.experiment-result dl{margin:10px 0}.experiment-result dl>div{display:flex;justify-content:space-between;gap:16px;margin:7px 0}.experiment-result dd{font-weight:600;margin:0}.experiment-result h3{margin-top:12px}.experiment-result .result-columns h3{font-size:16px}.experiment-result p{max-width:95ch}
+main[data-ui-mode=simple] .run-summary .report-group{margin:16px 0 0;padding:0;border:0}
+main[data-ui-mode=simple] .flow-charts{margin-top:12px}
+@media(max-width:600px){.appearance-controls{max-width:100%;gap:8px}.page-header{flex-wrap:wrap}.mode-toggle{font-size:13px}.result-columns{grid-template-columns:1fr;gap:8px}.simple-buffer-fields label{flex-basis:100%}main[data-ui-mode=simple] .duration-editor .settings-fields{display:block}.simple-duration{margin:12px 0}main[data-ui-mode=simple] .production-editor .batch-settings-row{margin-bottom:16px;gap:10px}main[data-ui-mode=simple] .production-editor .batch-settings-row>strong{flex-basis:100%}}
+
+/* Keep the first experiment close to its playback controls. */
+main[data-ui-mode=simple] .intro{margin:18px 0 16px}
+main[data-ui-mode=simple] .scenario-panel{padding:16px 20px;margin-bottom:16px}
+main[data-ui-mode=simple] .scenario-panel>h2{font-size:20px;margin-bottom:12px}
+main[data-ui-mode=simple] .scenario-panel .example-picker{margin-bottom:10px}
+main[data-ui-mode=simple] .scenario-panel .example-guide{padding-top:10px}
+main[data-ui-mode=simple] .scenario-panel .example-guide p{margin:5px 0}
+main[data-ui-mode=simple] .experiment-steps span.simple-only{display:inline!important}
+main[data-ui-mode=simple] .simulation-panel{padding-top:16px}
+main[data-ui-mode=simple] .simulation-panel>h2{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+main[data-ui-mode=simple] .experiment-context{display:flex!important;align-items:baseline;flex-wrap:wrap;gap:4px 20px}
+main[data-ui-mode=simple] .experiment-context>p{margin:4px 0}
+main[data-ui-mode=simple] .advanced-notice{flex-basis:100%}
+main[data-ui-mode=simple] .show-expert{min-height:24px;padding:0;border:0;background:transparent;color:var(--accent);text-decoration:underline;margin-top:8px;text-align:left}
+@media(max-width:600px){main[data-ui-mode=simple] .scenario-panel{padding:14px}main[data-ui-mode=simple] .intro h1{font-size:28px}}

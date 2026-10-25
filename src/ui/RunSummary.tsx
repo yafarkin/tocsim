@@ -11,9 +11,11 @@ import {FlowTimeReport} from './FlowTimeReport';
 import {InvestmentReport} from './InvestmentReport';
 import {FinancialReport} from './FinancialReport';
 import {RunMetrics} from './RunMetrics';
+import {ExperimentResult} from './ExperimentResult';
+import type {ExampleId} from './preview';
 
-interface Props {run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
-export function RunSummary({run, view, text, language}: Props) {
+interface Props {example?: ExampleId; run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
+export function RunSummary({run, view, text, language, example = 'queue'}: Props) {
   const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
   const report = flowReport(run, view.model);
   const at = (timeMs: number) => {
@@ -28,7 +30,8 @@ export function RunSummary({run, view, text, language}: Props) {
   const ownerName = (id: string) => id === 'warehouse' ? text.rawWarehouse : nameFor(id, run.source.stations.find(s => s.id === id)?.name ?? id, text);
   const locationName = {input: text.inputQueue, reserved: text.reservedStock, held: text.heldStock, output: text.outputStock, warehouse: text.rawWarehouse};
   return <section className="run-summary" aria-label={text.runReports} data-testid="run-summary" data-report-complete={report.complete}>
-    <section className="report-group" aria-labelledby="output-group-title">
+    <ExperimentResult run={run} view={view} example={example} text={text} language={language}/>
+    <section className="report-group expert-only" aria-labelledby="output-group-title">
       <h2 id="output-group-title">{text.outputGroup}</h2>
       <details className="output-summary" id="output-summary">
         <summary id="output-summary-toggle" tabIndex={0}>{text.runSummary}</summary>
@@ -58,16 +61,18 @@ export function RunSummary({run, view, text, language}: Props) {
         </details>
       </details>
     </section>
-    <section className="report-group" aria-labelledby="economy-group-title">
+    <section className="report-group expert-only" aria-labelledby="economy-group-title">
       <h2 id="economy-group-title">{text.economyGroup}</h2>
       <FinancialReport run={run} model={view.model} text={text}/>
       <InvestmentReport run={run} model={view.model} text={text}/>
     </section>
     <section className="report-group" aria-labelledby="flow-group-title">
-      <h2 id="flow-group-title">{text.flowGroup}</h2>
+      <h2 className="expert-only" id="flow-group-title">{text.flowGroup}</h2>
+      <div className="expert-only">
       <RunMetrics run={run} model={view.model} text={text}/>
       <FlowTimeReport run={run} model={view.model} text={text}/>
       <FlowCheckReport run={run} view={view} text={text}/>
+      </div>
       <FlowCharts run={run} history={view.history} text={text} language={language}/>
     </section>
   </section>;
