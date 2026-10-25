@@ -36,7 +36,7 @@ export const messages = {
 
     financialResult: 'Денежный результат', financialAmount: 'Сумма',
     revenue: 'Выручка (Revenue)', tvcSold: 'Сырьё проданных изделий (TVC sold)', throughput: 'Проход (T)', scrapExpense: 'Потери брака (Scrap expense)', fixedExpense: 'Фиксированные расходы', lunchExpense: 'Дополнительные обеденные расходы', operatingExpense: 'Операционные расходы (OE)', netProfit: 'Чистый результат (NP)',
-    financialHelp: 'За фактический интервал отчёта выше. T = Revenue − TVC sold. OE = фиксированные расходы + обеденные расходы + потери брака. NP = T − OE. Фиксированные расходы идут по рабочему времени общей смены без обеда, включая простой. Обед оплачивается по активной занятости с подменой.',
+    financialHelp: 'За фактически прошедшее время прогона. T = Revenue − TVC sold. OE = фиксированные расходы + обеденные расходы + потери брака. NP = T − OE. Фиксированные расходы идут по рабочему времени общей смены без обеда, включая простой. Обед оплачивается по активной занятости с подменой.',
     financialLimits: 'Учебная модель в условных денежных единицах. Налоги, проценты и амортизация не моделируются. Закупки не вычитаются из прибыли целиком: сырьё в остатках ещё не относится в расходы. Брак включён в OE один раз. Капитал постов не списывается в OE. Отображение округлено до двух знаков; расчёт сохраняет микроденежные единицы.',
     financialRange: 'Денежный итог превышает допустимый диапазон. Уменьшите цены, затраты или горизонт нового прогона.',
 
@@ -153,7 +153,7 @@ export const messages = {
 
     financialResult: 'Financial result', financialAmount: 'Amount',
     revenue: 'Revenue', tvcSold: 'Raw material cost of sales (TVC sold)', throughput: 'Throughput (T)', scrapExpense: 'Scrap expense', fixedExpense: 'Fixed expenses', lunchExpense: 'Additional lunch expenses', operatingExpense: 'Operating expenses (OE)', netProfit: 'Net result (NP)',
-    financialHelp: 'For the actual report interval above. T = Revenue − TVC sold. OE = fixed expenses + lunch expenses + scrap expense. NP = T − OE. Fixed expenses accrue over common shift working time excluding lunch, including idle time. Lunch charges cover active work with replacement.',
+    financialHelp: 'For the elapsed run time. T = Revenue − TVC sold. OE = fixed expenses + lunch expenses + scrap expense. NP = T − OE. Fixed expenses accrue over common shift working time excluding lunch, including idle time. Lunch charges cover active work with replacement.',
     financialLimits: 'Educational model in currency units. Taxes, interest and depreciation are not modeled. Purchases are not deducted from profit in full: raw material held in stock is not yet an expense. Scrap enters OE once. Station capital is not charged to OE. Display rounds to two decimals; calculations retain micro-units.',
     financialRange: 'The financial total exceeds the supported range. Reduce prices, costs or the horizon of a new run.',
 

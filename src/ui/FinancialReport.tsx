@@ -13,16 +13,16 @@ export function FinancialReport({run, model, text}: {run: RunConfig; model: Deep
   let report;
   try {report = financialReport(run, model);} catch (error) {
     if (!(error instanceof ArithmeticError)) throw error;
-    return <section><h3>{text.financialResult}</h3><p role="alert">{text.financialRange}</p></section>;
+    return <details className="financial-report"><summary>{text.financialResult}</summary><p role="alert">{text.financialRange}</p></details>;
   }
   const rows = ['revenue', 'tvcSold', 'throughput', 'scrapExpense', 'fixedExpense', 'lunchExpense', 'operatingExpense', 'netProfit'] as const;
-  return <section className="financial-report" data-testid="financial-report">
-    <h3>{text.financialResult}</h3><p>{text.financialHelp}</p>
+  return <details className="financial-report" data-testid="financial-report">
+    <summary>{text.financialResult}</summary><p>{text.financialHelp}</p>
     {!report.complete && <p>{text.incompleteResult}</p>}
     <div className="table-scroll" tabIndex={0} role="region" aria-label={text.financialResult}><table>
       <caption>{text.financialResult}, {text.moneyUnit}</caption>
       <thead><tr><th>{text.financialResult}</th><th>{text.financialAmount}</th></tr></thead>
       <tbody>{rows.map(key => <tr key={key}><th scope="row">{text[key]}</th><td data-money={key}>{moneyText(report[key])}</td></tr>)}</tbody>
     </table></div><p className="summary-help">{text.financialLimits}</p>
-  </section>;
+  </details>;
 }
