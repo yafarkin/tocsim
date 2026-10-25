@@ -133,3 +133,5 @@
 
 .flow-check-report .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.flow-check-report .metric-section>h3{font-size:20px}.flow-check-report [data-flow-exact],.flow-check-report [data-flow-window-exact]{font-weight:600}.flow-check-report .flow-counts{gap:14px 30px}.flow-check-report .flow-counts dd{font-size:18px}.flow-check-report .metric-table th:first-child{max-width:330px}.flow-edge-details{margin-top:20px}
 @media(max-width:480px){.flow-check-report .metric-section>h3{font-size:19px}.flow-check-report .flow-counts>div{width:calc(50% - 15px)}}
+
+.constraint-report .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.constraint-report li{margin:12px 0;overflow-wrap:anywhere}.constraint-report h3{overflow-wrap:anywhere}

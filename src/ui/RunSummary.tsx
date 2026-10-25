@@ -10,6 +10,7 @@ import {FlowCharts} from './FlowCharts';
 import {FlowTimeReport} from './FlowTimeReport';
 import {InvestmentReport} from './InvestmentReport';
 import {FinancialReport} from './FinancialReport';
+import {ConstraintReport} from './ConstraintReport';
 import {RunMetrics} from './RunMetrics';
 
 interface Props {run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
@@ -55,6 +56,7 @@ export function RunSummary({run, view, text, language}: Props) {
     </details>
     <FinancialReport run={run} model={view.model} text={text}/>
     <InvestmentReport run={run} model={view.model} text={text}/>
+    <ConstraintReport run={run} model={view.model} text={text}/>
     <RunMetrics run={run} model={view.model} text={text}/>
     <FlowTimeReport run={run} model={view.model} text={text}/>
     <FlowCheckReport run={run} view={view} text={text}/>
