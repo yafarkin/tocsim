@@ -1,11 +1,11 @@
-import {useState} from 'react';
+import {memo, useState} from 'react';
 import {compileConfig, ConfigError} from '../engine/config';
 import type {EditorConfig, RunConfig} from '../engine/config';
 import {withQuality} from './quality';
 import type {QualitySettings} from './quality';
 import type {Labels, Language} from './i18n';
 
-export function QualityPanel({run, settings, locked, text, language, onApply}: {run: RunConfig; settings: QualitySettings; locked: boolean; text: Labels; language: Language; onApply: (settings: QualitySettings) => void}) {
+export const QualityPanel = memo(function QualityPanel({run, settings, locked, text, language, onApply}: {run: RunConfig; settings: QualitySettings; locked: boolean; text: Labels; language: Language; onApply: (settings: QualitySettings) => void}) {
   const [draft, setDraft] = useState(settings), [percent, setPercent] = useState(String(Number((settings.probability * 100).toFixed(6))));
   const normalized = percent.trim().replace(',', '.');
   const probability = /^\d+(?:\.\d{1,6})?$/.test(normalized) ? Number(normalized) / 100 : NaN;
@@ -30,4 +30,4 @@ export function QualityPanel({run, settings, locked, text, language, onApply}: {
       </div></div>
     </fieldset>
   </details>;
-}
+});

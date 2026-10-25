@@ -1,5 +1,7 @@
 # Состав отчётов после № 123
 
+Уточнение пользователя после № 124: CFD и графики потока должны оставаться доступны в обычном режиме. Разделение режимов подготовлено в № 125, простой экран относится к следующей № 126. См. [UI_MODES.md](UI_MODES.md).
+
 Дата: 2026-10-25. Проверены компоненты RunSummary, FinancialReport, InvestmentReport, ConstraintReport, RunMetrics, FlowTimeReport, FlowCheckReport, FlowCharts и отдельный QualitySummary.
 
 ## Выполнено

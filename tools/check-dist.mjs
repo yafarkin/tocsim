@@ -8,6 +8,9 @@ if (files.length !== 1 || files[0] !== 'index.html') {
   throw new Error('Standalone build must contain only index.html');
 }
 const html = await readFile(resolve(directory, 'index.html'), 'utf8');
+if (html.includes('mode-check-result') || html.includes('Injected regression failure')) {
+  throw new Error('Development regression page must not be included in standalone HTML');
+}
 if (!/<!doctype html>/i.test(html)) throw new Error('Missing HTML document');
 let scripts = 0, styles = 0;
 const markup = html.replace(/<script\b([^>]*)>[\s\S]*?<\/script\s*>/gi, (_match, attributes) => {

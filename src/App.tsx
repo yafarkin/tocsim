@@ -29,8 +29,11 @@ import { defaultBatchProfiles, defaultPlanProfile, exampleIds, previewConfig } f
 import type { ExampleId } from './ui/preview';
 import { ThemePicker } from './ui/ThemePicker';
 import { useTheme } from './ui/theme';
+import type { UiMode } from './ui/ui-mode';
 
-export function App() {
+// The public entry remains expert until the complete simple screen in task 126.
+// Mode is deliberately absent from RunConfig/Runner dependencies and editor keys.
+export function App({mode = 'expert'}: {mode?: UiMode} = {}) {
   const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('queue');
   const [generation, setGeneration] = useState(0);
@@ -98,17 +101,17 @@ export function App() {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setLunch(previous => ({...previous, [id]: setting}));
   }, [locked]);
-  const applyQuality = (settings: QualitySettings) => {
+  const applyQuality = useCallback((settings: QualitySettings) => {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setQuality(settings);
-  };
+  }, [locked]);
   const applyWarmup = useCallback((ms: number) => {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setWarmupMs(ms);
   }, [locked]);
   const reset = () => {runner.current?.dispose(); setView(null); setGeneration(value => value + 1);};
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
-  return <main>
+  return <main data-ui-mode={mode}>
     <header className="page-header"><a className="brand" href="#flow">TOC<span>{text.title}</span></a>
       <div className="appearance-controls"><ThemePicker value={theme} onChange={setTheme} text={text}/>
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button></div>
