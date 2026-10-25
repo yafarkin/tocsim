@@ -136,4 +136,6 @@
 
 .constraint-report .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.constraint-report li{margin:12px 0;overflow-wrap:anywhere}.constraint-report h3{overflow-wrap:anywhere}
 
-.run-summary>.output-summary{margin-top:0;border-top:0;padding-top:0}
+.report-group>details:first-of-type{margin-top:0;border-top:0;padding-top:0}
+.report-group{min-width:0}.report-group+.report-group{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.run-summary .report-group>h2{font-size:18px;margin:0 0 12px}.constraint-report a{color:var(--accent)}

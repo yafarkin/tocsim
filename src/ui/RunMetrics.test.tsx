@@ -21,7 +21,7 @@ describe('average stock and station-time tables', () => {
     const html = renderToStaticMarkup(<RunMetrics run={run} model={model} text={text}/>);
     expect(html).toContain(text.zeroObservationHelp); expect(html).toContain(text.notCalculated);
     expect(html).toContain(text.calendarPeriod); expect(html).toContain(text.commonWorkPeriod);
-    expect(html).toContain(text.timeFormatHelp); expect(html).toContain(text.noAveragePlaces);
+    expect(html).toContain(text.timeFormatHelp); expect(html).toContain(text.noOtherAveragePlaces);
     expect(html).not.toMatch(/NaN|Infinity|undefined/);
   });
   it('shows an independently known average and exact period at a partial stop', () => {
@@ -55,7 +55,7 @@ describe('average stock and station-time tables', () => {
     const run = compileConfig(c), model = new Simulation(run).advanceTo(10 * M);
     const html = renderToStaticMarkup(<RunMetrics run={run} model={model} text={labels('en')}/>);
     expect(html).toContain('data-average-owner="s1"'); expect(html).not.toContain('data-average-owner="warehouse"');
-    expect(html).toContain(labels('en').averagePlacesHelp);
+    expect(html).toContain(labels('en').otherAveragePlacesHelp);
   });
   it.each(exampleIds)('renders both languages and independent material rows in %s', example => {
     const run = compileConfig(previewConfig(example)), model = new Simulation(run).runToEnd();

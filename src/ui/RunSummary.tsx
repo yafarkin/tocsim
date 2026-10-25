@@ -10,7 +10,6 @@ import {FlowCharts} from './FlowCharts';
 import {FlowTimeReport} from './FlowTimeReport';
 import {InvestmentReport} from './InvestmentReport';
 import {FinancialReport} from './FinancialReport';
-import {ConstraintReport} from './ConstraintReport';
 import {RunMetrics} from './RunMetrics';
 
 interface Props {run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
@@ -28,40 +27,48 @@ export function RunSummary({run, view, text, language}: Props) {
   const materialName = (id: string) => {const material = run.source.materials.find(m => m.id === id)!;return nameFor(id, material.name, text);};
   const ownerName = (id: string) => id === 'warehouse' ? text.rawWarehouse : nameFor(id, run.source.stations.find(s => s.id === id)?.name ?? id, text);
   const locationName = {input: text.inputQueue, reserved: text.reservedStock, held: text.heldStock, output: text.outputStock, warehouse: text.rawWarehouse};
-  return <section className="run-summary" aria-label={text.runSummary} data-testid="run-summary" data-report-complete={report.complete}>
-    <details className="output-summary">
-      <summary>{text.runSummary}</summary>
-      <p><strong>{terminal ? text.endReason : text.reportStatus}:</strong> {reason}{!report.complete && ` ${text.incompleteResult}`}</p>
-      {view.error && <p className="run-error" role="alert">{view.error.messages[language]}</p>}
-      <p><strong>{text.actualInterval}:</strong> {at(0)} → {at(report.timeMs)}</p>
-      <div className="table-scroll" tabIndex={0} role="region" aria-label={text.productOutput}><table><caption>{text.productOutput}</caption><thead><tr><th>{text.material}</th><th>{text.produced}, {text.unit}</th><th>{text.delivered}, {text.unit}</th><th>{text.awaitingAcceptance}, {text.unit}</th></tr></thead><tbody>
-        {report.products.map(product => <tr key={product.materialId} data-product={product.materialId}><th scope="row">{materialName(product.materialId)}</th><td>{quantityText(product.produced)}</td><td data-delivered={product.materialId}>{quantityText(product.delivered)}</td><td>{quantityText(product.awaitingAcceptance)}</td></tr>)}
-      </tbody></table></div>
-      <p className="summary-help">{text.summaryHelp}</p>
-      <details className="shift-output"><summary>{text.outputByShift}</summary><p>{text.shiftOutputHelp}</p>
-        {report.shifts.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.outputByShift}><table><thead><tr><th>{text.day}</th><th>{text.material}</th><th>{text.goodOutput}, {text.unit}</th></tr></thead><tbody>
-          {report.shifts.map(row => <tr key={`${row.dayIndex}-${row.materialId}`} data-output-day={row.dayIndex + 1} data-output-material={row.materialId}><th scope="row">{row.dayIndex + 1}</th><td>{materialName(row.materialId)}</td><td>{quantityText(row.quantity)}</td></tr>)}
-        </tbody></table></div> : <p>{text.noGoodOutput}</p>}
-      </details>
-      <details className="stock-report"><summary>{text.stockReport}</summary><p>{text.stockBoundaryHelp}</p>
-        <div className="table-scroll" tabIndex={0} role="region" aria-label={text.insideLine}><table><caption>{text.insideLine}, {text.unit}</caption><thead><tr><th>{text.material}</th>{productionLocations.map(location => <th key={location}>{locationName[location]}</th>)}<th>{text.materialTotal}</th></tr></thead><tbody>
-          {report.materials.map(row => <tr key={row.materialId} data-line-stock={row.materialId}><th scope="row">{materialName(row.materialId)}</th>{productionLocations.map(location => <td key={location} data-stock-location={location}>{quantityText(row[location])}</td>)}<td data-stock-total={row.materialId}>{quantityText(row.total)}</td></tr>)}
-        </tbody></table></div><p className="summary-help">{text.reservedStockHelp}</p>
-        <h3>{text.rawWarehouse}</h3><p>{text.warehouseHelp}</p>
-        {report.warehouse.length ? <ul className="warehouse-stock">{report.warehouse.map(row => <li key={row.materialId} data-warehouse-stock={row.materialId}>{materialName(row.materialId)}: {quantityText(row.quantity)} {text.unit}</li>)}</ul> : <p>{text.noWarehouseStock}</p>}
-        <details className="stock-places"><summary>{text.stockByPlace}</summary>
-          {report.places.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.stockByPlace}><table><thead><tr><th>{text.stationOrWarehouse}</th><th>{text.material}</th><th>{text.stockLocation}</th><th>{text.quantity}, {text.unit}</th></tr></thead><tbody>
-            {report.places.map(row => <tr key={JSON.stringify([row.ownerId,row.materialId,row.location])}><th scope="row">{ownerName(row.ownerId)}</th><td>{materialName(row.materialId)}</td><td>{locationName[row.location]}</td><td>{quantityText(row.quantity)}</td></tr>)}
-          </tbody></table></div> : <p>{text.noPhysicalStock}</p>}
+  return <section className="run-summary" aria-label={text.runReports} data-testid="run-summary" data-report-complete={report.complete}>
+    <section className="report-group" aria-labelledby="output-group-title">
+      <h2 id="output-group-title">{text.outputGroup}</h2>
+      <details className="output-summary" id="output-summary">
+        <summary id="output-summary-toggle" tabIndex={0}>{text.runSummary}</summary>
+        <p><strong>{terminal ? text.endReason : text.reportStatus}:</strong> {reason}{!report.complete && ` ${text.incompleteResult}`}</p>
+        {view.error && <p className="run-error" role="alert">{view.error.messages[language]}</p>}
+        <p><strong>{text.actualInterval}:</strong> {at(0)} → {at(report.timeMs)}</p>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label={text.productOutput}><table><caption>{text.productOutput}</caption><thead><tr><th>{text.material}</th><th>{text.produced}, {text.unit}</th><th>{text.delivered}, {text.unit}</th><th>{text.awaitingAcceptance}, {text.unit}</th></tr></thead><tbody>
+          {report.products.map(product => <tr key={product.materialId} data-product={product.materialId}><th scope="row">{materialName(product.materialId)}</th><td>{quantityText(product.produced)}</td><td data-delivered={product.materialId}>{quantityText(product.delivered)}</td><td>{quantityText(product.awaitingAcceptance)}</td></tr>)}
+        </tbody></table></div>
+        <p className="summary-help">{text.summaryHelp}</p>
+        <details className="shift-output"><summary>{text.outputByShift}</summary><p>{text.shiftOutputHelp}</p>
+          {report.shifts.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.outputByShift}><table><thead><tr><th>{text.day}</th><th>{text.material}</th><th>{text.goodOutput}, {text.unit}</th></tr></thead><tbody>
+            {report.shifts.map(row => <tr key={`${row.dayIndex}-${row.materialId}`} data-output-day={row.dayIndex + 1} data-output-material={row.materialId}><th scope="row">{row.dayIndex + 1}</th><td>{materialName(row.materialId)}</td><td>{quantityText(row.quantity)}</td></tr>)}
+          </tbody></table></div> : <p>{text.noGoodOutput}</p>}
+        </details>
+        <details className="stock-report"><summary>{text.stockReport}</summary><p>{text.stockBoundaryHelp}</p>
+          <div className="table-scroll" tabIndex={0} role="region" aria-label={text.insideLine}><table><caption>{text.insideLine}, {text.unit}</caption><thead><tr><th>{text.material}</th>{productionLocations.map(location => <th key={location}>{locationName[location]}</th>)}<th>{text.materialTotal}</th></tr></thead><tbody>
+            {report.materials.map(row => <tr key={row.materialId} data-line-stock={row.materialId}><th scope="row">{materialName(row.materialId)}</th>{productionLocations.map(location => <td key={location} data-stock-location={location}>{quantityText(row[location])}</td>)}<td data-stock-total={row.materialId}>{quantityText(row.total)}</td></tr>)}
+          </tbody></table></div><p className="summary-help">{text.reservedStockHelp}</p>
+          <h3>{text.rawWarehouse}</h3><p>{text.warehouseHelp}</p>
+          {report.warehouse.length ? <ul className="warehouse-stock">{report.warehouse.map(row => <li key={row.materialId} data-warehouse-stock={row.materialId}>{materialName(row.materialId)}: {quantityText(row.quantity)} {text.unit}</li>)}</ul> : <p>{text.noWarehouseStock}</p>}
+          <details className="stock-places"><summary>{text.stockByPlace}</summary>
+            {report.places.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.stockByPlace}><table><thead><tr><th>{text.stationOrWarehouse}</th><th>{text.material}</th><th>{text.stockLocation}</th><th>{text.quantity}, {text.unit}</th></tr></thead><tbody>
+              {report.places.map(row => <tr key={JSON.stringify([row.ownerId,row.materialId,row.location])}><th scope="row">{ownerName(row.ownerId)}</th><td>{materialName(row.materialId)}</td><td>{locationName[row.location]}</td><td>{quantityText(row.quantity)}</td></tr>)}
+            </tbody></table></div> : <p>{text.noPhysicalStock}</p>}
+          </details>
         </details>
       </details>
-    </details>
-    <FinancialReport run={run} model={view.model} text={text}/>
-    <InvestmentReport run={run} model={view.model} text={text}/>
-    <ConstraintReport run={run} model={view.model} text={text}/>
-    <RunMetrics run={run} model={view.model} text={text}/>
-    <FlowTimeReport run={run} model={view.model} text={text}/>
-    <FlowCheckReport run={run} view={view} text={text}/>
-    <FlowCharts run={run} history={view.history} text={text} language={language}/>
+    </section>
+    <section className="report-group" aria-labelledby="economy-group-title">
+      <h2 id="economy-group-title">{text.economyGroup}</h2>
+      <FinancialReport run={run} model={view.model} text={text}/>
+      <InvestmentReport run={run} model={view.model} text={text}/>
+    </section>
+    <section className="report-group" aria-labelledby="flow-group-title">
+      <h2 id="flow-group-title">{text.flowGroup}</h2>
+      <RunMetrics run={run} model={view.model} text={text}/>
+      <FlowTimeReport run={run} model={view.model} text={text}/>
+      <FlowCheckReport run={run} view={view} text={text}/>
+      <FlowCharts run={run} history={view.history} text={text} language={language}/>
+    </section>
   </section>;
 }

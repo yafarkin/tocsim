@@ -2,6 +2,7 @@ import type {DeepReadonly, RunConfig} from '../engine/config';
 import type {Snapshot, StationTime} from '../engine/state';
 import {stockTimeReport} from '../engine/stock-time';
 import {stationTimeReport} from '../engine/station-time';
+import {ConstraintReport} from './ConstraintReport';
 import {nameFor} from './i18n';
 import type {Labels} from './i18n';
 import {averageText, durationText, percentText} from './metric-format';
@@ -10,6 +11,7 @@ export function RunMetrics({run, model, text}: {run: RunConfig; model: DeepReado
   const stocks = stockTimeReport(run, model), times = stationTimeReport(model);
   const materialName = (id: string) => nameFor(id, run.source.materials.find(m => m.id === id)!.name, text);
   const stationName = (id: string) => nameFor(id, run.source.stations.find(s => s.id === id)!.name, text);
+  const otherPlaces = stocks.places.filter(place => place.location !== 'input');
   const locationName = {input: text.inputQueue, reserved: text.reservedStock, held: text.heldStock, output: text.outputStock};
   const states: [keyof StationTime, string][] = [
     ['processingMs', text.processingTime], ['setupMs', text.setup], ['maintenanceMs', text.maintenance],
@@ -22,6 +24,9 @@ export function RunMetrics({run, model, text}: {run: RunConfig; model: DeepReado
   </>;
   return <details className="run-metrics" data-testid="run-metrics" data-calendar-ms={stocks.calendarMs} data-work-ms={stocks.workMs}>
     <summary>{text.flowMetrics}</summary>
+    <p>{text.constraintHelp}</p><p>{text.constraintPeriod}</p>
+    {model.line?.termination !== 'horizon' && <p className="summary-help">{text.incompleteResult}</p>}
+    <p>{text.actualInterval}: {durationText(0)} → {durationText(model.timeMs)}</p>
     <section className="metric-section" aria-labelledby="average-stock-title">
       <h3 id="average-stock-title">{text.averageStocks}</h3>
       <p>{text.averageStockHelp}</p>
@@ -34,10 +39,10 @@ export function RunMetrics({run, model, text}: {run: RunConfig; model: DeepReado
         {stocks.materials.map(row => <tr key={row.materialId} data-average-material={row.materialId}><th scope="row">{materialName(row.materialId)}</th>{meanCells(row)}</tr>)}
       </tbody></table></div>
       <p className="summary-help">{text.metricRoundingHelp}</p>
-      <details className="average-stock-places"><summary>{text.averageByPlace}</summary><p>{text.averagePlacesHelp}</p>
-        {stocks.places.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.averageByPlace}><table className="metric-table"><caption>{text.averageByPlace}, {text.unit}</caption><thead><tr><th scope="col">{text.stationColumn}</th><th scope="col">{text.material}</th><th scope="col">{text.stockLocation}</th><th scope="col">{text.calendarAverage}</th><th scope="col">{text.workAverage}</th></tr></thead><tbody>
-          {stocks.places.map(row => <tr key={JSON.stringify([row.ownerId, row.materialId, row.location])} data-average-owner={row.ownerId} data-average-place-material={row.materialId} data-average-location={row.location}><th scope="row">{stationName(row.ownerId)}</th><td>{materialName(row.materialId)}</td><td>{locationName[row.location]}</td>{meanCells(row)}</tr>)}
-        </tbody></table></div> : <p>{text.noAveragePlaces}</p>}
+      <details className="average-stock-places"><summary>{text.otherAveragePlaces}</summary><p>{text.otherAveragePlacesHelp} {text.inputAverageReference}</p>
+        {otherPlaces.length ? <div className="table-scroll" tabIndex={0} role="region" aria-label={text.otherAveragePlaces}><table className="metric-table"><caption>{text.otherAveragePlaces}, {text.unit}</caption><thead><tr><th scope="col">{text.stationColumn}</th><th scope="col">{text.material}</th><th scope="col">{text.stockLocation}</th><th scope="col">{text.calendarAverage}</th><th scope="col">{text.workAverage}</th></tr></thead><tbody>
+          {otherPlaces.map(row => <tr key={JSON.stringify([row.ownerId, row.materialId, row.location])} data-average-owner={row.ownerId} data-average-place-material={row.materialId} data-average-location={row.location}><th scope="row">{stationName(row.ownerId)}</th><td>{materialName(row.materialId)}</td><td>{locationName[row.location]}</td>{meanCells(row)}</tr>)}
+        </tbody></table></div> : <p>{text.noOtherAveragePlaces}</p>}
       </details>
     </section>
     <section className="metric-section" aria-labelledby="station-time-title">
@@ -53,5 +58,6 @@ export function RunMetrics({run, model, text}: {run: RunConfig; model: DeepReado
       </details>
       <p className="summary-help">{text.timeFormatHelp}</p>
     </section>
+    <ConstraintReport run={run} model={model} text={text}/>
   </details>;
 }

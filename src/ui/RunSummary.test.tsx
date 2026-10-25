@@ -9,6 +9,20 @@ import { labels } from './i18n';
 import { RunSummary } from './RunSummary';
 
 describe('run summary from actual counters', () => {
+  it.each(['ru', 'en'] as const)('groups reports without hiding one report inside another in %s', language => {
+    const run = exampleRuns.queue, runner = new Runner(run), text = labels(language);
+    const html = renderToStaticMarkup(<RunSummary run={run} view={runner.getView()} text={text} language={language}/>);
+    for (const title of [text.outputGroup, text.economyGroup, text.flowGroup]) expect(html).toContain(`>${title}</h2>`);
+    expect((html.match(/data-time-state="processingMs"/g) ?? []).length).toBe(1);
+    expect(html).not.toContain('data-constraint-state=');
+    expect(html).not.toContain('data-constraint-product=');
+    expect(html).toContain('<details class="output-summary" id="output-summary">');
+    const outputEnd = html.indexOf('aria-labelledby="economy-group-title"');
+    expect(html.indexOf('data-testid="financial-report"')).toBeGreaterThan(outputEnd);
+    expect(html.indexOf('data-testid="run-metrics"')).toBeGreaterThan(html.indexOf('aria-labelledby="flow-group-title"'));
+    expect(html).toContain('id="output-summary-toggle"');
+    runner.dispose();
+  });
   it('shows a live incomplete report and distinguishes stopped time from the planned horizon', () => {
     const run = exampleRuns.queue, runner = new Runner(run);
     for (const status of ['ready', 'running', 'paused'] as const) {
