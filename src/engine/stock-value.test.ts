@@ -134,7 +134,7 @@ describe('physical inventory value over calendar time', () => {
     const c=finite();c.durationMs+=99*DAY_MS;c.initialStocks[0]!.quantity='0.5';c.initialStocks[0]!.cost='9007199254.740991';
     const model=new Simulation(compileConfig(c)).runToEnd(), integral=MAX_UNITS*BigInt(c.durationMs);
     expect(value(model)).toEqual({currentCost:String(MAX_UNITS),calendarCostMs:String(integral)});
-    expect(integral>MAX_UNITS).toBe(true);expect(model.schemaVersion).toBe(24);expect(model.engineVersion).toBe('0.33.0');
+    expect(integral>MAX_UNITS).toBe(true);expect(model.schemaVersion).toBe(24);expect(model.engineVersion).toBe('0.34.0');
     expect(JSON.parse(JSON.stringify(model)).line.stockValue).toEqual(value(model));expect(Object.isFrozen(value(model))).toBe(true);
   });
   it('does not charge station capital or operating expenses to inventory', () => {

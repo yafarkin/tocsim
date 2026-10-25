@@ -85,6 +85,7 @@ export class Runner {
     this.view = this.makeView();
   }
   getView(): DeepReadonly<RunnerView> { return this.view; }
+  getFlowReport() {return this.simulation.getFlowReport();}
   getFailure(): unknown { return this.failure?.error ?? null; }
   private ensureAlive() {
     if (this.status === 'disposed') throw new RunnerError('state', {ru: 'Runner уже освобождён.', en: 'Runner has been disposed.'});

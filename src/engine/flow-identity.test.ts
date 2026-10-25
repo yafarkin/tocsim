@@ -59,8 +59,8 @@ describe('exact finite flow identity from independent boundary moments',()=>{
     const {model,r}=measure(c,5*M);
     expect(r).toMatchObject({admittedQuantity:'6000000',exitedQuantity:'2000000',remainingQuantity:'4000000',consistent:true});
     expect(r.calendar.integralQuantityMs).toBe(String(15n*Q*BigInt(M)));expect(r.calendar.clippedResidenceQuantityMs).toBe(String(15n*Q*BigInt(M)));
-    // Existing flowTime intentionally uses the earliest ancestor, not individual unit lifetimes.
-    expect(model.line!.flowTime[0]!.admission.calendarQuantityMs).toBe(String(10n*Q*BigInt(M)));
+    // The completed-time report uses the same preserved physical origins.
+    expect(model.line!.flowTime[0]!.admission.calendarQuantityMs).toBe(String(9n*Q*BigInt(M)));
   });
   it.each(['sequential','simultaneous'] as const)('counts reserved and held %s batch portions only once',mode=>{
     const c=single();Object.assign(c.stations[0]!.plan[0]!.processing,{mode,repetitions:3});c.stations[0]!.transportThreshold='3';

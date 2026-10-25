@@ -120,7 +120,7 @@ describe('atomic reservation and production', () => {
     receive(state, q(inputAmount), 123n, {...origin(12), processingMs: {prior: 77n}});
     reserveInputs(state, 's1', [{materialId: 'A', quantity: q(inputAmount)}]);
     expect(state.stocks.every(s => s.location === 'reserved')).toBe(true);
-    const result = completeProduction(state, 's1', {materialId: 'B', quantity: q(outputAmount)}, 100);
+    const result = completeProduction(state, 's1', {materialId: 'B', quantity: q(outputAmount)}, 100)[0]!;
     expect(state.stocks).toHaveLength(1);
     expect(result).toMatchObject({location: 'held', materialId: 'B', quantity: q(outputAmount), cost: 123n});
     expect(result.provenance.processingMs).toEqual({prior: 77n, s1: 100n});
@@ -153,7 +153,7 @@ describe('atomic reservation and production', () => {
     receive(state, q('1'), 7n, {...origin(20), processingMs: {upstream: 31n}}, 'A');
     receive(state, q('2'), 11n, {...origin(10), defective: true, defectSourceIds: ['badStation'], processingMs: {upstream: 41n, other: 5n}}, 'C');
     reserveInputs(state, 's1', [{materialId: 'A', quantity: q('1')}, {materialId: 'C', quantity: q('2')}]);
-    const result = completeProduction(state, 's1', {materialId: 'B', quantity: q('10')}, 17);
+    const result = completeProduction(state, 's1', {materialId: 'B', quantity: q('10')}, 17)[0]!;
     expect(result.cost).toBe(18n);
     expect(result.provenance).toEqual({origin: {kind: 'known', startedAtMs: 10}, firstProcessing: {kind: 'unknown'}, defective: true, defectSourceIds: ['badStation'], processingMs: {upstream: 72n, other: 5n, s1: 17n}});
     const two = consumeStock(state, held, 'B', q('2'));
@@ -179,7 +179,7 @@ describe('atomic reservation and production', () => {
     const flags: boolean[] = [];
     for (let i = 0; i < 2; i++) {
       reserveInputs(state, 's1', [{materialId: 'A', quantity: q('1')}]);
-      flags.push(completeProduction(state, 's1', {materialId: 'B', quantity: q('1')}, 1).provenance.defective);
+      flags.push(completeProduction(state, 's1', {materialId: 'B', quantity: q('1')}, 1)[0]!.provenance.defective);
       consumeStock(state, held, 'B', q('1'));
     }
     expect(flags).toEqual([true, false]);

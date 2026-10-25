@@ -4,7 +4,7 @@ import type { BoundedDistribution, DurationDistribution } from './random';
 import { CalendarError, calendarForDuration } from './calendar';
 
 export const SCHEMA_VERSION = 1;
-export const ENGINE_VERSION = '0.33.0';
+export const ENGINE_VERSION = '0.34.0';
 import { RNG_VERSION } from './random';
 export { RNG_VERSION } from './random';
 
@@ -60,7 +60,7 @@ export interface EditorConfig {
   schemaVersion: 1; id: string; name: string; language: 'ru' | 'en';
   displayOrder?: string[];
   bufferDefaults?: {input?: BufferConfig | ShiftBufferConfig; output?: BufferConfig};
-  seed: number; durationMs: number; policy: 'push';
+  seed: number; durationMs: number; warmupMs?: number; policy: 'push';
   calendar: { shiftStartMs: number; lunchStartMs: number; lunchEndMs: number; shiftEndMs: number };
   materials: MaterialConfig[]; recipes: RecipeConfig[]; stations: StationConfig[];
   sources: SourceConfig[]; routes: RouteConfig[]; initialStocks: InitialStockConfig[];
@@ -74,7 +74,7 @@ export interface ResolvedPlanRow {
   defectProbability?: number;
 }
 export interface ResolvedConfig {
-  seed: number; durationMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
+  seed: number; durationMs: number; warmupMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
   materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
   recipes: { id: string; kind: RecipeConfig['kind']; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
   stations: {
@@ -225,7 +225,7 @@ function calculationHash(config: ResolvedConfig): string {
 export function compileConfig(value: unknown): RunConfig {
   const root = new Reader('config',
     value && typeof value === 'object' && 'id' in value && typeof value.id === 'string' ? value.id : null);
-  const config = root.object(value, ['schemaVersion', 'id', 'name', 'language', 'displayOrder', 'seed', 'durationMs', 'policy', 'calendar', 'materials', 'recipes', 'stations', 'sources', 'routes', 'initialStocks', 'bufferDefaults']);
+  const config = root.object(value, ['schemaVersion', 'id', 'name', 'language', 'displayOrder', 'seed', 'durationMs', 'warmupMs', 'policy', 'calendar', 'materials', 'recipes', 'stations', 'sources', 'routes', 'initialStocks', 'bufferDefaults']);
   root.at('schemaVersion').literal(config.schemaVersion, SCHEMA_VERSION);
   const seen = new Set<string>(['market', 'warehouse']);
   function id(value: unknown, reader: Reader): string {
@@ -248,6 +248,7 @@ export function compileConfig(value: unknown): RunConfig {
   root.at('language').choice(config.language, ['ru', 'en']);
   const seed = root.at('seed').integer(config.seed, 0, 0xffffffff);
   const durationMs = root.at('durationMs').integer(config.durationMs, 1);
+  const warmupMs = config.warmupMs === undefined ? 0 : root.at('warmupMs').integer(config.warmupMs, 0, durationMs);
   const policy = root.at('policy').literal(config.policy, 'push');
   const calReader = root.at('calendar');
   const cal = calReader.object(config.calendar, ['shiftStartMs', 'lunchStartMs', 'lunchEndMs', 'shiftEndMs']);
@@ -560,7 +561,7 @@ export function compileConfig(value: unknown): RunConfig {
       unique.add(item);
     });
   }
-  const resolved: ResolvedConfig = {seed, durationMs, policy, calendar, materials, recipes, stations, sources, routes, initialStocks};
+  const resolved: ResolvedConfig = {seed, durationMs, warmupMs, policy, calendar, materials, recipes, stations, sources, routes, initialStocks};
   // Validation constructed independent numeric data; source is separately cloned for editing a copy.
   const source = structuredClone(value) as EditorConfig;
   return freezeData({schemaVersion: SCHEMA_VERSION, engineVersion: ENGINE_VERSION, rngVersion: RNG_VERSION,

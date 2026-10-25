@@ -174,3 +174,20 @@ describe('simulation and repeatability', () => {
     expect(product.produced).toBeGreaterThan(0);expect(product.sold).toBe(0);expect(product.soldCost).toBe('0');expect(product.scrapped).toBe(product.produced);
   });
 });
+
+describe('quality samples across conserved time portions', () => {
+  it('keeps whole-piece quality sample indices when an origin boundary cuts through a piece', () => {
+    const s=state();receive(s,'A',300_000,7n,false,3n);receive(s,'A',11_700_000,13n,false,5n);
+    s.stocks[1]!.provenance.origin={kind:'known',startedAtMs:1};
+    reserveInputs(s,'s1',[{materialId:'A',quantity:12*Q}]);
+    const result=completeProductionBatch(s,'s1',{materialId:'B',quantity:12*Q},17,100,[{materialId:'A',quantity:12*Q}],1,quality(0.5));
+    let position=0;
+    for(const portion of result) {
+      const first=Math.floor(position/Q),last=Math.floor((position+portion.quantity-1)/Q);
+      for(let piece=first;piece<=last;piece++)expect(portion.provenance.defective).toBe(defectOccurs(0.5,42,'s1','cut',0,piece));
+      expect(portion.provenance.origin).toEqual({kind:'known',startedAtMs:position<300_000?0:1});position+=portion.quantity;
+    }
+    expect(position).toBe(12*Q);expect(sumCost(result)).toBe(20n);expect(sumTime(result,'upstream')).toBe(8n);expect(sumTime(result,'s1')).toBe(17n);
+    expect(s.stocks.map(p=>[p.quantity,p.provenance.origin])).toEqual(result.map(p=>[p.quantity,p.provenance.origin]));
+  });
+});

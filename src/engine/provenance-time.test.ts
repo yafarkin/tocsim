@@ -104,14 +104,14 @@ describe('independent admission and first-processing provenance', () => {
     const s = empty(); receive(s, 'A', Q, {kind: 'known', startedAtMs: 15}, 0); receive(s, 'B', Q, {kind: 'known', startedAtMs: 6}, 5);
     const kit = [{materialId: 'A', quantity: Q}, {materialId: 'B', quantity: Q}];
     reserveInputs(s, 's1', kit); startProcessingInputs(s, 's1', kit, 25);
-    const result = completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40, kit);
+    const result = completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40, kit)[0]!;
     expect(result.provenance).toMatchObject({origin: {kind: 'known', startedAtMs: 0}, firstProcessing: {kind: 'known', startedAtMs: 6}});
   });
 
   it('keeps processing history unknown if any assembly component has unknown history', () => {
     const s = empty(); receive(s, 'A', Q, {kind: 'known', startedAtMs: 15}); receive(s, 'B', Q, {kind: 'unknown'}, 5);
     const kit = [{materialId: 'A', quantity: Q}, {materialId: 'B', quantity: Q}]; reserveInputs(s, 's1', kit); startProcessingInputs(s, 's1', kit, 25);
-    const result = completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40, kit);
+    const result = completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40, kit)[0]!;
     expect(result.provenance).toMatchObject({origin: {kind: 'known', startedAtMs: 0}, firstProcessing: {kind: 'unknown'}});
   });
 
@@ -161,7 +161,7 @@ describe('independent admission and first-processing provenance', () => {
 
   it.each(['production', 'inspection'] as const)('does not infer a start from worked duration when a low-level %s caller did not record one', kind => {
     const s = empty(); receive(s, 'A', Q); reserveInputs(s, 's1', [{materialId: 'A', quantity: Q}]);
-    const result = kind === 'production' ? completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40)
+    const result = kind === 'production' ? completeProduction(s, 's1', {materialId: 'C', quantity: Q}, 10, 40)[0]!
       : completeInspection(s, 's1', 'A', 10, 40).passed[0]!;
     expect(result.provenance.firstProcessing).toEqual({kind: 'unknown'});
   });
@@ -232,5 +232,32 @@ describe('atomicity, snapshot and deterministic provenance', () => {
     expect(irregular.runToEnd()).toEqual(expected); expect(new Simulation(run).runToEnd()).toEqual(expected);
     c.stations.reverse(); c.materials.reverse(); c.recipes.reverse(); c.sources.reverse(); c.routes.reverse(); c.initialStocks.reverse();
     expect(new Simulation(compileConfig(c)).runToEnd()).toEqual(expected);
+  });
+});
+
+describe('one physical provenance for conserving recipes', () => {
+  it('preserves fractional FIFO origins, known/unknown history and exact cost/time totals across downstream processing', () => {
+    const s = empty();
+    receive(s, 'A', 300_000, {kind:'known', startedAtMs:2}, 0, 7n);
+    receive(s, 'A', 700_000, {kind:'unknown'}, 1, 11n);
+    receive(s, 'A', Q, {kind:'known', startedAtMs:4}, 2, 13n);
+    const kit=[{materialId:'A',quantity:2*Q}];reserveInputs(s,'s1',kit);
+    const output=completeProduction(s,'s1',{materialId:'B',quantity:2*Q},17,40,kit);
+    expect(output.map(p=>[p.quantity,p.provenance.origin,p.provenance.firstProcessing])).toEqual([
+      [300_000,{kind:'known',startedAtMs:0},{kind:'known',startedAtMs:2}],
+      [700_000,{kind:'known',startedAtMs:1},{kind:'unknown'}],
+      [Q,{kind:'known',startedAtMs:2},{kind:'known',startedAtMs:4}],
+    ]);
+    expect(output.reduce((sum,p)=>sum+p.cost,0n)).toBe(31n);
+    expect(output.reduce((sum,p)=>sum+p.provenance.processingMs.s1!,0n)).toBe(17n);
+    transferStock(s,{ownerId:'s1',location:'held'},{ownerId:'s2',location:'input'},'B',2*Q,infinite,40);
+    reserveInputs(s,'s2',[{materialId:'B',quantity:2*Q}]);
+    const downstream=completeProduction(s,'s2',{materialId:'C',quantity:2*Q},13,60,[{materialId:'B',quantity:2*Q}]);
+    expect(downstream.map(p=>p.provenance.origin)).toEqual(output.map(p=>p.provenance.origin));
+    expect(downstream.map(p=>p.provenance.firstProcessing)).toEqual(output.map(p=>p.provenance.firstProcessing));
+    expect(downstream.reduce((sum,p)=>sum+p.cost,0n)).toBe(31n);
+    expect(downstream.reduce((sum,p)=>sum+p.provenance.processingMs.s1!,0n)).toBe(17n);
+    expect(downstream.reduce((sum,p)=>sum+p.provenance.processingMs.s2!,0n)).toBe(13n);
+    output[0]!.provenance.origin={kind:'unknown'};expect(s.stocks[0]!.provenance.origin.kind).toBe('known');
   });
 });

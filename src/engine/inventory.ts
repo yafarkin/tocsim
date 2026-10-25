@@ -251,7 +251,7 @@ export function startProcessingInputs(state: InventoryState, stationId: string, 
 }
 
 /** Complete one repetition or an explicitly homogeneous aggregate. Caller owns the transaction. */
-function produceDraft(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
+function produceDraft(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState[] {
   const draft = state;
   address({ownerId: stationId, location: 'held'});
   quantity(output.quantity, output.materialId); quantity(actualProcessingMs, stationId, false); quantity(readyAtMs, stationId, false);
@@ -283,18 +283,36 @@ function produceDraft(state: InventoryState, stationId: string, output: Material
   times.set(stationId, addMoney(times.get(stationId) ?? 0n, BigInt(actualProcessingMs)));
   provenance.processingMs = Object.fromEntries([...times.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
   provenance.defectSourceIds = [...defects].sort();
-  const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId, quantity: output.quantity, cost, readyAtMs, provenance};
+  // Preserve physical FIFO portions for a conserving, single-material recipe.
+  // No second clock, mean timestamp, ancestry tree or completed-piece log is needed.
+  const conserving = new Set(inputs.map(s => s.materialId)).size === 1
+    && inputs.reduce((sum, s) => sum + s.quantity, 0) === output.quantity;
+  const portions = conserving ? inputs : [{quantity: output.quantity, provenance}];
+  let prior = 0n;
+  const total = BigInt(output.quantity);
+  const results = portions.map(part => {
+    const end = prior + BigInt(part.quantity);
+    const share = (value: bigint) => value * end / total - value * prior / total;
+    const p = copyProvenance(provenance);
+    p.origin = {...part.provenance.origin};
+    p.firstProcessing = part.provenance.firstProcessing.kind === 'notStarted' ? {kind: 'unknown'} : {...part.provenance.firstProcessing};
+    p.processingMs = Object.fromEntries(Object.entries(provenance.processingMs).map(([id, value]) => [id, share(value)]));
+    const result: StockState = {id: newId(draft), ownerId: stationId, location: 'held', materialId: output.materialId,
+      quantity: part.quantity, cost: share(cost), readyAtMs, provenance: p};
+    prior = end;
+    return result;
+  });
   draft.stocks = draft.stocks.filter(stock => !inputs.includes(stock));
-  draft.stocks.push(result);
-  return result;
+  draft.stocks.push(...results);
+  return results;
 }
 
-
-/** Existing single-repetition accounting operation. */
-export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState {
+/** Complete one repetition, returning all physical output portions. */
+export function completeProduction(state: InventoryState, stationId: string, output: MaterialAmount, actualProcessingMs: number, readyAtMs = 0, kit?: readonly MaterialAmount[]): StockState[] {
   quantity(actualProcessingMs, stationId);
   return transaction(state, draft => produceDraft(draft, stationId, output, actualProcessingMs, readyAtMs, kit));
 }
+
 export interface ProductionQuality {probability: number; seed: number; recipeId: string; operationOrdinal: number}
 
 /** Preserve each simultaneous repetition's kit. Split outputs only where quality differs.
@@ -318,10 +336,10 @@ export function completeProductionBatch(state: InventoryState, stationId: string
     let remainingWork = BigInt(actualProcessingMs);
     for (let repeat = 0; repeat < repetitions; repeat++) {
       const share = remainingWork / BigInt(repetitions - repeat); remainingWork -= share;
-      const result = produceDraft(draft, stationId, output, Number(share), readyAtMs, kit);
+      const produced = produceDraft(draft, stationId, output, Number(share), readyAtMs, kit);
       if (probability === 0 || probability === 1) {
-        if (probability === 1) markOwnDefect(result);
-        results.push(result); continue;
+        if (probability === 1) produced.forEach(markOwnDefect);
+        results.push(...produced); continue;
       }
       const spans: {quantity: number; defective: boolean}[] = [];
       for (let piece = 0; piece < perRepeat; piece++) {
@@ -330,19 +348,25 @@ export function completeProductionBatch(state: InventoryState, stationId: string
         if (last && last.defective === defective) last.quantity += 1_000_000;
         else spans.push({quantity: 1_000_000, defective});
       }
-      draft.stocks.splice(draft.stocks.indexOf(result), 1);
-      let consumed = 0n;
-      const total = BigInt(result.quantity);
-      // Prefix shares make allocation independent of the quality run boundaries.
-      const shareBetween = (value: bigint, end: bigint) => value * end / total - value * consumed / total;
-      for (let index = 0; index < spans.length; index++) {
-        const span = spans[index]!, end = consumed + BigInt(span.quantity);
-        const stock: StockState = {...result, id: index === 0 ? result.id : newId(draft), quantity: span.quantity,
-          cost: shareBetween(result.cost, end), provenance: copyProvenance(result.provenance)};
-        for (const [id, time] of Object.entries(result.provenance.processingMs)) stock.provenance.processingMs[id] = shareBetween(time, end);
-        if (span.defective) markOwnDefect(stock);
-        consumed = end;
-        draft.stocks.push(stock); results.push(stock);
+      // Intersect quality spans with the existing time portions. Sample indices
+      // depend on output pieces, never on the number of provenance portions.
+      let spanIndex = 0, spanRemaining = spans[0]!.quantity;
+      for (const result of produced) {
+        draft.stocks.splice(draft.stocks.indexOf(result), 1);
+        let consumed = 0n;
+        const total = BigInt(result.quantity);
+        const shareBetween = (value: bigint, end: bigint) => value * end / total - value * consumed / total;
+        while (consumed < total) {
+          const count = Math.min(Number(total - consumed), spanRemaining), end = consumed + BigInt(count);
+          const stock: StockState = {...result, id: consumed === 0n ? result.id : newId(draft), quantity: count,
+            cost: shareBetween(result.cost, end), provenance: copyProvenance(result.provenance)};
+          for (const [id, time] of Object.entries(result.provenance.processingMs)) stock.provenance.processingMs[id] = shareBetween(time, end);
+          if (spans[spanIndex]!.defective) markOwnDefect(stock);
+          consumed = end;
+          draft.stocks.push(stock); results.push(stock);
+          spanRemaining -= count;
+          if (spanRemaining === 0 && spanIndex + 1 < spans.length) spanRemaining = spans[++spanIndex]!.quantity;
+        }
       }
     }
     return results;

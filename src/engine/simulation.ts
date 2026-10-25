@@ -10,6 +10,7 @@ import { completeInspection, completeProductionBatch, consumeStock, reserveInput
 import { createPushHandlers, createPushState, scheduleInitialSources } from './sources';
 import { recordFlowTime, emptyFlowTime } from './flow-time';
 import {emptyFlowBoundaryMoments, flowIdentityReason, recordFlowBoundary} from './flow-identity';
+import {littleLawReport} from './little-law';
 import {FlowHistoryCollector} from './flow-history';
 import {stockCostIntegral} from './stock-value';
 import { integrateStockTime } from './stock-time';
@@ -407,6 +408,7 @@ export class Simulation {
   private readonly scheduler: EventScheduler;
   private readonly history: FlowHistoryCollector;
   private terminal: DeepReadonly<Snapshot> | null = null;
+  private windowStart: DeepReadonly<Snapshot> | null = null;
   private failure: {error: unknown} | null = null;
   constructor(private readonly run: RunConfig) {
     const state = createPushState(run);
@@ -416,6 +418,7 @@ export class Simulation {
     const handlers = createLineHandlers(run);
     this.scheduler = new EventScheduler(run, state, handlers);
     this.history = new FlowHistoryCollector(run, this.scheduler.getSnapshot());
+    if (run.resolved.warmupMs === 0) this.windowStart = this.scheduler.getSnapshot();
     scheduleInitialSources(this.scheduler, run);
     this.scheduler.schedule({kind: 'transfer', id: WAKE, producerId: WAKE, timeMs: 0});
     const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
@@ -424,6 +427,21 @@ export class Simulation {
   }
   getSnapshot(): DeepReadonly<Snapshot> { return this.terminal ?? this.scheduler.getSnapshot(); }
   getHistory() {return this.history.get(this.getSnapshot());}
+  /** One immutable exact baseline. Null means warmup has not been reached. */
+  getFlowWindowStart(): DeepReadonly<Snapshot> | null {return this.windowStart;}
+  getFlowReport() {return littleLawReport(this.run, this.getSnapshot(), this.windowStart);}
+  private captureBefore(targetMs: number) {
+    const start = this.run.resolved.warmupMs;
+    if (!this.windowStart && start < targetMs) {
+      this.scheduler.advanceTo(start);
+      this.windowStart = this.scheduler.getSnapshot();
+    }
+  }
+  private captureAtCurrentTime() {
+    if (!this.windowStart && this.scheduler.getSnapshot().timeMs === this.run.resolved.warmupMs) {
+      this.windowStart = this.scheduler.getSnapshot();
+    }
+  }
   nextEventTime(): number | null { return this.terminal ? null : this.scheduler.nextEventTime(); }
   private markTerminal(termination: 'stopped' | 'error'): DeepReadonly<Snapshot> {
     const snapshot = this.scheduler.getSnapshot();
@@ -433,7 +451,10 @@ export class Simulation {
   step(): StepResult | null {
     if (this.terminal) return null;
     try {
+      const next = this.scheduler.nextEventTime();
+      if (next !== null) this.captureBefore(next);
       const result = this.scheduler.step();
+      this.captureAtCurrentTime();
       if (result) this.history.settled(this.scheduler.getSnapshot());
       return result;
     } catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
@@ -446,7 +467,9 @@ export class Simulation {
       }
       let next = this.scheduler.nextEventTime();
       while (next !== null && next <= timeMs) {this.step(); next = this.scheduler.nextEventTime();}
+      this.captureBefore(timeMs);
       const result = this.scheduler.advanceTo(timeMs);
+      this.captureAtCurrentTime();
       this.history.advanceTime(timeMs);
       return result;
     } catch (error) {this.failure = {error}; this.markTerminal('error'); throw error;}
