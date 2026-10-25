@@ -320,7 +320,7 @@ it.each(exampleIds)('publishes the same bounded flow history at every UI speed, 
     runner.step(); const paused = runner.getView().history;
     host.time += 50_000; runner.setSpeed(speed);
     expect(runner.getView().history).toBe(paused);
-    expect(runner.getView().schemaVersion).toBe(3); expect(Object.isFrozen(paused.points)).toBe(true);
+    expect(runner.getView().schemaVersion).toBe(4); expect(Object.isFrozen(paused.points)).toBe(true);
     runner.resume(); host.drain(60_000);
     expect(runner.getView().status).toBe('finished'); expect(runner.getView().history).toEqual(expected);
     if (speed === 'max') {

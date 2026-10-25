@@ -130,3 +130,6 @@
 
 .investment-roi{font-variant-numeric:tabular-nums}.investment-roi [data-investment=roi]{font-weight:600}
 @media(max-width:480px){.investment-report .metric-table th,.investment-report .metric-table th:first-child{min-width:0}.investment-report .metric-table th,.investment-report .metric-table td{padding:8px}}
+
+.flow-check-report .metric-section{margin-top:22px;padding-top:4px;border-top:1px solid var(--line)}.flow-check-report .metric-section>h3{font-size:20px}.flow-check-report [data-flow-exact],.flow-check-report [data-flow-window-exact]{font-weight:600}.flow-check-report .flow-counts{gap:14px 30px}.flow-check-report .flow-counts dd{font-size:18px}.flow-check-report .metric-table th:first-child{max-width:330px}.flow-edge-details{margin-top:20px}
+@media(max-width:480px){.flow-check-report .metric-section>h3{font-size:19px}.flow-check-report .flow-counts>div{width:calc(50% - 15px)}}

@@ -5,6 +5,7 @@ import { compileConfig, ConfigError } from './engine/config';
 import type { DeepReadonly, MaintenanceConfig } from './engine/config';
 import { Runner } from './runner/runner';
 import type { PlaybackSpeed, RunnerView } from './runner/runner';
+import { WarmupPanel } from './ui/WarmupPanel';
 import { DurationPanel, withDuration } from './ui/DurationPanel';
 import type { DurationDistribution } from './engine/random';
 import { LunchPanel } from './ui/LunchPanel';
@@ -43,8 +44,9 @@ export function App() {
   const [maintenance, setMaintenance] = useState<MaintenanceConfig>({enabled: false});
   const [lunch, setLunch] = useState<LunchSettings>({});
   const [quality, setQuality] = useState<QualitySettings>(defaultQuality);
+  const [warmupMs, setWarmupMs] = useState(0);
   const [buffers, setBuffers] = useState<BufferSettings | null>(null);
-  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); return compileConfig(config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality]);
+  const run = useMemo(() => {let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); config.warmupMs = warmupMs; return compileConfig(config);}, [example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality, warmupMs]);
   const [language, setLanguage] = useState<Language>('ru');
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
@@ -100,6 +102,10 @@ export function App() {
     if (locked) return;
     setConfigurationError(null); runner.current?.dispose(); setView(null); setQuality(settings);
   };
+  const applyWarmup = useCallback((ms: number) => {
+    if (locked) return;
+    setConfigurationError(null); runner.current?.dispose(); setView(null); setWarmupMs(ms);
+  }, [locked]);
   const reset = () => {runner.current?.dispose(); setView(null); setGeneration(value => value + 1);};
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
   return <main>
@@ -110,7 +116,7 @@ export function App() {
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
-    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={example} disabled={locked || !view} onChange={event => {if (event.target.value === example) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); setExample(event.target.value as ExampleId);}}>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p>{locked ? text.locked : text.ready}</p></div>
     <ExampleGuide key={`guide-${example}`} example={example} text={text} language={language}/>
     </section>
     <section className="simulation-panel" aria-labelledby="simulation-title">
@@ -150,6 +156,7 @@ export function App() {
       {example === 'batches' && <MaintenancePanel key={`maintenance-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyMaintenance}/>}
       {example === 'queue' && <DurationPanel key={`duration-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyDuration}/>}
       {example === 'quality' && <QualityPanel key={`quality-settings-${JSON.stringify(run.source)}`} run={run} settings={quality} locked={locked || !view} text={text} language={language} onApply={applyQuality}/>}
+      <WarmupPanel key={`warmup-${example}-${warmupMs}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyWarmup}/>
       <LunchPanel key={example} run={run} locked={locked || !view} text={text} language={language} onApply={applyLunch}/>
       <BufferPanel key={`${example}-${JSON.stringify(run.source)}`} run={run} locked={locked || !view} text={text} language={language} onApply={applyBuffers}/>
     </section>

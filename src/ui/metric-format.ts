@@ -59,3 +59,14 @@ export function investmentRoiText(roi: InvestmentRoi | null, unavailable: string
   if (absolute > 0n && absolute * 100n < d) return n < 0n ? '−0.01% < ROI < 0%' : '0% < ROI < 0.01%';
   return `${fixedMoneyRatio(n, d)}%`;
 }
+
+/** Signed exact flow ratios, with rounding confined to display. */
+export function flowRatioText(value: {numerator: string; denominator: string} | null, unavailable: string, multiplier = 1n, divisor = 1n): string {
+  if (value === null) return unavailable;
+  const n = BigInt(value.numerator) * multiplier, d = BigInt(value.denominator) * divisor;
+  if (d <= 0n) return unavailable;
+  const absolute = n < 0n ? -n : n, text = fractionText(absolute, d, 6);
+  if (n >= 0n) return text;
+  if (text.startsWith('< ')) return `> −${text.slice(2)}; < 0`;
+  return text.startsWith('≈ ') ? `≈ −${text.slice(2)}` : `−${text}`;
+}

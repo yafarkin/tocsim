@@ -11,7 +11,8 @@ export type PlaybackSpeed = number | 'max';
 export type PlaybackStatus = 'ready' | 'running' | 'paused' | 'finished' | 'stopped' | 'error' | 'disposed';
 export interface RunnerFailure { code: string; messages: {ru: string; en: string} }
 export interface RunnerView {
-  schemaVersion: 3;
+  schemaVersion: 4;
+  flowReport: ReturnType<Simulation['getFlowReport']>;
   history: DeepReadonly<FlowHistory>;
   status: PlaybackStatus;
   speed: PlaybackSpeed;
@@ -99,7 +100,7 @@ export class Runner {
     return now;
   }
   private makeView(): DeepReadonly<RunnerView> {
-    return Object.freeze({schemaVersion: 3, transfers: freezeData(this.transfers), status: this.status, speed: this.speed,
+    return Object.freeze({schemaVersion: 4, flowReport: freezeData(this.simulation.getFlowReport()), transfers: freezeData(this.transfers), status: this.status, speed: this.speed,
       model: this.simulation.getSnapshot(), history: this.simulation.getHistory(), error: freezeData(this.failure ? failureData(this.failure.error) : null)});
   }
   private publish(): DeepReadonly<RunnerView> {
