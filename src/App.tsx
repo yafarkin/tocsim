@@ -45,6 +45,9 @@ import {lesson1Config, lesson1Result} from './lessons/lesson-1';
 import type {Lesson1Variant, Lesson1Results} from './lessons/lesson-1';
 import {Lesson1Intro, Lesson1Comparison, lesson1Labels} from './ui/Lesson1';
 
+import {BottleneckSearch} from './ui/BottleneckSearch';
+import type {BottleneckResult} from './runner/bottleneck-search';
+
 // Mode is a viewing preference, absent from RunConfig/Runner dependencies and editor keys.
 export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onModeChange?: (mode: UiMode) => void} = {}) {
   const [preferredMode, selectMode] = useUiMode();
@@ -76,6 +79,10 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const [warmupMs, setWarmupMs] = useState(0);
   const [buffers, setBuffers] = useState<BufferSettings | null>(null);
   const run = useMemo(() => {if (lesson1) return compileConfig(lesson1Config(variabilityVariant)); if (lesson2) return compileConfig(lesson2Config(lessonVariant)); if (lesson3) return compileConfig(lesson3Config(lessonBuffer)); let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); config.warmupMs = warmupMs; return compileConfig(config);}, [lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality, warmupMs]);
+  const [searchResult, setSearchResult] = useState<{hash:string;result:BottleneckResult|null}|null>(null);
+  useEffect(() => setSearchResult(null), [run.calculationHash]);
+  const acceptSearchResult = useCallback((result:BottleneckResult|null) => setSearchResult({hash:run.calculationHash,result}), [run.calculationHash]);
+  const highlightedStation = searchResult?.hash===run.calculationHash ? searchResult.result?.stationId ?? null : null;
   const [language, setLanguage] = useState<Language>('ru');
   // Translate captions without replacing the running simulation when the language changes.
   const displayedRun = useMemo(() => lesson1 ? {...run, source: lesson1Config(variabilityVariant, language)} : lesson2 ? {...run, source: lesson2Config(lessonVariant, language)} : lesson3 ? {...run, source: lesson3Config(lessonBuffer, language)} : run, [run, lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, language]);
@@ -214,7 +221,8 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
       {configurationError && <p role="alert" className="run-error">{configurationError.messages[language]} <span className="expert-only">{configurationError.path}</span> <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
       {!seedAllowed && <p role="alert" className="run-error">{text.seedError} <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
       <div className="diagram-context"><p className="expert-only">{lesson1 ? lesson1Labels[language].help : lesson2 ? lesson2Labels[language].help : lesson3 ? lesson3Labels[language].help : example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
-      {view && <FlowDiagram key={`${lesson1 ? variabilityVariant : lesson2 ? lessonVariant : lesson3 ? `buffer-${lessonBuffer}` : example}-${generation}`} run={displayedRun} view={view} text={text} reduced={manualReduced || systemReduced}/>}
+      <BottleneckSearch key={run.calculationHash} run={displayedRun} language={language} text={text} allowed={!!view && status!=='running' && seedAllowed && !configurationError} onResult={acceptSearchResult}/>
+      {view && <FlowDiagram key={`${lesson1 ? variabilityVariant : lesson2 ? lessonVariant : lesson3 ? `buffer-${lessonBuffer}` : example}-${generation}`} run={displayedRun} view={view} text={text} reduced={manualReduced || systemReduced} bottleneckStationId={highlightedStation}/>}
       {view && <RunSummary run={displayedRun} view={view} text={text} language={language} example={lesson ? 'queue' : example}/>}
       {!lesson && example === 'quality' && view && <div className="expert-only"><QualitySummary key={example} run={run} view={view} text={text}/></div>}
       {lesson1 && <Lesson1Comparison results={variabilityResults} language={language}/>}
