@@ -9,7 +9,7 @@ import {quantityText} from './diagram';
 export const bottleneckLabels={
   ru:{button:'Поиск узкого места',cancel:'Отменить поиск',running:'Проверочные прогоны',title:'Результат поиска узкого места',
     help:'Поиск отдельно выполняет полный горизонт с начала и уменьшает время обработки каждого поста на 10%. Текущий прогон не меняется. Буферы и остальные условия сохраняются.',
-    candidate:'Единственный устойчивый кандидат',ambiguous:'Однозначное узкое место не найдено: результаты равны, различаются между seeds или зависят от продукта.',
+    candidate:'Единственный устойчивый кандидат',tied:'Найдены равные кандидаты',ambiguous:'Однозначное узкое место не найдено: результаты различаются между seeds или зависят от продукта.',
     noGain:'Ускорение отдельных постов не увеличило выпуск. Возможно совместное ограничение, недостаточная подача или слишком короткий горизонт.',
     limit:'Это проверка влияния на выпуск за заданный горизонт, а не доказательство постоянного ограничения. Меняются только времена обработки, с округлением до 1 мс; наладки и обслуживание прежние.',
     baseline:'Исходник',station:'Ускоренный пост',values:'В ячейках показаны выпуск и изменение относительно парного исходника. При нескольких seeds показан диапазон. Разные продукты сравниваются отдельно. Выпуск учитывает весь горизонт, включая разогрев.',
@@ -18,7 +18,7 @@ export const bottleneckLabels={
   },
   en:{button:'Find bottleneck',cancel:'Cancel search',running:'Trial runs',title:'Bottleneck search result',
     help:'Search runs the full horizon from the beginning separately, reducing processing times at each station by 10%. Your current run is unchanged. Buffers and all other conditions stay fixed.',
-    candidate:'Single consistent candidate',ambiguous:'No single bottleneck found: results tie, differ across seeds or depend on the product.',
+    candidate:'Single consistent candidate',tied:'Equal candidates found',ambiguous:'No single bottleneck found: results differ across seeds or depend on the product.',
     noGain:'Speeding up individual stations did not increase output. There may be joint constraints, insufficient supply or too short a horizon.',
     limit:'This tests output sensitivity over the configured horizon, not a permanent constraint. Only processing times change, rounded to 1 ms; setups and maintenance stay unchanged.',
     baseline:'Baseline',station:'Faster station',values:'Cells show output and its change from the paired baseline. Multiple seeds show a range. Products are compared separately. Output covers the full horizon, including warmup.',
@@ -36,13 +36,13 @@ export function BottleneckResultView({run,result,language,text}:{run:RunConfig;r
   const t=bottleneckLabels[language];
   const stationName=(id:string)=>nameFor(id,run.source.stations.find(s=>s.id===id)!.name,text);
   return <div className="bottleneck-result"><h3>{t.title}</h3>
-    <p role="status">{result.stationId ? `${t.candidate}: ${stationName(result.stationId)}.` : t[result.outcome==='noGain'?'noGain':'ambiguous']}</p>
+    <p role="status">{result.stationIds.length ? `${result.outcome==='tied' ? `${t.tied} (${result.stationIds.length})` : t.candidate}: ${result.stationIds.map(stationName).join(', ')}.` : t[result.outcome==='noGain'?'noGain':'ambiguous']}</p>
     <p className="summary-help">{t.limit}</p>
     <details><summary>{t.detail}</summary><p>{result.samples.length>1?t.paired:t.single}: {result.samples.map(s=>s.seed).join(', ')}.</p>
       <p>{t.values}</p><div className="table-scroll" tabIndex={0} role="region" aria-label={t.detail}><table>
         <thead><tr><th scope="col">{t.station}</th>{result.productIds.map(id=><th scope="col" key={id}>{nameFor(id,run.source.materials.find(m=>m.id===id)!.name,text)}</th>)}</tr></thead>
         <tbody><tr><th scope="row">{t.baseline}</th>{result.productIds.map((id,i)=><td key={id}>{range(result.samples.map(s=>BigInt(s.baseline[i]!)))}</td>)}</tr>
-          {result.samples[0]!.outputs.map(row=><tr key={row.stationId} data-search-station={row.stationId} data-candidate={row.stationId===result.stationId}>
+          {result.samples[0]!.outputs.map(row=><tr key={row.stationId} data-search-station={row.stationId} data-candidate={result.stationIds.includes(row.stationId)}>
             <th scope="row">{stationName(row.stationId)}</th>{result.productIds.map((id,i)=><td key={id}>{range(result.samples.map(s=>BigInt(s.outputs.find(r=>r.stationId===row.stationId)!.quantities[i]!)))} ({range(result.samples.map(s=>BigInt(s.outputs.find(r=>r.stationId===row.stationId)!.quantities[i]!)-BigInt(s.baseline[i]!)),true)})</td>)}
           </tr>)}
         </tbody></table></div></details>

@@ -20,16 +20,32 @@ describe('bottleneck search control and diagram',()=>{
     expect(html).toContain('data-candidate="true"');expect(html).not.toContain('<details open');
     expect(html).toContain('tabindex="0"');expect(html).toContain(t.limit);
   });
-  it.each(['ru','en'] as const)('keeps equal improvements ambiguous and displays paired ranges in %s',language=>{
+  it.each(['ru','en'] as const)('shows equal candidates and paired ranges in %s',language=>{
     const sample={seed:42,baseline:['10000000'],outputs:[{stationId:'work',quantities:['11000000']},{stationId:'prep',quantities:['11000000']}]};
     const result=summarizeBottleneck(['product'],[sample,{...sample,seed:43,baseline:['9000000']},{...sample,seed:44}]);
     const html=renderToStaticMarkup(<BottleneckResultView run={exampleRuns.queue} result={result} text={labels(language)} language={language}/>);
-    expect(html).toContain(bottleneckLabels[language].ambiguous);expect(html).toContain('(+1…+2)');
-    expect(html).not.toContain('data-candidate="true"');expect(html).toContain('42, 43, 44');
+    expect(html).toContain(`${bottleneckLabels[language].tied} (2)`);expect(html).toContain('(+1…+2)');
+    expect(html.match(/data-candidate="true"/g)).toHaveLength(2);expect(html).toContain('42, 43, 44');
+  });
+  it.each(['ru','en'] as const)('highlights both equal split candidates and their combined routes in %s',language=>{
+    const result=summarizeBottleneck(['product'],[{seed:42,baseline:['117000000'],outputs:[
+      {stationId:'finish',quantities:['124000000']},{stationId:'prep',quantities:['117000000']},{stationId:'work',quantities:['124000000']},
+    ]}]);
+    const run=exampleRuns.split,runner=new Runner(run),view=runner.getView(),text=labels(language);
+    const table=renderToStaticMarkup(<BottleneckResultView run={run} result={result} text={text} language={language}/>);
+    expect(table).toContain(`${bottleneckLabels[language].tied} (2): ${text.finish}, ${text.work}`);
+    expect(table.match(/124 \(\+7\)/g)).toHaveLength(2);expect(table.match(/data-candidate="true"/g)).toHaveLength(2);
+    const html=renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced bottleneckStationIds={result.stationIds}/>);
+    expect(html.match(/data-bottleneck="true"/g)).toHaveLength(2);
+    expect(html.match(/class="bottleneck-outline"/g)).toHaveLength(2);
+    expect(html.match(/data-bottleneck-flow="true"/g)).toHaveLength(5);
+    expect(html.match(/data-bottleneck-flow-text="true"/g)).toHaveLength(5);
+    expect(html).not.toContain('data-station="prep" data-bottleneck="true"');
+    expect(runner.getView()).toEqual(view);runner.dispose();
   });
   it.each(['ru','en'] as const)('marks only the requested station without replacing its actual state in %s',language=>{
     const run=exampleRuns.queue,runner=new Runner(run),view=runner.getView(),text=labels(language);
-    const html=renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced bottleneckStationId="work"/>);
+    const html=renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced bottleneckStationIds={["work"]}/>);
     expect(html.match(/data-bottleneck="true"/g)).toHaveLength(1);
     expect(html).toContain('data-station="work" data-bottleneck="true"');expect(html).toContain('bottleneck-outline');expect(html).toContain(text.bottleneckCandidate);
     expect(html).toContain('station-body state-idle');expect(html).not.toContain('data-route-critical');

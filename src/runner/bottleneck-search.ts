@@ -6,8 +6,8 @@ export interface BottleneckSample {seed: number; baseline: string[]; outputs: {s
 export interface BottleneckResult {
   productIds: string[];
   samples: BottleneckSample[];
-  stationId: string | null;
-  outcome: 'candidate' | 'ambiguous' | 'noGain';
+  stationIds: string[];
+  outcome: 'candidate' | 'tied' | 'ambiguous' | 'noGain';
 }
 const shorter=(ms:number)=>Math.max(1,Number((BigInt(ms)*9n+5n)/10n));
 const quantity=(units:number)=>{
@@ -41,11 +41,11 @@ export function summarizeBottleneck(productIds:string[],samples:BottleneckSample
   const greater=(a:string[],b:string[])=>a.every((q,i)=>BigInt(q)>=BigInt(b[i]!))&&a.some((q,i)=>BigInt(q)>BigInt(b[i]!));
   const leaders=ids.filter(id=>samples.every(sample=>{
     const row=sample.outputs.find(r=>r.stationId===id)!;
-    return greater(row.quantities,sample.baseline)&&sample.outputs.every(other=>other.stationId===id||greater(row.quantities,other.quantities));
+    return greater(row.quantities,sample.baseline)&&sample.outputs.every(other=>other.stationId===id||row.quantities.every((q,i)=>BigInt(q)>=BigInt(other.quantities[i]!)));
   }));
   const anyGain=samples.some(sample=>sample.outputs.some(row=>row.quantities.some((q,i)=>BigInt(q)>BigInt(sample.baseline[i]!))));
-  return {productIds,samples,stationId:leaders.length===1 ? leaders[0]! : null,
-    outcome:leaders.length===1 ? 'candidate' : anyGain ? 'ambiguous' : 'noGain'};
+  return {productIds,samples,stationIds:leaders,
+    outcome:leaders.length===1 ? 'candidate' : leaders.length>1 ? 'tied' : anyGain ? 'ambiguous' : 'noGain'};
 }
 /** Cooperative independent simulations. No DOM, shared Runner or persistent results. */
 export async function searchBottleneck(run:RunConfig,options:{cancelled:()=>boolean;onProgress:(done:number,total:number)=>void;

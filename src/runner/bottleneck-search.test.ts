@@ -15,7 +15,7 @@ const search=(run:ReturnType<typeof compileConfig>)=>searchBottleneck(run,{cance
 describe('bottleneck search with independent paired runs',()=>{
   it('finds the limiting third station in lesson 2 without touching the current Runner',async()=>{
     const run=compileConfig(lesson2Config()),runner=new Runner(run);runner.step();const before=runner.getView();
-    const result=await search(run);expect(result!.stationId).toBe('s3');expect(result!.outcome).toBe('candidate');
+    const result=await search(run);expect(result!.stationIds).toEqual(['s3']);expect(result!.outcome).toBe('candidate');
     expect(result!.samples[0]!.baseline).toEqual(['178000000']);
     expect(result!.samples[0]!.outputs.find(r=>r.stationId==='s3')!.quantities).toEqual(['198000000']);
     expect(runner.getView()).toEqual(before);runner.dispose();
@@ -27,8 +27,12 @@ describe('bottleneck search with independent paired runs',()=>{
       const variant=compileConfig(bottleneckConfig(run,run.resolved.seed,row.stationId)),model=new Simulation(variant).runToEnd();
       expect(row.quantities).toEqual(result!.productIds.map(id=>String(model.line!.counters.find(c=>c.materialId===id)!.sold)));
     }
-    expect(result!.stationId).toBe(example==='assembly'?'work':null);
-    expect(result!.outcome).toBe(example==='assembly'?'candidate':'ambiguous');
+    expect(result!.stationIds).toEqual(example==='assembly'?['work']:['finish','work']);
+    expect(result!.outcome).toBe(example==='assembly'?'candidate':'tied');
+    if(example==='split') {
+      expect(result!.samples[0]!.baseline).toEqual(['117000000']);
+      for(const id of ['work','finish']) expect(result!.samples[0]!.outputs.find(row=>row.stationId===id)!.quantities).toEqual(['124000000']);
+    }
   },20_000);
   it('keeps a real mixed-product plan separate by product',async()=>{
     const run=compileConfig(previewConfig('plans')),result=await search(run),model=new Simulation(run).runToEnd();
@@ -38,7 +42,7 @@ describe('bottleneck search with independent paired runs',()=>{
   },20_000);
   it('does not force a winner when supply limits output',async()=>{
     const c=line();c.initialStocks=[];c.sources[0]!.intervalMs=60*60_000;const result=await search(compileConfig(c));
-    expect(result!.stationId).toBeNull();expect(result!.outcome).toBe('noGain');
+    expect(result!.stationIds).toEqual([]);expect(result!.outcome).toBe('noGain');
   });
   it('fixes inherited buffers and changes only processing times at the selected station',()=>{
     const c=lesson2Config();c.stations.forEach(s=>{s.inputBuffer={kind:'inherit'};s.outputBuffer={kind:'inherit'};});
@@ -99,16 +103,29 @@ describe('conservative candidate interpretation',()=>{
     return {seed,baseline,outputs:[{stationId:'a',quantities:a},{stationId:'b',quantities:b}]};
   }
   it('does not sum different products or prefer a tradeoff',()=>{
-    const r=summarizeBottleneck(['x','y'],[sample(['110','100'],['100','120'])]);expect(r.stationId).toBeNull();expect(r.outcome).toBe('ambiguous');
-    expect(summarizeBottleneck(['x','y'],[sample(['110','100'],['101','99'])]).stationId).toBe('a');
+    const r=summarizeBottleneck(['x','y'],[sample(['110','100'],['100','120'])]);expect(r.stationIds).toEqual([]);expect(r.outcome).toBe('ambiguous');
+    expect(summarizeBottleneck(['x','y'],[sample(['110','100'],['101','99'])]).stationIds).toEqual(['a']);
   });
-  it('rejects ties and inconsistent seed leaders',()=>{
-    expect(summarizeBottleneck(['x','y'],[sample(['110','100'],['110','100'])]).outcome).toBe('ambiguous');
+  it('recognizes equal leaders but rejects inconsistent seed leaders',()=>{
+    expect(summarizeBottleneck(['x','y'],[sample(['110','100'],['110','100'])]).outcome).toBe('tied');
     const r=summarizeBottleneck(['x','y'],[sample(['110','100'],['100','100']),sample(['100','100'],['110','100'],undefined,43)]);
-    expect(r.outcome).toBe('ambiguous');expect(r.stationId).toBeNull();
+    expect(r.outcome).toBe('ambiguous');expect(r.stationIds).toEqual([]);
+  });
+  it('keeps a tie only among equally best positive candidates',()=>{
+    const tied=sample(['110','100'],['110','100']);tied.outputs.push({stationId:'c',quantities:['100','100']});
+    expect(summarizeBottleneck(['x','y'],[tied]).stationIds).toEqual(['a','b']);
+    tied.outputs.push({stationId:'d',quantities:['110','100']});
+    expect(summarizeBottleneck(['x','y'],[tied]).stationIds).toEqual(['a','b','d']);
+    expect(summarizeBottleneck(['x','y'],[sample(['100','100'],['100','100'])]).stationIds).toEqual([]);
+    tied.outputs[2]!.quantities=['100','120'];
+    const tradeoff=summarizeBottleneck(['x','y'],[tied]);expect(tradeoff.stationIds).toEqual([]);expect(tradeoff.outcome).toBe('ambiguous');
+  });
+  it('does not treat alternating first places as equal candidates',()=>{
+    const r=summarizeBottleneck(['x','y'],[sample(['110','100'],['109','100']),sample(['109','100'],['110','100'],undefined,43)]);
+    expect(r.stationIds).toEqual([]);expect(r.outcome).toBe('ambiguous');
   });
   it('can identify positive output from a zero baseline without dividing by zero',()=>{
-    expect(summarizeBottleneck(['x','y'],[sample(['1','0'],['0','0'],['0','0'])]).stationId).toBe('a');
+    expect(summarizeBottleneck(['x','y'],[sample(['1','0'],['0','0'],['0','0'])]).stationIds).toEqual(['a']);
     expect(summarizeBottleneck(['x','y'],[sample(['0','0'],['0','0'],['0','0'])]).outcome).toBe('noGain');
   });
 });

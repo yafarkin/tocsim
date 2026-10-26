@@ -45,7 +45,7 @@ describe('structural flow through the identified bottleneck',()=>{
   });
   it.each(['ru','en'] as const)('renders matching routes, arrowheads and text labels in %s',language=>{
     const run=exampleRuns.split,runner=new Runner(run),view=runner.getView(),text=labels(language);
-    const html=renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced bottleneckStationId="work"/>);
+    const html=renderToStaticMarkup(<FlowDiagram run={run} view={view} text={text} reduced bottleneckStationIds={["work"]}/>);
     const paths=[...html.matchAll(/<path[^>]*data-route="([^"]+)"[^>]*data-bottleneck-flow="true"/g)].map(match=>match[1]!);
     expect(sorted(paths)).toEqual(['prep-work','source-prep','work-market']);
     expect(html.match(/marker-end="url\(#bottleneck-flow-arrow\)"/g)).toHaveLength(3);
