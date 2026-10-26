@@ -192,3 +192,5 @@ main[data-ui-mode=simple] .show-expert{min-height:24px;padding:0;border:0;backgr
 
 .bottleneck-search{margin:16px 22px;padding:16px;border:1px solid var(--border);border-radius:8px;min-width:0}.bottleneck-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.bottleneck-search p{overflow-wrap:anywhere;font-size:14px}.bottleneck-search button{white-space:normal;max-width:100%}.bottleneck-result h3{font-size:18px}.bottleneck-result summary{color:var(--accent);cursor:pointer}.bottleneck-result .table-scroll{max-width:100%;overflow-x:auto}.bottleneck-result td{white-space:nowrap}.bottleneck-result [data-candidate=true]{font-weight:600}.bottleneck-outline{fill:none;stroke:var(--accent);stroke-width:3;stroke-dasharray:8 4;pointer-events:none}.bottleneck-badge{fill:var(--accent);font-weight:600}
 @media(max-width:900px){.bottleneck-search{margin:14px}}
+
+.route-arrow.bottleneck-flow{stroke:var(--accent);stroke-width:3.5;stroke-dasharray:10 4}.bottleneck-flow-note strong{color:var(--accent)}

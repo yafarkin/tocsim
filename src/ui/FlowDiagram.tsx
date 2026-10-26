@@ -3,7 +3,7 @@ import { inputCapacity, outputCapacity } from '../engine/config';
 import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
 import type { StationSnapshot } from '../engine/state';
-import { fillRatio, graphLayout, quantityText, tokenFills, multiInputY, stationReasonY, stationReasonHeight } from './diagram';
+import { fillRatio, graphLayout, quantityText, tokenFills, multiInputY, stationReasonY, stationReasonHeight, flowThroughStation } from './diagram';
 import { MaintenanceRecords } from './MaintenanceRecords';
 import { maintenanceNotice, maintenanceCounters, workMinutes } from './maintenance';
 import { lunchStatus } from './lunch';
@@ -63,6 +63,7 @@ export function FlowDiagram({run, view, text, reduced, bottleneckStationId=null}
   const layout = graphLayout(run), {order, width, height} = layout;
   const xOf = (id: string) => layout.nodes.get(id)!.x;
   const yOf = (id: string) => layout.nodes.get(id)!.y;
+  const highlightedRoutes=flowThroughStation(run,bottleneckStationId);
   const marketX = xOf('market');
   const isSource = (id: string) => run.resolved.sources.some(s => s.id === id);
   const objectName = (id: string) => id === 'market' ? text.market : isSource(id) ? `${text.source} (${id})` : stationName(id);
@@ -85,7 +86,7 @@ export function FlowDiagram({run, view, text, reduced, bottleneckStationId=null}
     <div className="diagram-scroll" tabIndex={0} role="region" aria-label={text.diagram}>
       <svg className="flow-svg" viewBox={`0 0 ${width} ${height}`} style={{minWidth: width}} role="img" aria-labelledby="flow-title flow-description" data-testid="flow-svg">
         <title id="flow-title">{text.diagram}</title><desc id="flow-description">{text.diagramDescription}</desc>
-        <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--route)"/></marker></defs>
+        <defs><marker id="flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--route)"/></marker><marker id="bottleneck-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--accent)"/></marker></defs>
         <path d={`M 30 215 H ${width - 30}`} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 7"/>
         {run.resolved.sources.map(source => <g key={source.id} className="endpoint" transform={`translate(0 ${yOf(source.id)})`}><rect x="22" y="147" width="112" height="118" rx="8"/><text x="78" y="173" textAnchor="middle">{text.source}</text>
           <rect x="60" y="193" width="36" height="24" rx="3" fill={materialColor(source.materialId)} stroke="none"/>
@@ -94,7 +95,7 @@ export function FlowDiagram({run, view, text, reduced, bottleneckStationId=null}
         </g>)}
         {run.resolved.routes.map(route => {const geometry = layout.paths.get(route.id)!, caps = routeCapacities(run, route);
           const label = `${text.output} ${caps.output} + ${text.input} ${caps.input} = ${caps.total}`;
-          return <g key={route.id} data-route-capacity={route.id}><path d={geometry.path} className="route-arrow" markerEnd="url(#flow-arrow)" data-route={route.id}><title>{`${objectName(route.fromId)} → ${objectName(route.toId)}: ${materialName(route.materialId)}; ${label}`}</title></path>
+          return <g key={route.id} data-route-capacity={route.id}><path d={geometry.path} className={`route-arrow${highlightedRoutes.has(route.id) ? ' bottleneck-flow' : ''}`} markerEnd={highlightedRoutes.has(route.id) ? 'url(#bottleneck-flow-arrow)' : 'url(#flow-arrow)'} data-route={route.id} data-bottleneck-flow={highlightedRoutes.has(route.id) || undefined}><title>{`${objectName(route.fromId)} → ${objectName(route.toId)}: ${materialName(route.materialId)}; ${label}`}</title></path>
             <text x={geometry.labelX} y={geometry.labelY - 24} textAnchor="middle" className="tiny route-capacity"><title>{`${materialName(route.materialId)}: ${label}`}</title>{caps.output} + {caps.input} = {caps.total}</text>
           </g>;})}
         {order.map((id, index) => {
@@ -229,6 +230,7 @@ export function FlowDiagram({run, view, text, reduced, bottleneckStationId=null}
         })}
       </svg>
     </div>
+    {highlightedRoutes.size>0 && <p className="flow-note bottleneck-flow-note"><strong>{text.bottleneckFlow}</strong>. {text.bottleneckFlowHelp}</p>}
     <MaintenanceRecords run={run} view={view} text={text}/>
     <p className="flow-note">{text.note} {text.routeCapacity}: {text.output} + {text.input} = {text.capacitySum}. —: {text.source} / {text.market}.</p>
     <details className="scheme-help"><summary>{text.schemeHelp}</summary><dl>
@@ -241,7 +243,7 @@ export function FlowDiagram({run, view, text, reduced, bottleneckStationId=null}
       <div className="table-scroll"><table><thead><tr><th>{text.state}</th><th>{text.queue}</th><th>{text.progress}</th><th>{text.output} / {text.readyOutput}</th></tr></thead><tbody>
         {order.map(id => {const state = view.model.stations.find(s => s.stationId === id)!; return <tr key={id}><th>{stationName(id)}{id===bottleneckStationId && <span>{text.bottleneckCandidate}</span>}{planPosition(state, run, text) && <span>{planPosition(state, run, text)}</span>}<span>{stationReason(state, run, text)}</span>{view.model.line!.inspections.filter(entry => entry.stationId === id).map(entry => <span key={entry.materialId}>{text.inspectionNote}: {quantityText(entry.checkedQuantity)} / {quantityText(entry.passedQuantity)} / {quantityText(entry.scrappedQuantity)}</span>)}{maintenanceNotice(state, run, text) && <span>{maintenanceNotice(state, run, text)}</span>}<span>{maintenanceCounters(state, run, text)}</span><span>{lunchStatus(state, run, view.model.timeMs, text)}</span>{run.resolved.stations.find(s => s.id === id)!.lunchReplacement && <span>{text.lunchBusy}: {workMinutes(state.lunchBusyMs)} {text.minutes}. {text.lunchCharge}: {quantityText(state.lunchCost)} {text.moneyUnit}</span>}</th><td>{state.inputs.map(input => <div key={input.materialId}>{quantityText(input.quantity)} {materialName(input.materialId)}{input.reservedQuantity > 0 && ` (${text.reserved}: ${quantityText(input.reservedQuantity)})`}</div>)}</td><td>{operationProgress(state) === null ? '—' : `${state.remainingMaintenanceMs !== null ? `${text.maintenance}: ` : state.remainingSetupMs !== null ? `${text.setup}: ` : ''}${Math.round(operationProgress(state)! * 100)}%`}</td><td>{state.outputs.map(output => <div key={output.materialId}>{materialName(output.materialId)}: {text.output} {quantityText(output.quantity)}, {text.readyOutput} {quantityText(output.heldQuantity)}</div>)}<div>{batchOutputStatus(state, run.resolved.stations.find(s => s.id === id)!.transportThreshold, text)}</div></td></tr>;})}
       </tbody></table></div>
-      <ul>{run.resolved.routes.map(route => <li key={route.id}>{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)} · {text.output} {routeCapacities(run, route).output} + {text.input} {routeCapacities(run, route).input} = {routeCapacities(run, route).total}</li>)}</ul>
+      <ul>{run.resolved.routes.map(route => <li key={route.id} data-bottleneck-flow-text={highlightedRoutes.has(route.id) || undefined}>{highlightedRoutes.has(route.id) && <strong>{text.bottleneckFlow}: </strong>}{objectName(route.fromId)} → {objectName(route.toId)}: {materialName(route.materialId)} · {text.output} {routeCapacities(run, route).output} + {text.input} {routeCapacities(run, route).input} = {routeCapacities(run, route).total}</li>)}</ul>
     </details>
   </>;
 }

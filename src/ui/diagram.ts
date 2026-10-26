@@ -13,6 +13,27 @@ export function fillRatio(quantity: number, capacity: DeepReadonly<ResolvedBuffe
   return capacity.kind === 'infinite' || capacity.quantity === 0 ? null : Math.min(1, quantity / capacity.quantity);
 }
 
+/** Structural source -> station -> market routes; not a critical path or event trace. */
+export function flowThroughStation(run:RunConfig,stationId:string|null):Set<string> {
+  const routes=run.resolved.routes;
+  if (!stationId || !run.resolved.stations.some(s=>s.id===stationId)) return new Set();
+  const forward=new Map<string,string[]>(),reverse=new Map<string,string[]>();
+  for (const route of routes) {
+    const next=forward.get(route.fromId) ?? [];next.push(route.toId);forward.set(route.fromId,next);
+    const previous=reverse.get(route.toId) ?? [];previous.push(route.fromId);reverse.set(route.toId,previous);
+  }
+  const reach=(starts:string[],edges:Map<string,string[]>)=>{
+    const seen=new Set(starts),pending=[...starts];
+    while(pending.length) for (const id of edges.get(pending.pop()!) ?? []) if(!seen.has(id)) {seen.add(id);pending.push(id);}
+    return seen;
+  };
+  const fromSource=reach(run.resolved.sources.map(s=>s.id),forward),toMarket=reach(['market'],reverse);
+  if (!fromSource.has(stationId) || !toMarket.has(stationId)) return new Set();
+  const upstream=reach([stationId],reverse),downstream=reach([stationId],forward);
+  return new Set(routes.filter(r=>(fromSource.has(r.fromId)&&upstream.has(r.toId)) ||
+    (downstream.has(r.fromId)&&toMarket.has(r.toId))).map(r=>r.id));
+}
+
 export const outputMaterials = (run: RunConfig, stationId: string): string[] => [...new Set(run.resolved.stations.find(station => station.id === stationId)!.plan.map(row => run.resolved.recipes.find(recipe => recipe.id === row.recipeId)!.output.materialId))].sort();
 export const multiInputY = (index: number) => 187 + index * 86;
 export const stationReasonHeight = (lines: number, setups = false, plans = false, maintenance = false, lunch = false, inspection = false) => Math.max(setups ? 140 : 80, lines * 30) + (plans ? 70 : 0) + (maintenance ? 200 : 0) + (lunch ? 140 : 32) + (inspection ? 95 : 0);
