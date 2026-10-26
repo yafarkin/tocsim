@@ -291,3 +291,17 @@ it('renders each output using its own capacity, including direct B beside buffer
   }
   runner.dispose();
 });
+
+it('renders fresh actual transfers directly and freezes them at maximum speed or on pause', () => {
+  const run = exampleRuns.queue, runner = new Runner(run);
+  const view = runner.step();
+  expect(view.transfers.items.length).toBeGreaterThan(0);
+  for (const status of ['running', 'paused'] as const) {
+    const html = renderToStaticMarkup(<FlowDiagram run={run} view={{...view, status, speed: 'max'}} text={labels('en')} reduced={false}/>);
+    expect(html).toContain('data-transfer=');
+    expect(html).not.toContain('<animateMotion');
+  }
+  const moving = renderToStaticMarkup(<FlowDiagram run={run} view={{...view, status: 'running', speed: 60}} text={labels('en')} reduced={false}/>);
+  expect(moving).toContain('<animateMotion');
+  runner.dispose();
+});

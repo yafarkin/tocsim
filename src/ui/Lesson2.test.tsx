@@ -19,7 +19,7 @@ describe('simple lesson 2 screen', () => {
     const html = renderToStaticMarkup(<Lesson2Comparison results={{}} language={language}/>);
     expect(html.match(new RegExp(lesson2Labels[language].pending, 'g'))).toHaveLength(3);
     expect(html).not.toContain('data-lesson-total=');
-    expect(html).not.toContain('<details class="lesson-2-explanation" open');
+    expect(html).not.toContain('<details class="lesson-explanation" open');
   });
 
   it.each(['ru', 'en'] as const)('renders actual completed shifts and totals in %s', language => {

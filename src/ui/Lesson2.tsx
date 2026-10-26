@@ -32,10 +32,10 @@ export function Lesson2Intro({variant, locked, language, onChange}: {
   variant: Lesson2Variant; locked: boolean; language: Language; onChange: (variant: Lesson2Variant) => void;
 }) {
   const text = lesson2Labels[language];
-  return <div className="lesson-2-intro">
+  return <div className="lesson-intro">
     <h3>{lesson2Text[language].title}</h3>
     <p>{lesson2Text[language].prediction}</p>
-    <label className="lesson-2-variant">{text.variant}<select value={variant} disabled={locked} onChange={event => onChange(event.target.value as Lesson2Variant)}>
+    <label className="lesson-variant">{text.variant}<select value={variant} disabled={locked} onChange={event => onChange(event.target.value as Lesson2Variant)}>
       {lesson2Variants.map(value => <option key={value} value={value}>{text.variants[value]}</option>)}
     </select></label>
     <p>{text.conditions}</p><p>{text.help}</p>
@@ -44,7 +44,7 @@ export function Lesson2Intro({variant, locked, language, onChange}: {
 
 export function Lesson2Comparison({results, language}: {results: Lesson2Results; language: Language}) {
   const text = lesson2Labels[language];
-  return <section className="lesson-2-comparison" aria-labelledby="lesson-2-results">
+  return <section className="lesson-comparison" aria-labelledby="lesson-2-results">
     <h2 id="lesson-2-results">{text.results}</h2>
     <div className="table-scroll" tabIndex={0} role="region" aria-label={text.results}><table>
       <thead><tr><th scope="col">{text.variant}</th>{[1, 2, 3].map(day => <th scope="col" key={day}>{text.shift} {day}</th>)}<th scope="col">{text.total}</th></tr></thead>
@@ -56,7 +56,7 @@ export function Lesson2Comparison({results, language}: {results: Lesson2Results;
       })}</tbody>
     </table></div>
     <p className="summary-help">{text.memory}</p>
-    <details className="lesson-2-explanation"><summary>{text.explanation}</summary>
+    <details className="lesson-explanation"><summary>{text.explanation}</summary>
       <p>{lesson2Text[language].explanation}</p>
       <ul>{lesson2Text[language].questions.map(question => <li key={question}>{question}</li>)}</ul>
     </details>

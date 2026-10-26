@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { inputCapacity, outputCapacity } from '../engine/config';
 import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
 import type { RunnerView } from '../runner/runner';
@@ -71,15 +71,13 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
   const stationName = (id: string) => nameFor(id, run.source.stations.find(s => s.id === id)!.name, text);
   const finished = run.resolved.materials.filter(material => material.role === 'finished');
   const sold = (materialId: string) => view.model.line!.counters.find(counter => counter.materialId === materialId)!.sold;
-  const [overlay, setOverlay] = useState({sequence: -1, visible: false});
-  const seen = useRef(-1);
+  // A fresh transfer is visible directly from props; state only expires it after display.
+  // Updating state on every playback frame creates a passive-update chain on long runs.
+  const [expiredSequence, setExpiredSequence] = useState(-1);
   useEffect(() => {
-    const sequence = view.transfers.sequence;
-    const fresh = seen.current !== sequence;
-    seen.current = sequence;
-    if (fresh) setOverlay({sequence, visible: view.transfers.items.length > 0});
     if (view.status !== 'running' || view.transfers.items.length === 0) return;
-    const timer = setTimeout(() => setOverlay(previous => previous.sequence === sequence ? {...previous, visible: false} : previous), 520);
+    const sequence = view.transfers.sequence;
+    const timer = setTimeout(() => setExpiredSequence(sequence), 520);
     return () => clearTimeout(timer);
   }, [view.transfers.sequence, view.status]);
   const moving = view.status === 'running' && view.speed !== 'max' && view.speed <= 300 && !reduced;
@@ -204,7 +202,7 @@ export function FlowDiagram({run, view, text, reduced}: Props) {
           </g>)}
         </g>
         {view.model.line!.scraps.some(entry => entry.detectedAtId === 'market') && <g className="scrap-outlet" data-scrap-at="market"><path d={`M ${marketX + 65} 268 V 302`} markerEnd="url(#flow-arrow)"/><text x={marketX + 65} y="325" textAnchor="middle" className="small">{text.scrappedAmount}: {quantityText(view.model.line!.scraps.filter(entry => entry.detectedAtId === 'market').reduce((sum, entry) => sum + entry.quantity, 0))}</text><text x={marketX + 65} y="346" textAnchor="middle" className="tiny">{text.finalInspection}</text></g>}
-        {overlay.visible && overlay.sequence === view.transfers.sequence && view.transfers.items.map(transfer => {
+        {expiredSequence !== view.transfers.sequence && view.transfers.items.map(transfer => {
           if (transfer.kind === 'scrap') {
             const atMarket = transfer.toId === 'market';
             const x = atMarket ? marketX + 65 : xOf(transfer.toId) + 298, y = atMarket ? 285 : yOf(transfer.toId) + 338;
