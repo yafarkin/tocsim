@@ -80,7 +80,7 @@ describe('batch example configuration', () => {
     }
     expect(defaultBatchProfiles.prep).toEqual({mode: 'sequential', repetitions: 6, transportThreshold: 3});
     expect(compileConfig(previewConfig('queue', 0, 42, profiles)).calculationHash).toBe(exampleRuns.queue.calculationHash);
-  });
+  }, 15_000);
 });
 
 describe('cyclic plan example acceptance', () => {

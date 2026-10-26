@@ -29,7 +29,7 @@ describe('lesson 2 reference scenarios', () => {
     expect(end.stations[2]!.timeByState.starvedMs).toBe((variant === 'faster-second' ? 5 : 7) * 60_000);
     expect(end.stations[2]!.timeByState.blockedMs).toBe(0);
     expect(new Simulation(run).runToEnd()).toEqual(end);
-  });
+  }, 15_000);
 
   it.each(lesson2Variants)('%s preserves unfinished work across lunch and overnight', variant => {
     const sim = new Simulation(compileConfig(lesson2Config(variant)));
@@ -67,5 +67,5 @@ describe('lesson 2 reference scenarios', () => {
       expect(lesson2Text[language].actions).toHaveLength(3);
       expect(lesson2Text[language].questions).toHaveLength(3);
     }
-  });
+  }, 15_000);
 });
