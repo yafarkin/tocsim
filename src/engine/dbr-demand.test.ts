@@ -150,8 +150,8 @@ describe('DBR demand accounting without initial stock or execution',()=>{
     const p=calculate(f);
     expect(raw(p,'RA')).toBe(9007199254740991n*3n);expect(()=>JSON.stringify(p)).not.toThrow();
   });
-  it('does not let initial physical stock change the zero-stock calculation',()=>{
-    const f=linear(),baseline=calculate(f);f.c.initialStocks=[{id:'stock',ownerId:'D',location:'input',materialId:'A',quantity:'999',cost:'0'}];
+  it('leaves unused physical stock separate from the planned remainders',()=>{
+    const f=partial(),baseline=calculate(f);f.c.initialStocks=[{id:'stock',ownerId:'V',location:'output',materialId:'Y',quantity:'999',cost:'0'}];
     expect(calculate(f)).toEqual(baseline);
   });
   it('keeps distinct source receiving routes separate',()=>{
@@ -175,7 +175,7 @@ describe('DBR demand accounting without initial stock or execution',()=>{
     expect(works[3]!.planRowId).toBe('second-U');expect(raw(p,'R')).toBe(units(12));
   });
   it('handles multiple recipes and multiple drum row batches without merging materials',()=>{
-    const c=cyclicLine();c.durationMs=4*M;c.calendar={shiftStartMs:0,lunchStartMs:3*M,lunchEndMs:3*M+1,shiftEndMs:4*M};
+    const c=cyclicLine();c.initialStocks=[];c.durationMs=4*M;c.calendar={shiftStartMs:0,lunchStartMs:3*M,lunchEndMs:3*M+1,shiftEndMs:4*M};
     const selection:DbrSelection={drumStationId:'s1',drumCycles:1,products:[{materialId:'a',quantity:'2'},{materialId:'b',quantity:'1'}],routeIds:c.routes.map(r=>r.id),bufferMs:0,maxOpenSlots:1};
     const p=calculate({c,selection});expect(raw(p,'raw')).toBe(units(2));expect(raw(p,'rawB')).toBe(units(1));expect(p.groups[0]!.allSlotsPresent).toBe(true);
     expect(p.works.map(w=>w.drumSlotId)).toEqual(p.groups[0]!.slotIds);
@@ -258,5 +258,110 @@ describe('DBR demand accounting without initial stock or execution',()=>{
     const f=network(specs,'D',50_000);
     try {planDbrDemand(compileConfig(f.c),f.selection);expect.fail('Expected association limit');} catch (e) {expect(e).toBeInstanceOf(DbrDemandLimitError);expect((e as DbrDemandLimitError).resource).toBe('slotLinks');}
     expect(MAX_DBR_DEMAND_LINKS).toBe(1_000_000);
+  });
+});
+
+describe('DBR initial stock at its actual place',()=>{
+  function stock(f:ReturnType<typeof linear>,id:string,ownerId:string,location:'input'|'output'|'warehouse',materialId:string,quantity:string) {
+    f.c.initialStocks.push({id,ownerId,location,materialId,quantity,cost:'0'});
+  }
+  function balance(p:DbrDemandPlan) {
+    const uses=p.initialStockUses ?? [];
+    for (const w of p.works) for (const input of w.inputs) {
+      const planned=p.allocations.filter(a=>a.consumerId===w.workId&&a.materialId===input.materialId).reduce((n,a)=>n+BigInt(a.quantityUnits),0n);
+      const physical=uses.filter(a=>a.consumerId===w.workId&&a.materialId===input.materialId).reduce((n,a)=>n+BigInt(a.quantityUnits),0n);
+      expect(planned+physical).toBe(BigInt(input.quantityUnits));
+    }
+    for (const w of p.works) {
+      const allocated=p.allocations.filter(a=>a.producerId===w.workId).reduce((n,a)=>n+BigInt(a.quantityUnits),0n);
+      const left=p.remainders.filter(a=>a.producerId===w.workId).reduce((n,a)=>n+BigInt(a.quantityUnits),0n);
+      expect(allocated+left).toBe(BigInt(w.output.quantityUnits));
+    }
+  }
+  it('uses a drum input once across groups and orders only the uncovered amount',()=>{
+    const f=linear(25*M);stock(f,'on-drum','D','input','A','1.5');
+    const p=calculate(f);expect(p.groups).toHaveLength(3);expect(raw(p,'R')).toBe(units(2));
+    expect(p.works.filter(w=>w.stationId==='D')).toHaveLength(3);
+    expect(p.initialStockUses!.map(u=>u.quantityUnits)).toEqual(['1000000','500000']);
+    expect(p.initialStockUses!.every(u=>u.ownerId==='D'&&u.location==='input'&&u.routeId===null)).toBe(true);
+    expect(p.remainders).toMatchObject([{ownerId:'U',materialId:'A',quantityUnits:'500000'}]);balance(p);
+  });
+  it('does not lend one branch input to the other branch',()=>{
+    const f=common();stock(f,'drum-only','D','input','C','4');
+    const p=calculate(f);expect(raw(p,'R')).toBe(units(2));
+    expect(p.initialStockUses).toHaveLength(1);expect(p.initialStockUses![0]).toMatchObject({ownerId:'D',quantityUnits:'2000000'});
+    expect(p.allocations.filter(a=>a.materialId==='C')).toHaveLength(1);
+    expect(p.works.find(w=>w.workId===p.allocations.find(a=>a.materialId==='C')!.consumerId)!.stationId).toBe('V');balance(p);
+  });
+  it('shares a producer output once between competing receivers without assigning it all to drum',()=>{
+    const f=common();stock(f,'shared','U','output','C','3');
+    const p=calculate(f),uses=p.initialStockUses!;
+    expect(uses.map(u=>u.quantityUnits)).toEqual(['2000000','1000000']);
+    expect(new Set(uses.map(u=>u.consumerId)).size).toBe(2);
+    expect(new Set(uses.map(u=>u.routeId)).size).toBe(2);
+    expect(raw(p,'R')).toBe(units(2));expect(p.remainders).toMatchObject([{ownerId:'U',materialId:'C',quantityUnits:'5000000'}]);balance(p);
+  });
+  it('can cover both branches from one output without creating a production order',()=>{
+    const f=common();stock(f,'shared','U','output','C','4');const p=calculate(f);
+    expect(raw(p,'R')).toBe(0n);expect(p.works.some(w=>w.stationId==='U')).toBe(false);
+    expect(p.initialStockUses!.reduce((n,u)=>n+BigInt(u.quantityUnits),0n)).toBe(units(4));balance(p);
+  });
+  it('keeps input and output at the same inspection station separate',()=>{
+    const f=network([{id:'D',input:[['R','1']],output:['A','1']},{id:'I',input:[['A','1']],output:['A','1']},{id:'F',input:[['A','1']],output:['P','1']}],'D');
+    f.c.recipes.find(r=>r.id==='recipe-I')!.kind='inspection';
+    // Same-material processing needs explicit routes instead of the fixture's first-producer shortcut.
+    f.c.routes=[{id:'raw',fromId:'source-R',toId:'D',materialId:'R'},{id:'di',fromId:'D',toId:'I',materialId:'A'},{id:'if',fromId:'I',toId:'F',materialId:'A'},{id:'sell',fromId:'F',toId:'market',materialId:'P'}];
+    f.selection.routeIds=f.c.routes.map(r=>r.id);
+    stock(f,'before-inspection','I','input','A','1');const p=calculate(f);
+    expect(p.works.some(w=>w.stationId==='I')).toBe(true);expect(p.initialStockUses![0]).toMatchObject({location:'input',ownerId:'I'});balance(p);
+    f.c.initialStocks=[];stock(f,'after-inspection','I','output','A','1');const q=calculate(f);
+    expect(q.works.some(w=>w.stationId==='I')).toBe(false);expect(q.initialStockUses![0]).toMatchObject({location:'output',routeId:'if'});balance(q);
+  });
+  it('does not cancel nominal drum slots when an initial drum output covers downstream demand',()=>{
+    const f=linear();const schedule=planDbrDemand(compileConfig(f.c),f.selection).schedule;
+    stock(f,'drum-output','D','output','X','1');const result=planDbrDemand(compileConfig(f.c),f.selection),p=result.demandPlan!;
+    expect(result.schedule).toEqual(schedule);expect(raw(p,'R')).toBe(units(1));
+    expect(p.works.filter(w=>w.stationId==='D')).toHaveLength(1);
+    expect(p.remainders).toMatchObject([{ownerId:'D',materialId:'X',quantityUnits:'1000000'}]);balance(p);
+  });
+  it('uses a finished initial output for the product request without inventing drum work',()=>{
+    const f=before();f.selection.products[0]!.quantity='2';
+    stock(f,'finished','D','output','P','1');const p=calculate(f);
+    expect(p.initialStockUses).toMatchObject([{stockId:'finished',consumerId:null,routeId:'sell-D',quantityUnits:'1000000'}]);
+    expect(p.works.filter(w=>w.stationId==='D')).toHaveLength(1);balance(p);
+  });
+  it('subtracts finite warehouse stock without promising it twice to receiving routes',()=>{
+    const f=before();f.c.recipes.find(r=>r.id==='recipe-V')!.inputs=[{materialId:'RA',quantity:'1'}];
+    f.c.sources=f.c.sources.filter(s=>s.materialId!=='RC');f.c.materials=f.c.materials.filter(m=>m.id!=='RC');f.c.sources[0]!.availability='warehouse';
+    f.c.routes.find(r=>r.toId==='V')!.fromId='source-RA';f.c.routes.find(r=>r.toId==='V')!.materialId='RA';
+    stock(f,'warehouse-lot','warehouse','warehouse','RA','2.5');const p=calculate(f);
+    expect(raw(p,'RA')).toBe(500000n);
+    expect(p.initialStockUses!.reduce((n,u)=>n+BigInt(u.quantityUnits),0n)).toBe(2500000n);
+    expect(new Set(p.initialStockUses!.map(u=>u.routeId)).size).toBe(2);balance(p);
+  });
+  it('shares the same finite warehouse across different source IDs',()=>{
+    const f=before();f.c.recipes.find(r=>r.id==='recipe-V')!.inputs=[{materialId:'RA',quantity:'1'}];
+    f.c.materials=f.c.materials.filter(m=>m.id!=='RC');
+    f.c.sources.forEach(s=>{s.materialId='RA';s.availability='warehouse';});
+    f.c.routes.find(r=>r.toId==='V')!.materialId='RA';
+    stock(f,'shared-warehouse','warehouse','warehouse','RA','2.5');const p=calculate(f);
+    expect(raw(p,'RA')).toBe(500000n);
+    expect(p.initialStockUses!.reduce((n,u)=>n+BigInt(u.quantityUnits),0n)).toBe(2500000n);balance(p);
+  });
+  it('does not invent the missing product group when initial stock exists',()=>{
+    const f=partial();stock(f,'side','V','output','Y','10');const p=calculate(f);
+    expect(p.groups[0]!.products).toEqual([]);expect(p.initialStockUses).toBeUndefined();
+    expect(p.works.map(w=>w.stationId)).toEqual(['D']);balance(p);
+  });
+  it('retains exact fractions, stable lot order, JSON and pure repeated calculations',()=>{
+    const f=linear();stock(f,'b','D','input','A','0.000001');stock(f,'a','D','input','A','0.999998');
+    const run=compileConfig(f.c),sim=new Simulation(run),before=JSON.stringify(sim.getSnapshot()),selection=JSON.stringify(f.selection);
+    const p=planDbrDemand(run,f.selection).demandPlan!;
+    expect(p.initialStockUses!.map(u=>[u.stockId,u.quantityUnits])).toEqual([['a','999998'],['b','1']]);
+    expect(p.remainders).toMatchObject([{ownerId:'U',quantityUnits:'999999'}]);balance(p);
+    const json=JSON.stringify(p);expect(JSON.parse(json)).toEqual(p);
+    expect(JSON.stringify(sim.getSnapshot())).toBe(before);expect(JSON.stringify(f.selection)).toBe(selection);
+    p.initialStockUses![0]!.quantityUnits='changed';expect(JSON.stringify(planDbrDemand(run,f.selection).demandPlan)).toBe(json);
+    f.c.initialStocks.reverse();expect(JSON.stringify(calculate(f))).toBe(json);
   });
 });

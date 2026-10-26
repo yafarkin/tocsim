@@ -48,7 +48,20 @@ export interface DbrAllocation {
   materialId: string;
   quantityUnits: string;
 }
+export interface DbrInitialStockUse {
+  stockId: string;
+  ownerId: string;
+  location: 'input' | 'output' | 'warehouse';
+  materialId: string;
+  productCycleIndex: number;
+  consumerId: string | null;
+  /** Local input use has no transfer route. */
+  routeId: string | null;
+  quantityUnits: string;
+}
 export interface DbrDemandPlan {
+  /** Omitted when no initial stock is used, preserving the zero-stock result. */
+  initialStockUses?: DbrInitialStockUse[];
   groups: {productCycleIndex: number; allSlotsPresent: boolean; slotIds: string[];
     products: {materialId: string; quantityUnits: string}[]}[];
   works: DbrPlanWork[];
@@ -68,7 +81,7 @@ type Lot = {producerId: string; remaining: bigint};
 const ceil = (a: bigint,b: bigint) => (a+b-1n)/b;
 const compare = (a:string,b:string) => a<b ? -1 : a>b ? 1 : 0;
 
-/** Pure quantity accounting. It ignores physical initial stock, calendars outside
+/** Pure quantity accounting. It accounts for initial stock by location, but ignores calendars outside
  * drum, capacity, source timing and RNG. It never authorizes DBR execution.
  * Non-drum work follows a prefix of each station's fixed cyclic plan; no recipe
  * is selected by priority or skipped when another output is wanted.
@@ -117,6 +130,27 @@ export function planDbrDemand(run: RunConfig, selection: unknown) {
     queue.lots.push({producerId,remaining:quantity}); stock.set(k,queue);
     available.set(k,(available.get(k) ?? 0n)+quantity);
   };
+  // Physical initial lots stay separate from the planned production FIFO.
+  const initial = new Map<string, {stock: typeof config.initialStocks[number]; remaining: bigint}[]>();
+  const placeKey = (owner:string,location:string,material:string) => JSON.stringify([owner,location,material]);
+  for (const stock of [...config.initialStocks].sort((a,b)=>compare(a.id,b.id))) {
+    const k=placeKey(stock.ownerId,stock.location,stock.materialId), lots=initial.get(k) ?? [];
+    lots.push({stock,remaining:BigInt(stock.quantity)}); initial.set(k,lots);
+  }
+  const useInitial = (owner:string,location:DbrInitialStockUse['location'],materialId:string,quantity:bigint,
+    consumerId:string|null,routeId:string|null,productCycleIndex:number) => {
+    let needed=quantity;
+    for (const lot of initial.get(placeKey(owner,location,materialId)) ?? []) {
+      if (needed===0n) break;
+      const taken=needed<lot.remaining ? needed : lot.remaining;
+      if (taken===0n) continue;
+      record();
+      (plan.initialStockUses ??= []).push({stockId:lot.stock.id,ownerId:owner,location,materialId,
+        consumerId,routeId,productCycleIndex,quantityUnits:String(taken)});
+      lot.remaining-=taken; needed-=taken;
+    }
+    return needed;
+  };
   const byGroup = new Map<number,typeof schedule.slots>();
   for (const slot of schedule.slots) {
     const group=byGroup.get(slot.productCycleIndex) ?? []; group.push(slot); byGroup.set(slot.productCycleIndex,group);
@@ -132,6 +166,8 @@ export function planDbrDemand(run: RunConfig, selection: unknown) {
     plan.groups.push({productCycleIndex,allSlotsPresent,slotIds,products});
     const requests=new Map<string,Request[]>();
     const request = (owner:string,materialId:string,quantity:bigint,consumerId:string|null) => {
+      quantity=useInitial(owner,'input',materialId,quantity,consumerId,null,productCycleIndex);
+      if (quantity===0n) return;
       const route=incoming(owner,materialId), list=requests.get(route.fromId) ?? [];
       list.push({routeId:route.id,materialId,quantity,consumerId}); requests.set(route.fromId,list);
     };
@@ -170,7 +206,9 @@ export function planDbrDemand(run: RunConfig, selection: unknown) {
       }
     };
     for (const id of order) {
-      const list=requests.get(id) ?? [];
+      const list=(requests.get(id) ?? []).map(demand=>({...demand,
+        quantity:useInitial(id,'output',demand.materialId,demand.quantity,demand.consumerId,demand.routeId,productCycleIndex),
+      })).filter(demand=>demand.quantity>0n);
       if (list.length===0) continue;
       const station=stations.get(id)!;
       const totals=new Map<string,bigint>();
@@ -200,7 +238,13 @@ export function planDbrDemand(run: RunConfig, selection: unknown) {
       const list=requests.get(source.id) ?? [];
       // Keep distinct receiving inputs separate even when they share a source.
       for (const routeId of [...new Set(list.map(r=>r.routeId))].sort(compare)) {
-        const demands=list.filter(r=>r.routeId===routeId),route=routes.find(r=>r.id===routeId)!;
+        const route=routes.find(r=>r.id===routeId)!;
+        const demands=list.filter(r=>r.routeId===routeId).map(demand=>({...demand,
+          quantity:source.availability==='warehouse'
+            ? useInitial('warehouse','warehouse',demand.materialId,demand.quantity,demand.consumerId,demand.routeId,productCycleIndex)
+            : demand.quantity,
+        })).filter(demand=>demand.quantity>0n);
+        if (demands.length===0) continue;
         const quantity=demands.reduce((sum,r)=>sum+r.quantity,0n);
         const needId=JSON.stringify(['source',productCycleIndex,routeId]); record();
         plan.rawNeeds.push({needId,productCycleIndex,sourceId:source.id,toId:route.toId,routeId,materialId:source.materialId,quantityUnits:String(quantity),slotIds:[]});
