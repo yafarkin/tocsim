@@ -45,6 +45,10 @@ import {lesson1Config, lesson1Result} from './lessons/lesson-1';
 import type {Lesson1Variant, Lesson1Results} from './lessons/lesson-1';
 import {Lesson1Intro, Lesson1Comparison, lesson1Labels} from './ui/Lesson1';
 
+import {blockingLessonConfig, blockingLessonResult} from './lessons/lesson-blocking';
+import type {BlockingBuffer, BlockingResults} from './lessons/lesson-blocking';
+import {LessonBlockingIntro, LessonBlockingComparison, blockingLabels} from './ui/LessonBlocking';
+
 import {BottleneckSearch} from './ui/BottleneckSearch';
 import type {BottleneckResult} from './runner/bottleneck-search';
 
@@ -56,7 +60,10 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const showExpert = useCallback(() => changeMode('expert'), [changeMode]);
   const [theme, setTheme] = useTheme();
   const [example, setExample] = useState<ExampleId>('blocking');
-  const [lesson, setLesson] = useState<'lesson-1' | 'lesson-2' | 'lesson-3' | null>('lesson-1');
+  const [lesson, setLesson] = useState<'lesson-1' | 'lesson-2' | 'lesson-3' | 'lesson-blocking' | null>('lesson-1');
+  const lessonBlocking = lesson === 'lesson-blocking';
+  const [blockingBuffer, setBlockingBuffer] = useState<BlockingBuffer>(1);
+  const [blockingResults, setBlockingResults] = useState<BlockingResults>({});
   const lesson1 = lesson === 'lesson-1';
   const [variabilityVariant, setVariabilityVariant] = useState<Lesson1Variant>('steady');
   const [variabilityResults, setVariabilityResults] = useState<Lesson1Results>({});
@@ -78,14 +85,14 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const [quality, setQuality] = useState<QualitySettings>(defaultQuality);
   const [warmupMs, setWarmupMs] = useState(0);
   const [buffers, setBuffers] = useState<BufferSettings | null>(null);
-  const run = useMemo(() => {if (lesson1) return compileConfig(lesson1Config(variabilityVariant)); if (lesson2) return compileConfig(lesson2Config(lessonVariant)); if (lesson3) return compileConfig(lesson3Config(lessonBuffer)); let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); config.warmupMs = warmupMs; return compileConfig(config);}, [lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality, warmupMs]);
+  const run = useMemo(() => {if (lessonBlocking) return compileConfig(blockingLessonConfig(blockingBuffer)); if (lesson1) return compileConfig(lesson1Config(variabilityVariant)); if (lesson2) return compileConfig(lesson2Config(lessonVariant)); if (lesson3) return compileConfig(lesson3Config(lessonBuffer)); let config = previewConfig(example, example === 'queue' ? 0 : cv, seed, batchProfiles, planProfile); if (example === 'queue') config = withDuration(config, duration); if (example === 'batches') config = withMaintenance(config, 'prep', maintenance); config = withLunch(config, lunch); if (buffers) config = withBuffers(config, buffers); if (example === 'quality') config = withQuality(config, quality); config.warmupMs = warmupMs; return compileConfig(config);}, [lessonBlocking, blockingBuffer, lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, example, cv, seed, batchProfiles, planProfile, buffers, duration, maintenance, lunch, quality, warmupMs]);
   const [searchResult, setSearchResult] = useState<{hash:string;result:BottleneckResult|null}|null>(null);
   useEffect(() => setSearchResult(null), [run.calculationHash]);
   const acceptSearchResult = useCallback((result:BottleneckResult|null) => setSearchResult({hash:run.calculationHash,result}), [run.calculationHash]);
   const highlightedStations = searchResult?.hash===run.calculationHash ? searchResult.result?.stationIds ?? [] : [];
   const [language, setLanguage] = useState<Language>('ru');
   // Translate captions without replacing the running simulation when the language changes.
-  const displayedRun = useMemo(() => lesson1 ? {...run, source: lesson1Config(variabilityVariant, language)} : lesson2 ? {...run, source: lesson2Config(lessonVariant, language)} : lesson3 ? {...run, source: lesson3Config(lessonBuffer, language)} : run, [run, lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, language]);
+  const displayedRun = useMemo(() => lessonBlocking ? {...run, source: blockingLessonConfig(blockingBuffer, language)} : lesson1 ? {...run, source: lesson1Config(variabilityVariant, language)} : lesson2 ? {...run, source: lesson2Config(lessonVariant, language)} : lesson3 ? {...run, source: lesson3Config(lessonBuffer, language)} : run, [run, lessonBlocking, blockingBuffer, lesson1, variabilityVariant, lesson2, lesson3, lessonBuffer, lessonVariant, language]);
   const [view, setView] = useState<DeepReadonly<RunnerView> | null>(null);
   const [manualReduced, setManualReduced] = useState(false), [systemReduced, setSystemReduced] = useState(false);
   const preferredSpeed = useRef<PlaybackSpeed>(60);
@@ -125,6 +132,11 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
     const result = lesson1Result(view.model);
     setVariabilityResults(previous => ({...previous, [variabilityVariant]: result}));
   }, [lesson1, variabilityVariant, view]);
+  useEffect(() => {
+    if (!lessonBlocking || view?.status !== 'finished' || view.model.line?.termination !== 'horizon') return;
+    const result = blockingLessonResult(view.model);
+    setBlockingResults(previous => ({...previous, [blockingBuffer]: result}));
+  }, [lessonBlocking, blockingBuffer, view]);
   const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
   const time = clockAt(calendar, view?.model.timeMs ?? 0), clock = [Math.floor(time.timeOfDayMs / 3_600_000), Math.floor(time.timeOfDayMs / 60_000) % 60, Math.floor(time.timeOfDayMs / 1000) % 60].map(value => String(value).padStart(2, '0')).join(':');
   const status = view?.status ?? 'ready', terminal = ['finished', 'stopped', 'error'].includes(status);
@@ -175,8 +187,11 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
-    <div className="example-picker"><label>{text.example}<select value={lesson ?? example} disabled={(locked && !terminal) || !view} onChange={event => {if (event.target.value === (lesson ?? example)) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); const next = event.target.value; setLesson(next === 'lesson-1' || next === 'lesson-2' || next === 'lesson-3' ? next : null); if (next !== 'lesson-1' && next !== 'lesson-2' && next !== 'lesson-3') setExample(next as ExampleId);}}><option value="lesson-1">{lesson1Labels[language].name}</option><option value="lesson-2">{lesson2Labels[language].name}</option><option value="lesson-3">{lesson3Labels[language].name}</option>{exampleIds.filter(id => id !== 'balanced' && id !== 'queue').map(id => <option key={id} value={id}>{id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked && !terminal ? '' : 'expert-only'}>{locked && !terminal ? text.locked : text.ready}</p></div>
-    {lesson1 ? <Lesson1Intro variant={variabilityVariant} locked={(locked && !terminal) || !view} language={language} onChange={next => {
+    <div className="example-picker"><label>{text.example}<select value={lesson ?? example} disabled={(locked && !terminal) || !view} onChange={event => {if (event.target.value === (lesson ?? example)) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); const next = event.target.value; setLesson(next === 'lesson-1' || next === 'lesson-2' || next === 'lesson-3' || next === 'lesson-blocking' ? next : null); if (next !== 'lesson-1' && next !== 'lesson-2' && next !== 'lesson-3' && next !== 'lesson-blocking') setExample(next as ExampleId);}}><option value="lesson-1">{lesson1Labels[language].name}</option><option value="lesson-2">{lesson2Labels[language].name}</option><option value="lesson-3">{lesson3Labels[language].name}</option><option value="lesson-blocking">{blockingLabels[language].name}</option>{exampleIds.filter(id => id !== 'balanced' && id !== 'queue' && id !== 'blocking').map(id => <option key={id} value={id}>{id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked && !terminal ? '' : 'expert-only'}>{locked && !terminal ? text.locked : text.ready}</p></div>
+    {lessonBlocking ? <LessonBlockingIntro buffer={blockingBuffer} locked={(locked && !terminal) || !view} language={language} onChange={next => {
+      if (next === blockingBuffer) return;
+      runner.current?.dispose(); setView(null); setBlockingBuffer(next);
+    }}/> : lesson1 ? <Lesson1Intro variant={variabilityVariant} locked={(locked && !terminal) || !view} language={language} onChange={next => {
       if (next === variabilityVariant) return;
       runner.current?.dispose(); setView(null); setVariabilityVariant(next);
     }}/> : lesson2 ? <Lesson2Intro variant={lessonVariant} locked={(locked && !terminal) || !view} language={language} onChange={next => {
@@ -220,11 +235,12 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
       </div>
       {configurationError && <p role="alert" className="run-error">{configurationError.messages[language]} <span className="expert-only">{configurationError.path}</span> <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
       {!seedAllowed && <p role="alert" className="run-error">{text.seedError} <button className="simple-only" onClick={showExpert}>{text.showExpert}</button></p>}
-      <div className="diagram-context"><p className="expert-only">{lesson1 ? lesson1Labels[language].help : lesson2 ? lesson2Labels[language].help : lesson3 ? lesson3Labels[language].help : example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
+      <div className="diagram-context"><p className="expert-only">{lessonBlocking ? blockingLabels[language].help : lesson1 ? lesson1Labels[language].help : lesson2 ? lesson2Labels[language].help : lesson3 ? lesson3Labels[language].help : example === 'quality' ? text.qualityHint : example === 'plans' ? text.plansHint : example === 'batches' ? text.batchesHint : example === 'assembly' ? text.assemblyHint : example === 'split' ? text.splitHint : example === 'balanced' ? text.balancedHint : example === 'queue' ? text.queueHint : text.blockingHint}</p><label title={systemReduced ? text.systemMotion : undefined}><input type="checkbox" checked={manualReduced || systemReduced} disabled={systemReduced} onChange={event => setManualReduced(event.target.checked)}/>{text.lessMotion}</label></div>
       <BottleneckSearch key={run.calculationHash} run={displayedRun} language={language} text={text} allowed={!!view && status!=='running' && seedAllowed && !configurationError} onResult={acceptSearchResult}/>
-      {view && <FlowDiagram key={`${lesson1 ? variabilityVariant : lesson2 ? lessonVariant : lesson3 ? `buffer-${lessonBuffer}` : example}-${generation}`} run={displayedRun} view={view} text={text} reduced={manualReduced || systemReduced} bottleneckStationIds={highlightedStations}/>}
-      {view && <RunSummary run={displayedRun} view={view} text={text} language={language} example={lesson ? 'queue' : example}/>}
+      {view && <FlowDiagram key={`${lessonBlocking ? `blocking-${blockingBuffer}` : lesson1 ? variabilityVariant : lesson2 ? lessonVariant : lesson3 ? `buffer-${lessonBuffer}` : example}-${generation}`} run={displayedRun} view={view} text={text} reduced={manualReduced || systemReduced} bottleneckStationIds={highlightedStations}/>}
+      {view && <RunSummary run={displayedRun} view={view} text={text} language={language} example={lessonBlocking ? 'blocking' : lesson ? 'queue' : example}/>}
       {!lesson && example === 'quality' && view && <div className="expert-only"><QualitySummary key={example} run={run} view={view} text={text}/></div>}
+      {lessonBlocking && <LessonBlockingComparison results={blockingResults} language={language}/>}
       {lesson1 && <Lesson1Comparison results={variabilityResults} language={language}/>}
       {lesson2 && <Lesson2Comparison results={lessonResults} language={language}/>}
       {lesson3 && <Lesson3Comparison results={bufferResults} language={language}/>}
