@@ -55,8 +55,8 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const changeMode = onModeChange ?? selectMode;
   const showExpert = useCallback(() => changeMode('expert'), [changeMode]);
   const [theme, setTheme] = useTheme();
-  const [example, setExample] = useState<ExampleId>('queue');
-  const [lesson, setLesson] = useState<'lesson-1' | 'lesson-2' | 'lesson-3' | null>(null);
+  const [example, setExample] = useState<ExampleId>('blocking');
+  const [lesson, setLesson] = useState<'lesson-1' | 'lesson-2' | 'lesson-3' | null>('lesson-1');
   const lesson1 = lesson === 'lesson-1';
   const [variabilityVariant, setVariabilityVariant] = useState<Lesson1Variant>('steady');
   const [variabilityResults, setVariabilityResults] = useState<Lesson1Results>({});
@@ -175,7 +175,7 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
-    <div className="example-picker"><label>{text.example}<select value={lesson ?? example} disabled={(locked && !terminal) || !view} onChange={event => {if (event.target.value === (lesson ?? example)) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); const next = event.target.value; setLesson(next === 'lesson-1' || next === 'lesson-2' || next === 'lesson-3' ? next : null); if (next !== 'lesson-1' && next !== 'lesson-2' && next !== 'lesson-3') setExample(next as ExampleId);}}><option value="lesson-1">{lesson1Labels[language].name}</option><option value="lesson-2">{lesson2Labels[language].name}</option><option value="lesson-3">{lesson3Labels[language].name}</option>{exampleIds.map(id => <option key={id} value={id}>{id === 'queue' ? text.queueExample : id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked && !terminal ? '' : 'expert-only'}>{locked && !terminal ? text.locked : text.ready}</p></div>
+    <div className="example-picker"><label>{text.example}<select value={lesson ?? example} disabled={(locked && !terminal) || !view} onChange={event => {if (event.target.value === (lesson ?? example)) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); const next = event.target.value; setLesson(next === 'lesson-1' || next === 'lesson-2' || next === 'lesson-3' ? next : null); if (next !== 'lesson-1' && next !== 'lesson-2' && next !== 'lesson-3') setExample(next as ExampleId);}}><option value="lesson-1">{lesson1Labels[language].name}</option><option value="lesson-2">{lesson2Labels[language].name}</option><option value="lesson-3">{lesson3Labels[language].name}</option>{exampleIds.filter(id => id !== 'balanced' && id !== 'queue').map(id => <option key={id} value={id}>{id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked && !terminal ? '' : 'expert-only'}>{locked && !terminal ? text.locked : text.ready}</p></div>
     {lesson1 ? <Lesson1Intro variant={variabilityVariant} locked={(locked && !terminal) || !view} language={language} onChange={next => {
       if (next === variabilityVariant) return;
       runner.current?.dispose(); setView(null); setVariabilityVariant(next);
