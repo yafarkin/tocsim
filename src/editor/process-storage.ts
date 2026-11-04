@@ -88,6 +88,19 @@ export function openProcessStorage(storage: () => ProcessStorage = () => localSt
   return {
     list: (): ProcessEntry[] => structuredClone([...entries.values()]),
     issues: (): ProcessStorageIssue[] => structuredClone(issues),
+    /** Reopen one record without discarding other in-memory drafts. */
+    read(id: string): {entry: ProcessEntry | null; issue: ProcessStorageIssue | null} {
+      const key = PROCESS_STORAGE_PREFIX + id;
+      let raw: string | null;
+      try {raw = storage().getItem(key);}
+      catch {return {entry: null, issue: issue('unavailable', key)};}
+      if (raw === null) {entries.delete(id); return {entry: null, issue: null};}
+      try {
+        const entry = {record: readRecord(raw, key), persisted: true};
+        entries.set(id, entry);
+        return {entry: structuredClone(entry), issue: null};
+      } catch (error) {return {entry: null, issue: recordIssue(error, key)};}
+    },
     /** Pass zero for a new ID. Failed writes retain the draft with its last persisted revision. */
     save(id: string, config: EditorConfig, expectedRevision: number): ProcessStorageResult {
       validateIdentity(id, expectedRevision);

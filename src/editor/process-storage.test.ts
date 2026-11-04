@@ -15,6 +15,28 @@ function fixture() {
 }
 
 describe('process storage', () => {
+  it('rereads one conflict without discarding other memory-only processes', () => {
+    const f = fixture(), store = f.open(); store.save('a', createLinearProcess('a'), 0);
+    const config = createLinearProcess('b'), write = f.storage.setItem;
+    f.storage.setItem = () => {throw new Error('Quota');};
+    store.save('b', config, 0); f.storage.setItem = write;
+    f.open().save('a', {...createLinearProcess('a'), name: 'Remote'}, 1);
+    const result = store.read('a');
+    expect(result.entry?.record).toMatchObject({revision: 2, config: {name: 'Remote'}});
+    result.entry!.record.config.name = 'Changed';
+    expect(store.list().find(entry => entry.record.id === 'a')!.record.config.name).toBe('Remote');
+    expect(store.list().find(entry => entry.record.id === 'b')).toMatchObject({persisted: false, record: {config}});
+  });
+  it('preserves the local draft after a failed reread and handles a deleted record', () => {
+    const f = fixture(), store = f.open(); store.save('a', createLinearProcess('a'), 0);
+    const before = store.list(), read = f.storage.getItem;
+    f.storage.getItem = () => {throw new Error('Denied');};
+    expect(store.read('a').issue!.code).toBe('unavailable'); expect(store.list()).toEqual(before);
+    f.storage.getItem = read; f.data.set(prefix + 'a', '{broken');
+    expect(store.read('a').issue!.code).toBe('invalid'); expect(store.list()).toEqual(before);
+    f.data.delete(prefix + 'a'); expect(store.read('a')).toEqual({entry: null, issue: null});
+    expect(store.list()).toEqual([]);
+  });
   it('restores several named configurations and revisions, including duplicate names', () => {
     const f = fixture(), store = f.open();
     const a = createLinearProcess('config-a'), b = createLinearProcess('config-b');

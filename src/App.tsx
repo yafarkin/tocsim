@@ -55,6 +55,7 @@ import {LessonBatchesIntro, LessonBatchesComparison, batchesLabels} from './ui/L
 
 import {BottleneckSearch} from './ui/BottleneckSearch';
 import type {BottleneckResult} from './runner/bottleneck-search';
+import {ProcessEditor} from './editor/ProcessEditor';
 
 // Mode is a viewing preference, absent from RunConfig/Runner dependencies and editor keys.
 export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onModeChange?: (mode: UiMode) => void} = {}) {
@@ -63,6 +64,8 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const changeMode = onModeChange ?? selectMode;
   const showExpert = useCallback(() => changeMode('expert'), [changeMode]);
   const [theme, setTheme] = useTheme();
+  const [processesOpen, setProcessesOpen] = useState(false);
+  const [editorOpened, setEditorOpened] = useState(false);
   const [example, setExample] = useState<ExampleId>('blocking');
   const [lesson, setLesson] = useState<'lesson-1' | 'lesson-2' | 'lesson-3' | 'lesson-blocking' | 'lesson-batches' | null>('lesson-1');
   const lessonBatches = lesson === 'lesson-batches';
@@ -196,7 +199,10 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button>
       <button type="button" className="mode-toggle" aria-label={text.expertMode} aria-pressed={mode === 'expert'} onClick={() => changeMode(mode === 'simple' ? 'expert' : 'simple')}>{text.expertMode}: {mode === 'expert' ? text.modeOn : text.modeOff}</button></div>
     </header>
-    <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p></div>
+    {editorOpened && <ProcessEditor language={language} active={processesOpen} onBack={() => setProcessesOpen(false)}/>}
+    <div hidden={processesOpen}>
+    <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p>
+      <button type="button" disabled={!view || status === 'running' || status === 'paused'} onClick={() => {setEditorOpened(true); setProcessesOpen(true);}}>{language === 'ru' ? 'Мои процессы' : 'My processes'}</button></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
     <h2 id="scenario-title">{text.scenario}</h2>
     <div className="example-picker"><label>{text.example}<select value={lesson ?? example} disabled={(locked && !terminal) || !view} onChange={event => {if (event.target.value === (lesson ?? example)) return; runner.current?.dispose(); setView(null); setConfigurationError(null); setBuffers(null); setDuration({kind: 'constant', timeMs: 480_000}); setMaintenance({enabled: false}); setLunch({}); setQuality(defaultQuality); setWarmupMs(0); const next = event.target.value; setLesson(next === 'lesson-1' || next === 'lesson-2' || next === 'lesson-3' || next === 'lesson-blocking' || next === 'lesson-batches' ? next : null); if (next !== 'lesson-1' && next !== 'lesson-2' && next !== 'lesson-3' && next !== 'lesson-blocking' && next !== 'lesson-batches') setExample(next as ExampleId);}}><option value="lesson-1">{lesson1Labels[language].name}</option><option value="lesson-2">{lesson2Labels[language].name}</option><option value="lesson-3">{lesson3Labels[language].name}</option><option value="lesson-blocking">{blockingLabels[language].name}</option><option value="lesson-batches">{batchesLabels[language].name}</option>{exampleIds.filter(id => id !== 'balanced' && id !== 'queue' && id !== 'blocking' && id !== 'batches').map(id => <option key={id} value={id}>{id === 'assembly' ? text.assemblyExample : text[id]}</option>)}</select></label><p className={locked && !terminal ? '' : 'expert-only'}>{locked && !terminal ? text.locked : text.ready}</p></div>
@@ -264,6 +270,7 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
       <div className="material-key" aria-label={text.material}>{displayedRun.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>
     </section>
     </section>
+    </div>
     <footer className="version-info" aria-label={text.versions}><span>{text.appVersion} {appVersion}</span>{' '}<span>{text.engineVersion} {run.engineVersion}</span></footer>
   </main>;
 }
