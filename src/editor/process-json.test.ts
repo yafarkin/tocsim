@@ -22,8 +22,8 @@ describe('portable process JSON', () => {
     config.stations[0]!.plan[0]!.processing.cv = 0.5;
     config.stations[1]!.inputBuffer = {kind: 'quantity', quantity: '8'};
     const text = exportProcessJson(config), imported = parseProcessJson(text);
-    expect(JSON.parse(text)).toEqual(envelope(config));
-    expect(Object.keys(JSON.parse(text))).toEqual(['format', 'schemaVersion', 'config']);
+    expect(JSON.parse(text)).toEqual({...envelope(config), schemaVersion: 2, layout: {positions: []}});
+    expect(Object.keys(JSON.parse(text))).toEqual(['format', 'schemaVersion', 'config', 'layout']);
     expect(imported).toEqual(config);
     expect(new Simulation(compileLinearProcess(imported)).runToEnd())
       .toEqual(new Simulation(compileLinearProcess(config)).runToEnd());

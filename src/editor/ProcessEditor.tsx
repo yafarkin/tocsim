@@ -6,11 +6,14 @@ import type {Language} from '../ui/i18n';
 import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import type {BufferDraft, ProcessDraft} from './process-form';
-import {copyImportedProcess, exportProcessJson, readProcessJsonFile} from './process-json';
+import {copyImportedProcess, exportProcessJson, readProcessDocumentFile} from './process-json';
 import {openProcessStorage} from './process-storage';
 import type {ProcessEntry, ProcessStorageIssue} from './process-storage';
 import type {PlaybackStatus} from '../runner/runner';
 import {ProcessPlayback} from './ProcessPlayback';
+import {ProcessCanvas} from './ProcessCanvas';
+import {retainLayout} from './process-layout';
+import type {ProcessDocument, ProcessLayout} from './process-layout';
 
 const words = {
   ru: {title: 'Мои процессы', back: 'К урокам и примерам', create: 'Создать процесс', empty: 'Создайте процесс или откройте файл JSON.',
@@ -67,12 +70,14 @@ const words = {
 type Text = typeof words[Language];
 interface Session {
   id: string; revision: number; persisted: boolean; config: EditorConfig; draft: ProcessDraft; saved: EditorConfig | null;
+  layout: ProcessLayout; savedLayout: ProcessLayout;
 }
 function newId(): string {return `process-${crypto.randomUUID()}`;}
 function fromEntry(entry: ProcessEntry): Session {
   const config = structuredClone(entry.record.config);
   return {id: entry.record.id, revision: entry.record.revision, persisted: entry.persisted,
-    config, draft: processDraft(config), saved: structuredClone(config)};
+    config, draft: processDraft(config), saved: structuredClone(config),
+    layout: structuredClone(entry.record.layout), savedLayout: structuredClone(entry.record.layout)};
 }
 
 function BufferFields({label, value, global = false, input, onChange, text, invalid}: {
@@ -99,14 +104,15 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
   const [notice, setNotice] = useState<'deleted' | 'deleteMemory' | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [preview, setPreview] = useState<EditorConfig | null>(null);
+  const [preview, setPreview] = useState<ProcessDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [experiment, setExperiment] = useState<{id: string; recordId: string; run: RunConfig} | null>(null);
   const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>('ready');
   const runBusy = playbackStatus === 'running' || playbackStatus === 'paused';
   const locked = runBusy && experiment?.recordId === session?.id;
   const dialog = useRef<HTMLDialogElement>(null);
-  const dirty = !!session && (!session.saved || JSON.stringify(session.draft) !== JSON.stringify(processDraft(session.saved)));
+  const dirty = !!session && (!session.saved || JSON.stringify(session.draft) !== JSON.stringify(processDraft(session.saved))
+    || JSON.stringify(session.layout) !== JSON.stringify(session.savedLayout));
   const modal = !!pending || deleting || !!preview;
   useEffect(() => {
     const element = dialog.current;
@@ -129,14 +135,14 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
         {ru: words.ru.readError, en: words.en.readError}));
     }
   }
-  function start(config: EditorConfig) {
-    clearMessages(); setSession({id: newId(), revision: 0, persisted: false, config, draft: processDraft(config), saved: null});
+  function start(config: EditorConfig, layout: ProcessLayout = {positions: []}) {
+    clearMessages(); setSession({id: newId(), revision: 0, persisted: false, config, draft: processDraft(config), saved: null, layout: structuredClone(layout), savedLayout: {positions: []}});
   }
   function save(): boolean {
     if (!session) return true;
     let done = false;
     attempt(() => {
-      const config = configFromDraft(session.config, session.draft), result = store.save(session.id, config, session.revision);
+      const config = configFromDraft(session.config, session.draft), result = store.save(session.id, config, session.revision, session.layout);
       setStorageIssue(result.issue); setEntries(store.list());
       if (result.issue && result.issue.code !== 'unavailable') return;
       const entry = store.list().find(entry => entry.record.id === session.id)!;
@@ -148,18 +154,18 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
     if (!session) return;
     attempt(() => {
       const config = action(configFromDraft(session.config, session.draft));
-      setSession({...session, config, draft: processDraft(config)}); setError(null);
+      setSession({...session, config, draft: processDraft(config), layout: retainLayout(config, session.layout)}); setError(null);
     });
   }
   function discardAndContinue() {
-    if (session?.saved) setSession({...session, config: structuredClone(session.saved), draft: processDraft(session.saved)});
+    if (session?.saved) setSession({...session, config: structuredClone(session.saved), draft: processDraft(session.saved), layout: structuredClone(session.savedLayout)});
     else setSession(null);
     const next = pending; setPending(null); clearMessages(); next?.();
   }
   function exportFile() {
     if (!session) return;
     attempt(() => {
-      const config = configFromDraft(session.config, session.draft), json = exportProcessJson(config);
+      const config = configFromDraft(session.config, session.draft), json = exportProcessJson(config, session.layout);
       const url = URL.createObjectURL(new Blob([json], {type: 'application/json'}));
       const link = document.createElement('a'); link.href = url; link.download = `${config.id}.json`;
       document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); setError(null);
@@ -167,7 +173,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
   }
   async function importFile(file: File) {
     clearMessages(); setBusy(true);
-    try {setPreview(await readProcessJsonFile(file));}
+    try {setPreview(await readProcessDocumentFile(file));}
     catch (failure) {attempt(() => {
       if (failure instanceof ConfigError) throw new ConfigError(failure.code, 'file', null,
         {ru: `Импорт: ${failure.messages.ru}`, en: `Import: ${failure.messages.en}`});
@@ -179,8 +185,8 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
     if (!preview) return;
     const imported = preview; setPreview(null);
     guard(() => attempt(() => {
-      const config = copyImportedProcess(imported, newId()), id = newId();
-      const result = store.save(id, config, 0);
+      const config = copyImportedProcess(imported.config, newId()), id = newId();
+      const result = store.save(id, config, 0, imported.layout);
       setEntries(store.list()); setSession(fromEntry(store.list().find(entry => entry.record.id === id)!));
       setStorageIssue(result.issue); setError(null);
     }));
@@ -196,8 +202,8 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
     && (stationId ? error.objectId === stationId && (error.path.endsWith(field) || error.path.includes(`.${field}.`))
       : error.path === `config.${field}` || error.path.startsWith(`config.${field}.`));
   const selectedEntry = session && entries.find(entry => entry.record.id === session.id);
-  const previewShifts = preview && calendarForDuration(preview.calendar, preview.durationMs).days;
-  const previewDraft = preview && processDraft(preview);
+  const previewShifts = preview && calendarForDuration(preview.config.calendar, preview.config.durationMs).days;
+  const previewDraft = preview && processDraft(preview.config);
   const bufferText = (rule: BufferDraft) => `${text[rule.kind === 'inherit' ? 'inherit' : rule.kind === 'infinite' ? 'infinite' : rule.kind === 'shift' ? 'shift' : 'quantity']}${rule.value ? `: ${rule.value}` : ''}`;
 
   return <section className="process-editor" aria-labelledby="process-title" hidden={!active}>
@@ -234,11 +240,13 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
           })}>{text.run}</button><button type="button" disabled={locked} onClick={save}>{text.save}</button>
             <button type="button" onClick={() => attempt(() => {
               const config = copyImportedProcess(configFromDraft(session.config, session.draft), newId());
-              config.name += ` (${text.copied})`; start(config);
+              config.name += ` (${text.copied})`; start(config, session.layout);
             })}>{text.copy}</button>
             <button type="button" onClick={exportFile}>{text.export}</button>
             <button type="button" disabled={!selectedEntry || locked} onClick={() => setDeleting(true)}>{text.remove}</button></div>
           <fieldset className="process-form-fields" disabled={locked}>
+          <ProcessCanvas key={session.id} config={session.config} draft={session.draft} layout={session.layout} language={language} locked={locked}
+            onChange={layout => {if (!locked) {setSession({...session, layout}); setNotice(null);}}}/>
           <div className="process-general">
             <label className="process-name">{text.name}<input value={session.draft.name} aria-invalid={fieldError('name')} onChange={event => edit({...session.draft, name: event.target.value})}/></label>
             <label>Seed<input inputMode="numeric" value={session.draft.seed} aria-invalid={fieldError('seed')} onChange={event => edit({...session.draft, seed: event.target.value})}/></label>
@@ -257,7 +265,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
           <h2>{text.edit} ({session.draft.stations.length}/30)</h2>
           <ol className="process-stations">{session.draft.stations.map((station, index) => {
             const update = (patch: Partial<typeof station>) => edit({...session.draft, stations: session.draft.stations.map(item => item.id === station.id ? {...item, ...patch} : item)});
-            return <li key={station.id}><fieldset><legend>{text.station} {index + 1}</legend>
+            return <li key={station.id} id={`process-station-${station.id}`}><fieldset><legend>{text.station} {index + 1}</legend>
               <div className="process-station-fields">
                 <label className="process-name">{text.stationName}<input value={station.name} aria-invalid={fieldError('name', station.id)} onChange={event => update({name: event.target.value})}/></label>
                 <label>{text.minutes}<input inputMode="decimal" value={station.minutes} aria-invalid={fieldError('timeMs', station.id)} onChange={event => update({minutes: event.target.value})}/></label>
@@ -288,7 +296,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
       <h2 id="process-dialog-title">{preview ? text.preview : deleting ? text.deleteQuestion : text.leave}</h2>
       {pending && error && <p className="process-error" role="alert">{error.messages[language]}</p>}
       {pending && storageIssue && <p className="process-warning" role="alert">{storageIssue[language]}</p>}
-      {preview && <><p>{preview.name}</p><p>{text.count}: {preview.stations.length}. {text.shifts}: {previewShifts}. Seed: {preview.seed}.</p>
+      {preview && <><p>{preview.config.name}</p><p>{text.count}: {preview.config.stations.length}. {text.shifts}: {previewShifts}. Seed: {preview.config.seed}.</p>
         <p>{text.calendar}</p><p>{text.fixed}</p>
         {previewDraft && <><ul>{previewDraft.materials.map(material => <li key={material.id}>{material.name}</li>)}</ul><p>{text.defaults}. {text.input}: {bufferText(previewDraft.input)}; {text.output}: {bufferText(previewDraft.output)}.</p>
           <ul>{previewDraft.stations.map(station => <li key={station.id}>{station.name}: {station.minutes} {language === 'ru' ? 'мин' : 'min'}, CV {station.cv}.

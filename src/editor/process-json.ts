@@ -1,6 +1,8 @@
 import {ConfigError} from '../engine/config';
 import type {EditorConfig} from '../engine/config';
 import {compileLinearProcess} from './linear-process';
+import {parseProcessLayout} from './process-layout';
+import type {ProcessDocument, ProcessLayout} from './process-layout';
 
 export const PROCESS_JSON_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -14,16 +16,16 @@ function checkSize(size: number): void {
   }
 }
 
-/** A portable configuration only: no library revision, timestamps or run results. */
-export function exportProcessJson(config: EditorConfig): string {
+/** Portable configuration and editor layout, without library revision, timestamps or run results. */
+export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = {positions: []}): string {
   compileLinearProcess(config);
-  const text = JSON.stringify({format: 'toc-process', schemaVersion: 1, config}, null, 2);
+  const text = JSON.stringify({format: 'toc-process', schemaVersion: 2, config, layout: parseProcessLayout(layout, config)}, null, 2);
   checkSize(new TextEncoder().encode(text).byteLength);
   return text;
 }
 
 /** Preview data retains the source ID. This function never writes to the library. */
-export function parseProcessJson(text: string): EditorConfig {
+export function parseProcessDocument(text: string): ProcessDocument {
   checkSize(new TextEncoder().encode(text).byteLength);
   let value: unknown;
   try { value = JSON.parse(text); }
@@ -32,24 +34,34 @@ export function parseProcessJson(text: string): EditorConfig {
     || !('format' in value) || value.format !== 'toc-process') {
     fail('file.format', 'Ожидается файл одного процесса toc-process.', 'Expected a single toc-process file.');
   }
-  if (!('schemaVersion' in value) || value.schemaVersion !== 1) {
+  if (!('schemaVersion' in value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) {
     fail('file.schemaVersion', 'Версия файла не поддерживается.', 'The file version is unsupported.');
   }
-  if (Object.keys(value).some(key => !['format', 'schemaVersion', 'config'].includes(key))) {
+  const allowed = value.schemaVersion === 1 ? ['format', 'schemaVersion', 'config'] : ['format', 'schemaVersion', 'config', 'layout'];
+  if (Object.keys(value).some(key => !allowed.includes(key))) {
     fail('file', 'Оболочка файла содержит неподдерживаемые поля.', 'The file envelope contains unsupported fields.');
   }
   const config: unknown = 'config' in value ? value.config : undefined;
   compileLinearProcess(config);
-  return structuredClone(config) as EditorConfig;
+  const source = structuredClone(config) as EditorConfig;
+  const layout = value.schemaVersion === 1 ? {positions: []} : parseProcessLayout('layout' in value ? value.layout : undefined, source);
+  return {config: source, layout};
 }
 
+// Config-only API retained for callers that do not display an editor.
+export function parseProcessJson(text: string): EditorConfig {return parseProcessDocument(text).config;}
+
 /** Check the file size before reading; selection and confirmation belong to the UI. */
-export async function readProcessJsonFile(file: Pick<Blob, 'size' | 'text'>): Promise<EditorConfig> {
+export async function readProcessDocumentFile(file: Pick<Blob, 'size' | 'text'>): Promise<ProcessDocument> {
   checkSize(file.size);
   let text: string;
   try { text = await file.text(); }
   catch { fail('file.read', 'Не удалось прочитать файл.', 'Could not read the file.'); }
-  return parseProcessJson(text);
+  return parseProcessDocument(text);
+}
+
+export async function readProcessJsonFile(file: Pick<Blob, 'size' | 'text'>): Promise<EditorConfig> {
+  return (await readProcessDocumentFile(file)).config;
 }
 
 /** Call only after accepting a preview, then save under a new library record ID. */

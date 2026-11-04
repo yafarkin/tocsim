@@ -1,10 +1,13 @@
 import type {EditorConfig} from '../engine/config';
 import {compileLinearProcess} from './linear-process';
+import {parseProcessLayout} from './process-layout';
+import type {ProcessLayout} from './process-layout';
 
 export const PROCESS_STORAGE_PREFIX = 'toc.process.';
 type ProcessStorage = Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'>;
 export interface ProcessRecord {
-  schemaVersion: 1;
+  schemaVersion: 2;
+  layout: ProcessLayout;
   id: string;
   /** Last persisted revision; zero means the record has never been persisted. */
   revision: number;
@@ -33,7 +36,7 @@ function issue(code: IssueCode, key: string | null): ProcessStorageIssue {
 function readRecord(raw: string, key: string): ProcessRecord {
   const value: unknown = JSON.parse(raw);
   if (!value || typeof value !== 'object' || !('schemaVersion' in value)) throw issue('invalid', key);
-  if (value.schemaVersion !== 1) throw issue('version', key);
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) throw issue('version', key);
   const record = value as ProcessRecord;
   if (typeof record.id !== 'string' || !record.id || key !== PROCESS_STORAGE_PREFIX + record.id
     || !Number.isSafeInteger(record.revision) || record.revision < 1
@@ -41,7 +44,9 @@ function readRecord(raw: string, key: string): ProcessRecord {
     throw issue('invalid', key);
   }
   compileLinearProcess(record.config);
-  return record;
+  // Version 1 had no coordinates. Migrate in memory; only explicit save writes version 2.
+  const layout = value.schemaVersion === 1 ? {positions: []} : parseProcessLayout(record.layout, record.config);
+  return {...record, schemaVersion: 2, layout};
 }
 
 function recordIssue(error: unknown, key: string): ProcessStorageIssue {
@@ -102,11 +107,11 @@ export function openProcessStorage(storage: () => ProcessStorage = () => localSt
       } catch (error) {return {entry: null, issue: recordIssue(error, key)};}
     },
     /** Pass zero for a new ID. Failed writes retain the draft with its last persisted revision. */
-    save(id: string, config: EditorConfig, expectedRevision: number): ProcessStorageResult {
+    save(id: string, config: EditorConfig, expectedRevision: number, layout: ProcessLayout = {positions: []}): ProcessStorageResult {
       validateIdentity(id, expectedRevision);
       compileLinearProcess(config);
       const key = PROCESS_STORAGE_PREFIX + id;
-      const record: ProcessRecord = {schemaVersion: 1, id, revision: expectedRevision,
+      const record: ProcessRecord = {schemaVersion: 2, layout: parseProcessLayout(layout, config), id, revision: expectedRevision,
         updatedAt: new Date().toISOString(), config: structuredClone(config)};
       let failure: ProcessStorageIssue | null = null;
       try {
