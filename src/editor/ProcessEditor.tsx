@@ -20,11 +20,15 @@ const words = {
     inherit: 'Общий буфер', quantity: 'Количество', infinite: 'Без ограничения', shift: 'Доля смены', amount: 'Значение',
     add: 'Добавить пост', up: 'Выше', down: 'Ниже', removeStation: 'Удалить пост', station: 'Пост',
     saved: 'Сохранено в браузере', unsaved: 'Есть несохранённые изменения', memory: 'Только в памяти вкладки. Экспортируйте JSON до закрытия.',
-    edit: 'Цепочка', select: 'Выберите процесс слева или создайте новый.', cancel: 'Отмена', discard: 'Отбросить изменения',
+    materials: 'Материалы', materialName: 'Название материала', recipe: 'Рецепт', recipeName: 'Название рецепта',
+    recipeInput: 'Входной материал', recipeOutput: 'Выходной материал', inputQuantity: 'Расход за обработку', outputQuantity: 'Выпуск за обработку',
+    recipeHelp: 'Вход поступает от предыдущего поста или источника. Количество выхода должно быть целым. Время обработки относится ко всему указанному комплекту.',
+    materialsHelp: 'В цепочке материалы связаны автоматически. Названия материалов сохраняются независимо от названий постов.',
+    raw: 'Сырьё', intermediate: 'Промежуточный материал', finished: 'Готовый продукт', edit: 'Цепочка', select: 'Выберите процесс слева или создайте новый.', cancel: 'Отмена', discard: 'Отбросить изменения',
     leave: 'Сохранить изменения перед переходом?', deleteQuestion: 'Удалить выбранный процесс из библиотеки?', confirmDelete: 'Да, удалить',
     preview: 'Проверка импорта', accept: 'Импортировать как новый процесс', count: 'Постов', conditions: 'Условия процесса',
     calendar: 'Смена 08:00–17:00, обед 12:00–13:00. Рабочие дни повторяются.',
-    fixed: 'Источник: 1 единица каждые 3 минуты. Обработка и передача по одной единице, рецепты 1:1. Начальные запасы, брак, переналадки, обслуживание и затраты нулевые. Производство по готовности.',
+    fixed: 'Источник: 1 единица каждые 3 минуты. Одна обработка за раз, порог передачи 1. Количества определяются рецептами. Начальные запасы, брак, переналадки, обслуживание и затраты нулевые. Производство по готовности.',
     note: 'Создайте цепочку, задайте условия и запустите свой процесс.',
     run: 'Запустить процесс', toRun: 'К прогону', runLocked: 'Условия работающего прогона зафиксированы. Для изменений создайте копию. Перед новым запуском или переходом к урокам остановите текущий прогон.',
     loading: 'Чтение файла…', readError: 'Не удалось выполнить действие.', reload: 'Перечитать сохранённый процесс',
@@ -41,11 +45,15 @@ const words = {
     inherit: 'Global buffer', quantity: 'Quantity', infinite: 'Unlimited', shift: 'Shift fraction', amount: 'Value',
     add: 'Add station', up: 'Move up', down: 'Move down', removeStation: 'Remove station', station: 'Station',
     saved: 'Saved in browser', unsaved: 'Unsaved changes', memory: 'Only in this tab. Export JSON before closing.',
-    edit: 'Chain', select: 'Select a process from the list or create one.', cancel: 'Cancel', discard: 'Discard changes',
+    materials: 'Materials', materialName: 'Material name', recipe: 'Recipe', recipeName: 'Recipe name',
+    recipeInput: 'Input material', recipeOutput: 'Output material', inputQuantity: 'Consumed per operation', outputQuantity: 'Produced per operation',
+    recipeHelp: 'Input comes from the preceding station or source. Output quantity must be a whole number. Processing time applies to the entire specified kit.',
+    materialsHelp: 'Chain materials are connected automatically. Material names are saved independently of station names.',
+    raw: 'Raw material', intermediate: 'Intermediate material', finished: 'Finished product', edit: 'Chain', select: 'Select a process from the list or create one.', cancel: 'Cancel', discard: 'Discard changes',
     leave: 'Save changes before leaving?', deleteQuestion: 'Delete the selected process from the library?', confirmDelete: 'Yes, delete',
     preview: 'Import preview', accept: 'Import as a new process', count: 'Stations', conditions: 'Process conditions',
     calendar: 'Shift 08:00–17:00, lunch 12:00–13:00. Working days repeat.',
-    fixed: 'Source: 1 unit every 3 minutes. Processing and transfer one unit at a time, 1:1 recipes. Zero initial stock, defects, setups, maintenance and costs. Production when ready.',
+    fixed: 'Source: 1 unit every 3 minutes. One operation at a time, transfer threshold 1. Quantities are defined by recipes. Zero initial stock, defects, setups, maintenance and costs. Production when ready.',
     note: 'Create a chain, set its conditions and run your process.',
     run: 'Run process', toRun: 'Go to run', runLocked: 'The active run has fixed conditions. Create a copy to edit them. Stop the current run before starting another or returning to lessons.',
     loading: 'Reading file…', readError: 'Could not complete the action.', reload: 'Reopen saved process',
@@ -217,7 +225,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
           {storageIssue.code === 'unavailable' && <p>{text.memory}</p>}
           {storageIssue.code === 'conflict' && <><p>{text.reloadHelp}</p><button type="button" onClick={reopen}>{text.reload}</button></>}
         </div>}
-        {error && <p className="process-error" id="process-error" role="alert">{error.objectId && `${session?.draft.stations.find(item => item.id === error.objectId)?.name ?? error.objectId}: `}{error.messages[language]}</p>}
+        {error && <p className="process-error" id="process-error" role="alert">{error.objectId && `${session?.draft.stations.find(item => item.id === error.objectId)?.name ?? session?.draft.materials.find(item => item.id === error.objectId)?.name ?? session?.draft.stations.find(item => item.recipeId === error.objectId)?.recipeName ?? error.objectId}: `}{error.messages[language]}</p>}
         {!session ? <p>{text.select}</p> : <>
           <div className="process-actions process-save"><button type="button" disabled={runBusy} onClick={() => attempt(() => {
             const run = compileLinearProcess(configFromDraft(session.config, session.draft));
@@ -240,6 +248,12 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
             <BufferFields global input label={text.input} text={text} value={session.draft.input} invalid={fieldError('bufferDefaults.input')} onChange={input => edit({...session.draft, input})}/>
             <BufferFields global input={false} label={text.output} text={text} value={session.draft.output} invalid={fieldError('bufferDefaults.output')} onChange={output => edit({...session.draft, output})}/>
             <p className="process-help">{text.bufferHelp}</p></fieldset>
+          <h2>{text.materials}</h2><p className="process-help">{text.materialsHelp}</p>
+          <div className="process-materials">{session.draft.materials.map(material => <label key={material.id}>
+            {text.materialName}: {text[session.config.materials.find(item => item.id === material.id)!.role]}
+            <input value={material.name} aria-invalid={fieldError('name', material.id)} onChange={event => edit({...session.draft,
+              materials: session.draft.materials.map(item => item.id === material.id ? {...item, name: event.target.value} : item)})}/>
+          </label>)}</div>
           <h2>{text.edit} ({session.draft.stations.length}/30)</h2>
           <ol className="process-stations">{session.draft.stations.map((station, index) => {
             const update = (patch: Partial<typeof station>) => edit({...session.draft, stations: session.draft.stations.map(item => item.id === station.id ? {...item, ...patch} : item)});
@@ -250,7 +264,15 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
                 <label>{text.cv}<input inputMode="decimal" value={station.cv} aria-invalid={fieldError('cv', station.id)} onChange={event => update({cv: event.target.value})}/></label>
                 <BufferFields input text={text} label={`${text.station} ${index + 1}: ${text.input}`} value={station.input} invalid={fieldError('inputBuffer', station.id)} onChange={input => update({input})}/>
                 <BufferFields input={false} text={text} label={`${text.station} ${index + 1}: ${text.output}`} value={station.output} invalid={fieldError('outputBuffer', station.id)} onChange={output => update({output})}/>
-              </div><div className="process-actions">
+              </div><fieldset className="process-recipe"><legend>{text.recipe}</legend>
+                <label>{text.recipeName}<input value={station.recipeName} aria-invalid={fieldError('name', station.recipeId)} onChange={event => update({recipeName: event.target.value})}/></label>
+                <div className="process-recipe-quantities">
+                  <label>{text.recipeInput}<input readOnly value={session.draft.materials.find(item => item.id === station.inputMaterialId)!.name}/></label>
+                  <label>{text.inputQuantity}<input inputMode="decimal" value={station.inputQuantity} aria-invalid={fieldError('inputs', station.recipeId)} onChange={event => update({inputQuantity: event.target.value})}/></label>
+                  <label>{text.recipeOutput}<input readOnly value={session.draft.materials.find(item => item.id === station.outputMaterialId)!.name}/></label>
+                  <label>{text.outputQuantity}<input inputMode="numeric" value={station.outputQuantity} aria-invalid={fieldError('output', station.recipeId)} onChange={event => update({outputQuantity: event.target.value})}/></label>
+                </div><p className="process-help">{text.recipeHelp}</p>
+              </fieldset><div className="process-actions">
                 <button type="button" disabled={index === 0} aria-label={`${text.up}: ${station.name}`} onClick={() => structure(config => moveLinearStation(config, station.id, -1))}>{text.up}</button>
                 <button type="button" disabled={index === session.draft.stations.length - 1} aria-label={`${text.down}: ${station.name}`} onClick={() => structure(config => moveLinearStation(config, station.id, 1))}>{text.down}</button>
                 <button type="button" disabled={session.draft.stations.length === 1} aria-label={`${text.removeStation}: ${station.name}`} onClick={() => structure(config => removeLinearStation(config, station.id))}>{text.removeStation}</button>
@@ -268,8 +290,9 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
       {pending && storageIssue && <p className="process-warning" role="alert">{storageIssue[language]}</p>}
       {preview && <><p>{preview.name}</p><p>{text.count}: {preview.stations.length}. {text.shifts}: {previewShifts}. Seed: {preview.seed}.</p>
         <p>{text.calendar}</p><p>{text.fixed}</p>
-        {previewDraft && <><p>{text.defaults}. {text.input}: {bufferText(previewDraft.input)}; {text.output}: {bufferText(previewDraft.output)}.</p>
+        {previewDraft && <><ul>{previewDraft.materials.map(material => <li key={material.id}>{material.name}</li>)}</ul><p>{text.defaults}. {text.input}: {bufferText(previewDraft.input)}; {text.output}: {bufferText(previewDraft.output)}.</p>
           <ul>{previewDraft.stations.map(station => <li key={station.id}>{station.name}: {station.minutes} {language === 'ru' ? 'мин' : 'min'}, CV {station.cv}.
+            {' '}{station.recipeName}: {station.inputQuantity} {previewDraft.materials.find(item => item.id === station.inputMaterialId)!.name} → {station.outputQuantity} {previewDraft.materials.find(item => item.id === station.outputMaterialId)!.name}.
             {' '}{text.input}: {bufferText(station.input)}; {text.output}: {bufferText(station.output)}.</li>)}</ul></>}</>}
       {deleting && <p>{session?.saved?.name ?? session?.draft.name}</p>}
       <div className="process-actions"><button type="button" autoFocus onClick={() => {setPending(null); setDeleting(false); setPreview(null);}}>{text.cancel}</button>

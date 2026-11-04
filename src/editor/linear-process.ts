@@ -76,9 +76,8 @@ export function compileLinearProcess(value: unknown): RunConfig {
     const row = item.plan[0]!, recipe = resolved.recipes.find(recipe => recipe.id === row.recipeId)!;
     const processing = row.processing;
     check(recipe.kind === 'production' && recipe.inputs.length === 1
-      && recipe.inputs[0]!.materialId === material && recipe.inputs[0]!.quantity === 1_000_000
-      && recipe.output.quantity === 1_000_000,
-    'recipes', recipe.id, 'поддерживается производство 1:1.', 'only 1:1 production is supported.');
+      && recipe.inputs[0]!.materialId === material,
+    'recipes', recipe.id, 'нужен производственный рецепт с одним входным материалом.', 'a production recipe with one input material is required.');
     const numeric = resolved.stations.find(station => station.id === next)!;
     check(row.batches === 1 && processing.mode === 'sequential' && processing.repetitions === 1
       && processing.distribution === undefined && (processing.defectProbability ?? 0) === 0

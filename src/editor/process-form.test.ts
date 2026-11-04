@@ -3,8 +3,10 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {createElement} from 'react';
 import {ConfigError} from '../engine/config';
 import {Simulation} from '../engine/simulation';
-import {compileLinearProcess, createLinearProcess, moveLinearStation} from './linear-process';
+import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
+import {exportProcessJson, parseProcessJson} from './process-json';
+import {openProcessStorage} from './process-storage';
 import {ProcessEditor} from './ProcessEditor';
 
 describe('linear process form', () => {
@@ -74,6 +76,61 @@ describe('linear process form', () => {
   it('leaves the result unchanged when a form is opened and saved without edits', () => {
     const config = createLinearProcess('editable'), edited = configFromDraft(config, processDraft(config));
     expect(new Simulation(compileLinearProcess(edited)).runToEnd()).toEqual(new Simulation(compileLinearProcess(config)).runToEnd());
+  });
+  it('edits material and recipe names independently and preserves them through structural changes', () => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    draft.materials.find(item => item.id === 'output-s2')!.name = 'Заготовка';
+    draft.stations[1]!.name = 'Обработка'; draft.stations[1]!.recipeName = 'Сделать заготовку';
+    draft.stations[1]!.outputQuantity = '2';
+    const edited = configFromDraft(config, draft);
+    const moved = moveLinearStation(edited, 's2', -1);
+    const next = processDraft(removeLinearStation(appendLinearStation(moved, 'Extra', 60_000), 's3'));
+    expect(next.materials.find(item => item.id === 'output-s2')!.name).toBe('Заготовка');
+    expect(next.stations[0]).toMatchObject({id: 's2', name: 'Обработка', recipeName: 'Сделать заготовку',
+      inputMaterialId: 'raw', outputMaterialId: 'output-s2', outputQuantity: '2'});
+    expect(next.stations[1]!.inputMaterialId).toBe('output-s2');
+    expect(config).toEqual(createLinearProcess('editable'));
+  });
+  it('uses recipe quantities in the actual run and retains them in storage and JSON', () => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    draft.stations[2]!.inputQuantity = '2'; draft.stations[2]!.outputQuantity = '3';
+    draft.stations[2]!.input = {kind: 'quantity', value: '2'};
+    const edited = configFromDraft(config, draft);
+    const records = new Map<string, string>();
+    const storage = {get length() {return records.size;}, key: (i: number) => [...records.keys()][i] ?? null,
+      getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => {records.set(key, value);},
+      removeItem: (key: string) => {records.delete(key);}, clear: () => records.clear()};
+    openProcessStorage(() => storage).save('record', edited, 0);
+    const restored = openProcessStorage(() => storage).list()[0]!.record.config;
+    const imported = parseProcessJson(exportProcessJson(restored));
+    expect(imported).toEqual(edited);
+    const result = new Simulation(compileLinearProcess(imported)).runToEnd();
+    expect(result.line!.counters.find(item => item.materialId === 'output-s3')!.sold).toBe(87_000_000);
+  });
+  it('normalizes fractional recipe input without losing quantity precision', () => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    draft.stations[0]!.inputQuantity = ',125001';
+    expect(configFromDraft(config, draft).recipes[0]!.inputs[0]!.quantity).toBe('0.125001');
+  });
+  it.each(['', '0', '-1', '1.5', '1e3'])('rejects invalid recipe output %s without losing the draft', output => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    draft.stations[0]!.outputQuantity = output;
+    expect(() => configFromDraft(config, draft)).toThrow(ConfigError);
+    expect(draft.stations[0]!.outputQuantity).toBe(output);
+    expect(config).toEqual(createLinearProcess('editable'));
+  });
+  it('reports the existing capacity error for a recipe kit larger than the input buffer', () => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    draft.stations[1]!.inputQuantity = '2';
+    try {configFromDraft(config, draft); throw new Error('Expected capacity error');}
+    catch (error) {expect(error).toBeInstanceOf(ConfigError); expect(error).toMatchObject({code: 'capacity', objectId: 's2'});}
+  });
+  it.each(['material', 'recipe'] as const)('validates the %s name without modifying the original', field => {
+    const config = createLinearProcess('editable'), draft = processDraft(config);
+    if (field === 'material') draft.materials[0]!.name = '';
+    else draft.stations[0]!.recipeName = '';
+    expect(() => configFromDraft(config, draft)).toThrow(ConfigError);
+    expect(config).toEqual(createLinearProcess('editable'));
   });
   it.each(['ru', 'en'] as const)('renders a separate library and a safe empty state in %s', language => {
     const html = renderToStaticMarkup(createElement(ProcessEditor, {language, onBack: () => {}}));

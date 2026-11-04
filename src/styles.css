@@ -203,3 +203,6 @@ main[data-ui-mode=simple] .show-expert{min-height:24px;padding:0;border:0;backgr
 
 .process-playback{margin-top:28px}.process-run-heading{padding:20px 22px 8px}.process-run-heading h2{margin:0;font-size:24px;overflow-wrap:anywhere}.process-run-heading p{font-size:14px;color:var(--muted);max-width:90ch}.process-form-fields{min-width:0}.process-form-fields:disabled input,.process-form-fields:disabled select{opacity:.65}.process-editor a{color:var(--accent)}
 @media(max-width:600px){.process-run-heading{padding:16px 14px 8px}.process-run-heading h2{font-size:21px}}
+
+.process-materials{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.process-recipe{padding:12px 0 20px}.process-recipe-quantities{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;margin-top:16px}.process-recipe input[readonly]{color:var(--muted);background:var(--selected)}
+@media(max-width:450px){.process-materials,.process-recipe-quantities{grid-template-columns:1fr}}

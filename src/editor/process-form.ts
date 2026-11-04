@@ -7,7 +7,9 @@ import {compileLinearProcess} from './linear-process';
 export interface BufferDraft {kind: 'inherit' | 'quantity' | 'shift' | 'infinite'; value: string}
 export interface ProcessDraft {
   name: string; seed: string; shifts: string; input: BufferDraft; output: BufferDraft;
-  stations: {id: string; name: string; minutes: string; cv: string; input: BufferDraft; output: BufferDraft}[];
+  materials: {id: string; name: string}[];
+  stations: {id: string; name: string; minutes: string; cv: string; input: BufferDraft; output: BufferDraft;
+    recipeId: string; recipeName: string; inputMaterialId: string; inputQuantity: string; outputMaterialId: string; outputQuantity: string}[];
 }
 function bufferDraft(rule: InputBufferConfig): BufferDraft {
   if (rule.kind === 'materials') throw new Error('Linear buffers do not use material lists');
@@ -22,10 +24,13 @@ export function processDraft(config: EditorConfig): ProcessDraft {
     id = config.routes.find(route => route.fromId === id)!.toId;
     if (id === 'market') break;
     const station = config.stations.find(item => item.id === id)!, processing = station.plan[0]!.processing;
-    stations.push({id, name: station.name, minutes: String(processing.timeMs! / 60_000), cv: String(processing.cv!),
+    const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
+    stations.push({recipeId: recipe.id, recipeName: recipe.name, inputMaterialId: recipe.inputs[0]!.materialId,
+      inputQuantity: recipe.inputs[0]!.quantity, outputMaterialId: recipe.output.materialId, outputQuantity: recipe.output.quantity,
+      id, name: station.name, minutes: String(processing.timeMs! / 60_000), cv: String(processing.cv!),
       input: bufferDraft(station.inputBuffer), output: bufferDraft(station.outputBuffer)});
   }
-  return {name: config.name, seed: String(config.seed),
+  return {materials: config.materials.map(({id, name}) => ({id, name})), name: config.name, seed: String(config.seed),
     shifts: String(calendarForDuration(config.calendar, config.durationMs).days),
     input: bufferDraft(config.bufferDefaults?.input ?? {kind: 'shift', shifts: '0.5'}),
     output: bufferDraft(config.bufferDefaults?.output ?? {kind: 'quantity', quantity: '0'}), stations};
@@ -68,10 +73,17 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
     config.bufferDefaults = {...config.bufferDefaults,
       output: buffer(draft.output, 'config.bufferDefaults.output', null) as NonNullable<NonNullable<EditorConfig['bufferDefaults']>['output']>};
   }
+  for (const material of config.materials) {
+    material.name = draft.materials.find(item => item.id === material.id)!.name;
+  }
   for (const [i, station] of config.stations.entries()) {
     const fields = draft.stations.find(item => item.id === station.id)!;
     const path = `config.stations.${i}`;
     station.name = fields.name;
+    const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
+    recipe.name = fields.recipeName;
+    recipe.inputs[0]!.quantity = fields.inputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
+    recipe.output.quantity = fields.outputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
     if (fields.minutes !== previous.stations.find(item => item.id === station.id)!.minutes) {
       decimal(fields.minutes, `${path}.plan.0.processing.timeMs`, station.id);
       const [whole, fraction = ''] = fields.minutes.trim().replace(',', '.').split('.');
