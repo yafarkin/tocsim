@@ -9,7 +9,7 @@ import {nameFor} from './i18n';
 import type {Labels, Language} from './i18n';
 
 export function ExperimentResult({run, view, example, text, language}: {
-  run: RunConfig; view: DeepReadonly<RunnerView>; example: ExampleId; text: Labels; language: Language;
+  run: RunConfig; view: DeepReadonly<RunnerView>; example: ExampleId | 'custom'; text: Labels; language: Language;
 }) {
   const report = flowReport(run, view.model);
   const name = (id: string) => nameFor(id, run.source.materials.find(m => m.id === id)!.name, text);

@@ -267,10 +267,11 @@ export const messages = {
     raw: 'Blank', prepared: 'Part', processed: 'Processed part', product: 'Product',
   },
 };
-export type Labels = typeof messages.ru;
+export type Labels = typeof messages.ru & {entityNames?: Readonly<Record<string, string>>};
 export function labels(language: Language): Labels {return messages[language];}
 export function nameFor(id: string, fallback: string, text: Labels): string {
-  const planNames: Record<string, keyof Labels> = {'planner': 'planner', 'recipe-a': 'recipeA', 'recipe-b': 'recipeB', 'raw-a': 'rawA', 'raw-b': 'rawB', 'product-a': 'productA', 'product-b': 'productB'};
+  if (text.entityNames && Object.hasOwn(text.entityNames, id)) return text.entityNames[id]!;
+  const planNames: Record<string, keyof typeof messages.ru> = {'planner': 'planner', 'recipe-a': 'recipeA', 'recipe-b': 'recipeB', 'raw-a': 'rawA', 'raw-b': 'rawB', 'product-a': 'productA', 'product-b': 'productB'};
   if (Object.hasOwn(planNames, id)) return text[planNames[id]!];
-  return ['qc', 'assembly', 'source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof Labels] : fallback;
+  return ['qc', 'assembly', 'source', 'prep', 'work', 'finish', 'raw', 'prepared', 'processed', 'product'].includes(id) ? text[id as keyof typeof messages.ru] : fallback;
 }

@@ -14,7 +14,7 @@ import {RunMetrics} from './RunMetrics';
 import {ExperimentResult} from './ExperimentResult';
 import type {ExampleId} from './preview';
 
-interface Props {example?: ExampleId; run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
+interface Props {example?: ExampleId | 'custom'; run: RunConfig; view: DeepReadonly<RunnerView>; text: Labels; language: Language}
 export function RunSummary({run, view, text, language, example = 'queue'}: Props) {
   const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
   const report = flowReport(run, view.model);

@@ -1,14 +1,16 @@
 import {useEffect, useRef, useState} from 'react';
 import {ConfigError} from '../engine/config';
-import type {EditorConfig} from '../engine/config';
+import type {EditorConfig, RunConfig} from '../engine/config';
 import {calendarForDuration} from '../engine/calendar';
 import type {Language} from '../ui/i18n';
-import {appendLinearStation, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
+import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import type {BufferDraft, ProcessDraft} from './process-form';
 import {copyImportedProcess, exportProcessJson, readProcessJsonFile} from './process-json';
 import {openProcessStorage} from './process-storage';
 import type {ProcessEntry, ProcessStorageIssue} from './process-storage';
+import type {PlaybackStatus} from '../runner/runner';
+import {ProcessPlayback} from './ProcessPlayback';
 
 const words = {
   ru: {title: 'Мои процессы', back: 'К урокам и примерам', create: 'Создать процесс', empty: 'Создайте процесс или откройте файл JSON.',
@@ -23,7 +25,8 @@ const words = {
     preview: 'Проверка импорта', accept: 'Импортировать как новый процесс', count: 'Постов', conditions: 'Условия процесса',
     calendar: 'Смена 08:00–17:00, обед 12:00–13:00. Рабочие дни повторяются.',
     fixed: 'Источник: 1 единица каждые 3 минуты. Обработка и передача по одной единице, рецепты 1:1. Начальные запасы, брак, переналадки, обслуживание и затраты нулевые. Производство по готовности.',
-    note: 'Здесь можно создать, сохранить и перенести цепочку. Запуск будет добавлен следующим шагом.',
+    note: 'Создайте цепочку, задайте условия и запустите свой процесс.',
+    run: 'Запустить процесс', toRun: 'К прогону', runLocked: 'Условия работающего прогона зафиксированы. Для изменений создайте копию. Перед новым запуском или переходом к урокам остановите текущий прогон.',
     loading: 'Чтение файла…', readError: 'Не удалось выполнить действие.', reload: 'Перечитать сохранённый процесс',
     reloadHelp: 'Перечитывание заменит текущую форму. Свою версию можно сначала сохранить копией.',
     fileLimit: 'Один линейный процесс, до 30 постов. Файл JSON до 2 МиБ.', bufferHelp: 'Посты наследуют общие буферы, пока вы не зададите собственные. Вход можно задать долей рабочей смены.',
@@ -43,7 +46,8 @@ const words = {
     preview: 'Import preview', accept: 'Import as a new process', count: 'Stations', conditions: 'Process conditions',
     calendar: 'Shift 08:00–17:00, lunch 12:00–13:00. Working days repeat.',
     fixed: 'Source: 1 unit every 3 minutes. Processing and transfer one unit at a time, 1:1 recipes. Zero initial stock, defects, setups, maintenance and costs. Production when ready.',
-    note: 'Create, save and transfer a chain here. Running it will be added in the next step.',
+    note: 'Create a chain, set its conditions and run your process.',
+    run: 'Run process', toRun: 'Go to run', runLocked: 'The active run has fixed conditions. Create a copy to edit them. Stop the current run before starting another or returning to lessons.',
     loading: 'Reading file…', readError: 'Could not complete the action.', reload: 'Reopen saved process',
     reloadHelp: 'Reopening replaces the current form. You can save your version as a copy first.',
     fileLimit: 'One linear process, up to 30 stations. JSON file up to 2 MiB.', bufferHelp: 'Stations inherit global buffers until you set their own. Input buffers can use a fraction of a working shift.',
@@ -89,6 +93,10 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
   const [deleting, setDeleting] = useState(false);
   const [preview, setPreview] = useState<EditorConfig | null>(null);
   const [busy, setBusy] = useState(false);
+  const [experiment, setExperiment] = useState<{id: string; recordId: string; run: RunConfig} | null>(null);
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>('ready');
+  const runBusy = playbackStatus === 'running' || playbackStatus === 'paused';
+  const locked = runBusy && experiment?.recordId === session?.id;
   const dialog = useRef<HTMLDialogElement>(null);
   const dirty = !!session && (!session.saved || JSON.stringify(session.draft) !== JSON.stringify(processDraft(session.saved)));
   const modal = !!pending || deleting || !!preview;
@@ -186,7 +194,8 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
 
   return <section className="process-editor" aria-labelledby="process-title" hidden={!active}>
     <div className="process-heading"><div><h1 id="process-title">{text.title}</h1><p>{text.note}</p></div>
-      <button type="button" disabled={busy} onClick={() => guard(onBack)}>{text.back}</button></div>
+      <button type="button" disabled={busy || runBusy} onClick={() => guard(onBack)}>{text.back}</button></div>
+    {experiment && <p className="process-help">{runBusy && <>{text.runLocked} </>}<a href="#process-playback">{text.toRun}: {experiment.run.source.name}</a></p>}
     <fieldset className="process-workspace" disabled={busy}><legend>{text.title}</legend>
       <aside className="process-library" aria-label={text.library}>
         <div className="process-actions"><button type="button" onClick={() => guard(() => start(createLinearProcess(newId(), language)))}>{text.create}</button>
@@ -210,13 +219,18 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
         </div>}
         {error && <p className="process-error" id="process-error" role="alert">{error.objectId && `${session?.draft.stations.find(item => item.id === error.objectId)?.name ?? error.objectId}: `}{error.messages[language]}</p>}
         {!session ? <p>{text.select}</p> : <>
-          <div className="process-actions process-save"><button type="button" onClick={save}>{text.save}</button>
+          <div className="process-actions process-save"><button type="button" disabled={runBusy} onClick={() => attempt(() => {
+            const run = compileLinearProcess(configFromDraft(session.config, session.draft));
+            setError(null); setPlaybackStatus('running');
+            setExperiment({id: newId(), recordId: session.id, run});
+          })}>{text.run}</button><button type="button" disabled={locked} onClick={save}>{text.save}</button>
             <button type="button" onClick={() => attempt(() => {
               const config = copyImportedProcess(configFromDraft(session.config, session.draft), newId());
               config.name += ` (${text.copied})`; start(config);
             })}>{text.copy}</button>
             <button type="button" onClick={exportFile}>{text.export}</button>
-            <button type="button" disabled={!selectedEntry} onClick={() => setDeleting(true)}>{text.remove}</button></div>
+            <button type="button" disabled={!selectedEntry || locked} onClick={() => setDeleting(true)}>{text.remove}</button></div>
+          <fieldset className="process-form-fields" disabled={locked}>
           <div className="process-general">
             <label className="process-name">{text.name}<input value={session.draft.name} aria-invalid={fieldError('name')} onChange={event => edit({...session.draft, name: event.target.value})}/></label>
             <label>Seed<input inputMode="numeric" value={session.draft.seed} aria-invalid={fieldError('seed')} onChange={event => edit({...session.draft, seed: event.target.value})}/></label>
@@ -244,6 +258,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
           })}</ol>
           <button type="button" disabled={session.draft.stations.length >= 30} onClick={() => structure(config => appendLinearStation(config, `${text.station} ${config.stations.length + 1}`, 180_000))}>{text.add}</button>
           <details className="process-conditions"><summary>{text.conditions}</summary><p>{text.calendar}</p><p>{text.fixed}</p></details>
+          </fieldset>
         </>}
       </div>
     </fieldset>
@@ -267,5 +282,6 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
           <button type="button" onClick={discardAndContinue}>{text.discard}</button></>}
       </div>
     </dialog>
+    {experiment && <ProcessPlayback key={experiment.id} run={experiment.run} language={language} active={active} onStatus={setPlaybackStatus}/>}
   </section>;
 }

@@ -194,13 +194,13 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
   const reset = () => {runner.current?.dispose(); setView(null); setGeneration(value => value + 1);};
   const playLabel = status === 'ready' ? text.start : status === 'running' ? text.pause : status === 'paused' ? text.resume : status === 'stopped' ? text.stopped : status === 'error' ? text.error : text.finished;
   return <main data-ui-mode={mode}>
-    <header className="page-header"><a className="brand" href="#flow">TOC<span>{text.title}</span></a>
+    <header className="page-header"><a className="brand" href={processesOpen ? '#process-title' : '#flow'}>TOC<span>{text.title}</span></a>
       <div className="appearance-controls"><ThemePicker value={theme} onChange={setTheme} text={text}/>
       <button type="button" className="language-toggle" title={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} aria-label={`${text.language}: ${language === 'ru' ? 'Русский' : 'English'}`} onClick={() => setLanguage(language === 'ru' ? 'en' : 'ru')}>{language.toUpperCase()}</button>
       <button type="button" className="mode-toggle" aria-label={text.expertMode} aria-pressed={mode === 'expert'} onClick={() => changeMode(mode === 'simple' ? 'expert' : 'simple')}>{text.expertMode}: {mode === 'expert' ? text.modeOn : text.modeOff}</button></div>
     </header>
     {editorOpened && <ProcessEditor language={language} active={processesOpen} onBack={() => setProcessesOpen(false)}/>}
-    <div hidden={processesOpen}>
+    {!processesOpen && <>
     <div className="intro"><h1>{text.diagram}</h1><p>{text.subtitle}</p>
       <button type="button" disabled={!view || status === 'running' || status === 'paused'} onClick={() => {setEditorOpened(true); setProcessesOpen(true);}}>{language === 'ru' ? 'Мои процессы' : 'My processes'}</button></div>
     <section className="scenario-panel" aria-labelledby="scenario-title">
@@ -270,7 +270,7 @@ export function App({mode: controlledMode, onModeChange}: {mode?: UiMode; onMode
       <div className="material-key" aria-label={text.material}>{displayedRun.source.materials.map(material => <span key={material.id}><i style={{background: material.color}}/>{nameFor(material.id, material.name, text)}</span>)}</div>
     </section>
     </section>
-    </div>
+    </>}
     <footer className="version-info" aria-label={text.versions}><span>{text.appVersion} {appVersion}</span>{' '}<span>{text.engineVersion} {run.engineVersion}</span></footer>
   </main>;
 }
