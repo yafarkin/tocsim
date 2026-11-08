@@ -22,6 +22,8 @@
 
 ## Проверки
 
+Актуальная проверка № 160: [CI/Pages 42459406112](https://github.com/tocsim/actions/runs/42459406112) для коммита 672658e успешны. Pipeline сначала собирает workspace `@toc/engine`, затем выполняет 1694 теста в 89 файлах, TypeScript, сборку UI и check:dist. Опубликованный HTML побайтно совпал с локальным: 721404 байта, SHA-256 a6b2e1a50ce2181cb672b8a3b3b871186f159e2dcca923b12fe90c1416e8fefa. Ниже исторические проверки первых запусков.
+
 До первой отправки выполнены чистая установка из lock-файла через локальный кеш и npm run ci: 244 теста, TypeScript, production-сборка и check-dist. Workflow YAML разобран, проверены зависимости jobs и точные SHA. Артефакт 301 809 байт, SHA-256 b20eb421165e97cd9c9fafa48fda744678b3bed6791f38824c22deb2c0272265.
 
 Первый [запуск Actions 39471152621](https://github.com/yafarkin/tocsim/actions/runs/39471152621) для коммита 89d402e завершился success: check и deploy прошли. Сайт вернул HTTP 200 по HTTPS, опубликованный HTML побайтно совпал с локальным dist/index.html и указанной SHA-256. Pages настроена через workflow, HTTPS enforced включён. Код приложения не менялся, № 19 не начиналась.
