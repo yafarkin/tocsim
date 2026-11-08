@@ -1,40 +1,13 @@
 import {ArithmeticError} from './arithmetic.js';
 import {compileConfig, freezeData} from './config.js';
-import type {DeepReadonly} from './config.js';
+import type {DeepReadonly, EngineRunError, EngineRunResponse, EngineRunResult} from './contract/index.js';
 import {financialReport} from './financial-report.js';
-import type {FlowHistory} from './flow-history.js';
 import {flowReport} from './flow-report.js';
 import {investmentReport} from './investment-report.js';
 import {Simulation} from './simulation.js';
-import type {Snapshot} from './state.js';
+export type {EngineRunError, EngineRunResponse, EngineRunResult} from './contract/index.js';
 
 export const RUN_RESULT_SCHEMA_VERSION = 1;
-
-export interface EngineRunResult {
-  schemaVersion: typeof RUN_RESULT_SCHEMA_VERSION;
-  engineVersion: string;
-  rngVersion: string;
-  calculationHash: string;
-  snapshot: DeepReadonly<Snapshot>;
-  reports: {
-    flow: ReturnType<typeof flowReport>;
-    littleLaw: ReturnType<Simulation['getFlowReport']>;
-    financial: ReturnType<typeof financialReport>;
-    investment: ReturnType<typeof investmentReport>;
-  };
-  history: DeepReadonly<FlowHistory>;
-}
-
-export interface EngineRunError {
-  code: string;
-  path: string | null;
-  objectId: string | null;
-  messages: {ru: string; en: string};
-}
-
-export type EngineRunResponse =
-  | {ok: true; result: DeepReadonly<EngineRunResult>}
-  | {ok: false; error: EngineRunError};
 
 export function runSimulation(input: unknown): DeepReadonly<EngineRunResult> {
   const run = compileConfig(input);

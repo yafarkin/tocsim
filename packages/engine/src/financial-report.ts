@@ -2,12 +2,14 @@ import {addMoney, subtractMoney, fixedCost, purchaseCost, moneyFromJSON, moneyTo
 import {calendarForDuration, workedMsUntil} from './calendar.js';
 import type {DeepReadonly, RunConfig} from './config.js';
 import type {Snapshot} from './state.js';
+import type {FinancialReport} from './contract/output/reports/FinancialReport.js';
+export type {FinancialReport} from './contract/output/reports/FinancialReport.js';
 
 /** Exact cumulative financial result. Independent of rendering and sampled history.
  * Fixed charges round once per station; revenue rounds once per product total.
  * Existing lot costs are never revalued. All returned amounts are micro-unit strings.
  */
-export function financialReport(run: RunConfig, model: DeepReadonly<Snapshot>) {
+export function financialReport(run: RunConfig, model: DeepReadonly<Snapshot>): FinancialReport {
   const sum = (values: bigint[]) => values.reduce(addMoney, 0n);
   const calendar = calendarForDuration(run.resolved.calendar, run.resolved.durationMs);
   const workMs = workedMsUntil(calendar, model.timeMs);

@@ -16,6 +16,23 @@ JSON файл/stdin → CLI ───┘
 
 Изменения алгоритма в пакете после сборки действуют в обоих потребителях. Новый вид отчёта нужно включить в фасад `runSimulation`, а новый визуальный элемент отдельно добавить в React UI. Поэтому общая логика не дублируется, но пользовательские представления не появляются автоматически.
 
+## Модели контракта в исходном коде
+
+Единственным источником подробного описания полей являются TypeScript DTO в `packages/engine/src/contract`. Документ не дублирует таблицы всех свойств: у каждой DTO и каждого её свойства есть TSDoc-комментарий в коде. Правило «одна сущность — один файл» проверяется отдельным тестом `packages/engine/src/contract.test.ts`.
+
+| Часть контракта | Корневая DTO | Каталог вложенных моделей |
+| --- | --- | --- |
+| Входной JSON | [EditorConfig.ts](../packages/engine/src/contract/input/EditorConfig.ts) | [contract/input](../packages/engine/src/contract/input) |
+| Проверенный прогон | [RunConfig.ts](../packages/engine/src/contract/run/RunConfig.ts) | [contract/run](../packages/engine/src/contract/run) |
+| Успешный результат | [EngineRunResult.ts](../packages/engine/src/contract/output/EngineRunResult.ts) | [contract/output](../packages/engine/src/contract/output) |
+| Итоговый Snapshot | [Snapshot.ts](../packages/engine/src/contract/output/snapshot/Snapshot.ts) | [contract/output/snapshot](../packages/engine/src/contract/output/snapshot) |
+| История потока | [FlowHistory.ts](../packages/engine/src/contract/output/history/FlowHistory.ts) | [contract/output/history](../packages/engine/src/contract/output/history) |
+| Отчёты | [EngineRunReports.ts](../packages/engine/src/contract/output/EngineRunReports.ts) | [contract/output/reports](../packages/engine/src/contract/output/reports) |
+| Ошибка и envelope | [EngineRunError.ts](../packages/engine/src/contract/errors/EngineRunError.ts), [EngineRunResponse.ts](../packages/engine/src/contract/errors/EngineRunResponse.ts) | [contract/errors](../packages/engine/src/contract/errors) |
+| Общие типы | [DeepReadonly.ts](../packages/engine/src/contract/shared/DeepReadonly.ts) | [contract/shared](../packages/engine/src/contract/shared) |
+
+Корневой экспорт [contract/index.ts](../packages/engine/src/contract/index.ts) собирает все публичные DTO без дублирования определений. Расчётные модули и UI импортируют те же самые типы.
+
 ## TypeScript API
 
 ```ts
@@ -31,21 +48,21 @@ const fromJson = runSimulationJson(jsonText);
 - `runSimulationJson(json: string)` дополнительно разбирает JSON и возвращает тот же envelope.
 - `compileConfig` и `Simulation` остаются доступны для пошаговых и интерактивных потребителей.
 
-Входом является существующий `EditorConfig` со `schemaVersion: 1`. Строгая проверка неизвестных полей, ссылок, диапазонов и топологии выполняется прежним `compileConfig`. Количества и деньги во входе задаются строками с точностью до шести знаков, чтобы не использовать двоичное представление десятичных дробей.
+Входом является [EditorConfig](../packages/engine/src/contract/input/EditorConfig.ts) со `schemaVersion: 1`. Строгая проверка неизвестных полей, ссылок, диапазонов и топологии выполняется прежним `compileConfig`. Количества и деньги во входе задаются строками с точностью до шести знаков, чтобы не использовать двоичное представление десятичных дробей.
 
 ## Результат
 
-`EngineRunResult` имеет собственный `schemaVersion: 1`:
+[EngineRunResult](../packages/engine/src/contract/output/EngineRunResult.ts) имеет собственный `schemaVersion: 1`:
 
-| Поле | Содержание |
+| Поле | Содержание и DTO |
 | --- | --- |
 | `engineVersion`, `rngVersion`, `calculationHash` | Версии и идентичность расчётных условий |
-| `snapshot` | Полный итоговый Snapshot 24, включая выпуск, запасы, состояния постов и источники |
-| `reports.flow` | Выпуск, поставки, запасы и выпуск по сменам |
-| `reports.littleLaw` | Проверка потока и конечное приближение закона Литтла |
-| `reports.financial` | Выручка, TVC, throughput, расходы и чистая прибыль |
-| `reports.investment` | Запасы, капитал, средние вложения и ROI за период |
-| `history` | Ограниченная FlowHistory 1 для графиков и анализа во времени |
+| `snapshot` | [Snapshot](../packages/engine/src/contract/output/snapshot/Snapshot.ts) 24: выпуск, запасы, состояния постов и источники |
+| `reports.flow` | [FlowReport](../packages/engine/src/contract/output/reports/FlowReport.ts): выпуск, поставки, запасы и выпуск по сменам |
+| `reports.littleLaw` | [LittleLawReport](../packages/engine/src/contract/output/reports/LittleLawReport.ts): проверка потока и конечное приближение закона Литтла |
+| `reports.financial` | [FinancialReport](../packages/engine/src/contract/output/reports/FinancialReport.ts): выручка, TVC, throughput, расходы и чистая прибыль |
+| `reports.investment` | [InvestmentReport](../packages/engine/src/contract/output/reports/InvestmentReport.ts): запасы, капитал, средние вложения и ROI за период |
+| `history` | [FlowHistory](../packages/engine/src/contract/output/history/FlowHistory.ts) 1 для графиков и анализа во времени |
 
 Результат целиком совместим с `JSON.stringify`: внутренние `bigint` уже преобразованы в десятичные строки в Snapshot и отчётах. История ограничена существующим числом отсчётов, но полный ответ всё равно может быть большим. Он предназначен для машинной обработки, а не для вывода в терминал вручную.
 

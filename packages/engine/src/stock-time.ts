@@ -1,5 +1,7 @@
 import type {DeepReadonly, RunConfig} from './config.js';
 import type {Snapshot, StockState, StockTime} from './state.js';
+import type {StockAverage, StockTimeReport} from './contract/output/reports/index.js';
+export type {StockAverage, StockTimeReport} from './contract/output/reports/index.js';
 
 const keyOf = (row: Pick<StockState, 'ownerId' | 'materialId' | 'location'>) => JSON.stringify([row.ownerId, row.materialId, row.location]);
 
@@ -25,7 +27,6 @@ export function integrateStockTime(stocks: readonly StockState[], totals: StockT
 }
 
 /** An exact average in micro-units: quantityMs / durationMs. UI rounds only for display. */
-export interface StockAverage {quantityMs: string; durationMs: number}
 function averages(calendarQuantityMs: string, workQuantityMs: string, calendarMs: number, workMs: number) {
   return {
     calendarAverage: calendarMs === 0 ? null : {quantityMs: calendarQuantityMs, durationMs: calendarMs} satisfies StockAverage,
@@ -36,7 +37,7 @@ function averages(calendarQuantityMs: string, workQuantityMs: string, calendarMs
 /** Separate compatible quantities only by material; never a global sum across materials.
  * Sparse places include historical residence even after a place becomes empty.
  */
-export function stockTimeReport(run: RunConfig, model: DeepReadonly<Snapshot>) {
+export function stockTimeReport(run: RunConfig, model: DeepReadonly<Snapshot>): StockTimeReport {
   const {calendarMs, workMs} = model.observation;
   const totals = new Map(run.resolved.materials.map(m => [m.id, {calendar: 0n, work: 0n}]));
   const places = (model.line?.stockTime ?? []).map(row => {

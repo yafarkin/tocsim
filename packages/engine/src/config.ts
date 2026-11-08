@@ -1,6 +1,5 @@
 import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arithmetic.js';
 import { distributionMoments, meanDurationSixths } from './random.js';
-import type { BoundedDistribution, DurationDistribution } from './random.js';
 import { CalendarError, calendarForDuration } from './calendar.js';
 
 export const SCHEMA_VERSION = 1;
@@ -8,87 +7,13 @@ export const ENGINE_VERSION = '0.34.0';
 import { RNG_VERSION } from './random.js';
 export { RNG_VERSION } from './random.js';
 
-export type DeepReadonly<T> = T extends object
-  ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
+import type {DeepReadonly} from './contract/shared/DeepReadonly.js';
+import type {BoundedDistribution, EditorConfig} from './contract/input/index.js';
+import type {ResolvedBuffer, ResolvedConfig, ResolvedMaintenance, ResolvedPlanRow, RunConfig} from './contract/run/index.js';
+export type * from './contract/input/index.js';
+export type * from './contract/run/index.js';
+export type {DeepReadonly} from './contract/shared/DeepReadonly.js';
 
-export type BufferConfig = { kind: 'quantity'; quantity: string } | { kind: 'infinite' };
-export type MaterialBufferConfig = BufferConfig | {kind: 'materials'; materials: {materialId: string; capacity: BufferConfig}[]};
-export type ShiftBufferConfig = {kind: 'shift'; shifts: string};
-export type InputBufferConfig = MaterialBufferConfig | ShiftBufferConfig | {kind: 'inherit'};
-export type OutputBufferConfig = MaterialBufferConfig | {kind: 'inherit'};
-export interface MaterialConfig {
-  id: string; name: string; color: string;
-  role: 'raw' | 'intermediate' | 'finished';
-  purchasePrice?: string; salePrice?: string;
-}
-export interface RecipeConfig {
-  id: string; name: string; kind: 'production' | 'inspection';
-  inputs: { materialId: string; quantity: string }[];
-  output: { materialId: string; quantity: string };
-}
-export type ProcessingConfig = {mode: 'sequential' | 'simultaneous'; repetitions: number; defectProbability?: number} & (
-  {timeMs: number; cv: number; distribution?: never} | {distribution: DurationDistribution; timeMs?: never; cv?: never}
-);
-export type MaintenanceConfig = {enabled: false} | {
-  enabled: true; durationMs: number; processingThresholdMs?: number; repetitionsThreshold?: number;
-};
-export type ResolvedMaintenance = {enabled: false} | {
-  enabled: true; durationMs: number; processingThresholdMs: number | null; repetitionsThreshold: number | null;
-};
-export interface StationConfig {
-  id: string; name: string; priority: number;
-  plan: {
-    id: string; recipeId: string; batches: number;
-    processing: ProcessingConfig;
-  }[];
-  inputBuffer: InputBufferConfig; outputBuffer: OutputBufferConfig;
-  transportThreshold?: string;
-  initialRecipeId?: string;
-  setupMs: number; maintenance: MaintenanceConfig; lunchReplacement: boolean;
-  costs: { perShift: string; perLunchHour: string; capital: string };
-}
-export interface SourceConfig {
-  id: string; name: string; materialId: string;
-  availability: 'virtual' | 'warehouse'; quantity: string; intervalMs: number;
-}
-export interface RouteConfig { id: string; fromId: string; toId: string; materialId: string }
-export interface InitialStockConfig {
-  id: string; ownerId: string; location: 'warehouse' | 'input' | 'output';
-  materialId: string; quantity: string; cost: string;
-}
-export interface EditorConfig {
-  schemaVersion: 1; id: string; name: string; language: 'ru' | 'en';
-  displayOrder?: string[];
-  bufferDefaults?: {input?: BufferConfig | ShiftBufferConfig; output?: BufferConfig};
-  seed: number; durationMs: number; warmupMs?: number; policy: 'push';
-  calendar: { shiftStartMs: number; lunchStartMs: number; lunchEndMs: number; shiftEndMs: number };
-  materials: MaterialConfig[]; recipes: RecipeConfig[]; stations: StationConfig[];
-  sources: SourceConfig[]; routes: RouteConfig[]; initialStocks: InitialStockConfig[];
-}
-
-export type ResolvedBuffer = { kind: 'quantity'; quantity: number } | { kind: 'infinite' };
-export interface ResolvedPlanRow {
-  id: string; recipeId: string; batches: number;
-  mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
-  distribution?: BoundedDistribution;
-  defectProbability?: number;
-}
-export interface ResolvedConfig {
-  seed: number; durationMs: number; warmupMs: number; policy: 'push'; calendar: EditorConfig['calendar'];
-  materials: { id: string; role: MaterialConfig['role']; purchasePrice: bigint | null; salePrice: bigint | null }[];
-  recipes: { id: string; kind: RecipeConfig['kind']; inputs: { materialId: string; quantity: number }[]; output: { materialId: string; quantity: number } }[];
-  stations: {
-    plan: ResolvedPlanRow[];
-    setupMs: number; initialRecipeId: string; maintenance: ResolvedMaintenance; lunchReplacement: boolean;
-    // Static first-row fields remain for existing configuration consumers; execution selects from plan.
-    id: string; priority: number; planId: string; recipeId: string; mode: 'sequential' | 'simultaneous'; repetitions: number; timeMs: number; cv: number;
-    inputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; outputBuffers: {materialId: string; capacity: ResolvedBuffer}[]; transportThreshold: number;
-    costs: { perShift: bigint; perLunchHour: bigint; capital: bigint };
-  }[];
-  sources: { id: string; materialId: string; availability: SourceConfig['availability']; quantity: number; intervalMs: number }[];
-  routes: RouteConfig[];
-  initialStocks: { id: string; ownerId: string; location: InitialStockConfig['location']; materialId: string; quantity: number; cost: bigint }[];
-}
 export function inputCapacity(station: DeepReadonly<ResolvedConfig['stations'][number]>, materialId: string): DeepReadonly<ResolvedBuffer> {
   const buffer = station.inputBuffers.find(buffer => buffer.materialId === materialId);
   if (!buffer) throw new Error(`Input capacity is not configured: ${station.id}/${materialId}`);
@@ -99,20 +24,6 @@ export function outputCapacity(station: DeepReadonly<ResolvedConfig['stations'][
   const buffer = station.outputBuffers.find(buffer => buffer.materialId === materialId);
   if (!buffer) throw new Error(`Output capacity is not configured: ${station.id}/${materialId}`);
   return buffer.capacity;
-}
-
-export interface RunConfig {
-  readonly schemaVersion: 1;
-  readonly engineVersion: string;
-  readonly rngVersion: string;
-  readonly calculationHash: string;
-  readonly bufferCalculations: DeepReadonly<{
-    stationId: string; materialId: string; shifts: string;
-    cycleWorkMs: string; cycleConsumption: string;
-    roundedQuantity: number; minimumKit: number; raisedToKit: boolean;
-  }[]>;
-  readonly source: DeepReadonly<EditorConfig>;
-  readonly resolved: DeepReadonly<ResolvedConfig>;
 }
 
 type ErrorCode = 'shape' | 'unsupported' | 'id' | 'reference' | 'value' | 'capacity' | 'topology';

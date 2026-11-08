@@ -1,33 +1,13 @@
 import {calendarForDuration, workedMsUntil} from './calendar.js';
 import {freezeData} from './config.js';
 import type {DeepReadonly, RunConfig} from './config.js';
-import type {Snapshot, StockState} from './state.js';
+import type {Snapshot} from './state.js';
 
 /** At most this many plotted points, including the current endpoint. Initial state is separate. */
 export const MAX_FLOW_POINTS = 2048;
 export const flowStages = ['input', 'reserved', 'held', 'output'] as const;
-export interface FlowMaterialValues {
-  materialId: string;
-  input: string; reserved: string; held: string; output: string; wip: string;
-  released: string; produced: string; consumed: string; delivered: string; scrapped: string;
-}
-export interface FlowPlaceValue {
-  ownerId: string; materialId: string; location: Exclude<StockState['location'], 'warehouse'>; quantity: string;
-}
-export interface FlowValues {materials: FlowMaterialValues[]; places: FlowPlaceValue[]}
-export interface FlowPoint {timeMs: number; workMs: number; phase: 'initial' | 'settled'; values: FlowValues}
-export interface FlowHistory {
-  schemaVersion: 1;
-  engineVersion: string; rngVersion: string; calculationHash: string;
-  /** Separate materials have separate units; no global mixed-material CFD is implied. */
-  scope: 'per-material'; unit: 'micro-unit'; boundary: 'line-excluding-warehouse';
-  stages: typeof flowStages;
-  sampling: {kind: 'uniform-model-time'; intervalMs: number; maxPoints: number};
-  initial: FlowPoint;
-  points: FlowPoint[];
-  timeMs: number;
-  termination: 'running' | 'horizon' | 'stopped' | 'error';
-}
+import type {FlowHistory, FlowPoint, FlowValues} from './contract/output/history/index.js';
+export type * from './contract/output/history/index.js';
 function values(run: RunConfig, model: DeepReadonly<Snapshot>): DeepReadonly<FlowValues> {
   const stages = new Map(run.resolved.materials.map(m => [m.id, {input: 0n, reserved: 0n, held: 0n, output: 0n}]));
   const released = new Map(run.resolved.materials.map(m => [m.id, 0n]));

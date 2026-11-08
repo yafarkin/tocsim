@@ -1,5 +1,7 @@
 import type {DeepReadonly} from './config.js';
 import type {Snapshot, StationState, StationTime} from './state.js';
+import type {StationTimeReport} from './contract/output/reports/StationTimeReport.js';
+export type {StationTimeReport} from './contract/output/reports/StationTimeReport.js';
 
 export function emptyStationTime(): StationTime {
   return {processingMs: 0, setupMs: 0, maintenanceMs: 0, starvedMs: 0, blockedMs: 0, idleMs: 0, lunchMs: 0, offShiftMs: 0};
@@ -25,7 +27,7 @@ export function integrateStationTime(station: StationState, interval: {workMs: n
 function share(timeMs: number, availableWorkMs: number) {
   return availableWorkMs === 0 ? null : {timeMs, availableWorkMs};
 }
-export function stationTimeReport(model: DeepReadonly<Snapshot>) {
+export function stationTimeReport(model: DeepReadonly<Snapshot>): StationTimeReport {
   return {
     calendarMs: model.observation.calendarMs,
     complete: model.line?.termination === 'horizon',

@@ -1,3 +1,4 @@
+export type * from './contract/index.js';
 export * from './arithmetic.js';
 export * from './calendar.js';
 export * from './config.js';

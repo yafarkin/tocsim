@@ -1,28 +1,10 @@
 import {elapsedTime} from './calendar.js';
 import type {WorkCalendar} from './calendar.js';
-import type {ProcessingOrigin, StockOrigin, StockState} from './state.js';
+import type {StockState} from './state.js';
+import type {AgeSummary, PlaceAge, ProcessingOrigin, StockAge, StockOrigin} from './contract/output/snapshot/index.js';
+export type {AgeSummary, MaterialAge, PlaceAge, StockAge} from './contract/output/snapshot/index.js';
 
 /** Current physical quantity, not a time average or completed output. */
-export interface AgeSummary {
-  knownQuantity: string;
-  notStartedQuantity: string;
-  unknownQuantity: string;
-  calendarQuantityMs: string;
-  workQuantityMs: string;
-  meanCalendarMs: number | null;
-  meanWorkMs: number | null;
-}
-export interface MaterialAge {
-  materialId: string;
-  quantity: string;
-  admission: AgeSummary;
-  firstProcessing: AgeSummary;
-}
-export interface PlaceAge extends MaterialAge {
-  ownerId: string;
-  location: Exclude<StockState['location'], 'warehouse'>;
-}
-export interface StockAge {materials: MaterialAge[]; places: PlaceAge[]}
 interface Total {knownQuantity: bigint; notStartedQuantity: bigint; unknownQuantity: bigint; calendarQuantityMs: bigint; workQuantityMs: bigint}
 interface Row {quantity: bigint; admission: Total; firstProcessing: Total}
 const total = (): Total => ({knownQuantity: 0n, notStartedQuantity: 0n, unknownQuantity: 0n, calendarQuantityMs: 0n, workQuantityMs: 0n});

@@ -1,31 +1,13 @@
 import type {FlowBoundaryMoments} from './flow-identity.js';
 import {stockCost} from './stock-value.js';
 import {stockAge} from './stock-age.js';
-import type {StockAge} from './stock-age.js';
 import { lunchCost, moneyToJSON } from './arithmetic.js';
 import { calendarForDuration, elapsedTime } from './calendar.js';
 import { freezeData, outputCapacity } from './config.js';
 import type { DeepReadonly, RunConfig } from './config.js';
 
-export type MaintenanceTrigger = 'processingTime' | 'repetitions';
-export type MaintenanceDeferral = 'batch' | 'output' | 'calendar';
-/** Only the last completed service is retained; no unbounded event history. */
-export interface MaintenanceRecord {
-  dueAtMs: number; dueBy: MaintenanceTrigger[]; deferredBy: MaintenanceDeferral[]; startedAtMs: number; completedAtMs: number;
-  processingMs: number; repetitions: number;
-}
-
-/** Disjoint elapsed milliseconds. Calendar pauses override the working state. */
-export interface StationTime {
-  processingMs: number;
-  setupMs: number;
-  maintenanceMs: number;
-  starvedMs: number;
-  blockedMs: number;
-  idleMs: number;
-  lunchMs: number;
-  offShiftMs: number;
-}
+import type {FlowTimeSnapshot, MaintenanceDeferral, MaintenanceRecord, MaintenanceTrigger, ProcessingOrigin, ShiftOutput, Snapshot, SourceAttempt, StationTime, StockOrigin} from './contract/output/snapshot/index.js';
+export type * from './contract/output/snapshot/index.js';
 
 /** Internal operation token is deliberately excluded from UI snapshots. */
 export interface StationState {
@@ -57,8 +39,6 @@ export interface StationState {
   reason: 'notStarted' | 'input' | 'output' | 'offShift' | 'lunch' | 'complete' | 'horizon' | null;
   remainingProcessingMs: number | null;
 }
-export type StockOrigin = { kind: 'unreleased' } | { kind: 'known'; startedAtMs: number } | { kind: 'unknown' };
-export type ProcessingOrigin = {kind: 'notStarted'} | {kind: 'known'; startedAtMs: number} | {kind: 'unknown'};
 export interface Provenance {
   origin: StockOrigin;
   /** Earliest ancestor's actual processing start, separate from admission and reservation. */
@@ -82,12 +62,6 @@ export interface StockState {
 export interface InventoryState {
   stocks: StockState[];
   nextStockOrdinal: number;
-}
-export interface SourceAttempt {
-  timeMs: number;
-  requestedQuantity: number;
-  releasedQuantity: number;
-  blockedBy: ('capacity' | 'stock')[];
 }
 export interface SourceState {
   sourceId: string;
@@ -142,7 +116,6 @@ export interface LineTransfer {
   cost: bigint;
   kind: 'buffer' | 'route' | 'sale' | 'scrap';
 }
-export interface ShiftOutput {dayIndex: number; materialId: string; quantity: number}
 /** One bounded aggregate per physical place/material, in micro-units × ms. */
 export interface StockTime {
   ownerId: string;
@@ -163,14 +136,6 @@ export interface ProductFlowTime {
   admission: FlowTimeTotal;
   firstProcessing: FlowTimeTotal;
 }
-export interface FlowTimeSnapshot {
-  knownQuantity: number;
-  unknownQuantity: number;
-  calendarQuantityMs: string;
-  workQuantityMs: string;
-  meanCalendarMs: number | null;
-  meanWorkMs: number | null;
-}
 export interface LineState {
   transferPending: boolean;
   dispatchPending: boolean;
@@ -185,52 +150,12 @@ export interface LineState {
   scraps: ScrapSummary[];
   transfers: LineTransfer[];
 }
-export interface StationSnapshot extends Omit<StationState, 'operationVersion' | 'operationOrdinal'> {
-  /** Available work in [0, timeMs), including this station's lunch replacement. */
-  availableWorkMs: number;
-  lunchCost: string;
-  progress: number | null;
-  inputs: {materialId: string; quantity: number; missingQuantity: number; reservedQuantity: number}[];
-  /** Material of held work, or the next recipe output when the station is clear. */
-  output: {materialId: string; quantity: number; heldQuantity: number};
-  outputs: {materialId: string; quantity: number; heldQuantity: number}[];
-  blockedBy: {stationId: string; location: 'input' | 'output'}[];
-}
-export interface LineSnapshot {
-  flowBoundary: {[K in keyof FlowBoundaryMoments]: string} | null;
-  /** All physical inventory, including warehouse; integral is unbounded. */
-  stockValue: {currentCost: string; calendarCostMs: string};
-  stockAge: StockAge;
-  shiftOutput: ShiftOutput[];
-  flowTime: {materialId: string; admission: FlowTimeSnapshot; firstProcessing: FlowTimeSnapshot}[];
-  stockTime: (Omit<StockTime, 'calendarQuantityMs' | 'workQuantityMs'> & {calendarQuantityMs: string; workQuantityMs: string})[];
-  termination: 'running' | 'horizon' | 'stopped' | 'error';
-  flow: 'normal' | 'exhausted' | 'missingInput' | 'blocked';
-  counters: (Omit<MaterialCounter, 'soldCost' | 'scrapCost'> & {soldCost: string; scrapCost: string})[];
-  transfers: (Omit<LineTransfer, 'cost'> & {cost: string})[];
-  inspections: (Omit<InspectionCounter, 'processingMs'> & {processingMs: string})[];
-  scraps: (Omit<ScrapSummary, 'cost' | 'processingMs'> & {cost: string; processingMs: Record<string, string>})[];
-}
 export interface EngineState extends InventoryState {
   timeMs: number;
   stations: StationState[];
   sources: SourceState[];
   sourceTransfers: SourceTransfer[];
   line: LineState | null;
-}
-export interface Snapshot {
-  schemaVersion: 24;
-  engineVersion: string;
-  rngVersion: string;
-  calculationHash: string;
-  timeMs: number;
-  /** Observed [0, timeMs): common work excludes lunch even with replacement. */
-  observation: {calendarMs: number; workMs: number};
-  stations: StationSnapshot[];
-  line: LineSnapshot | null;
-  sources: (Omit<SourceState, 'nextOrdinal' | 'pendingQuantity' | 'purchasedCost'> & {purchasedCost: string})[];
-  sourceTransfers: (Omit<SourceTransfer, 'cost'> & {cost: string})[];
-  stocks: (Omit<StockState, 'cost' | 'provenance'> & { cost: string; provenance: Omit<Provenance, 'processingMs'> & { processingMs: Record<string, string> } })[];
 }
 
 /** Called only at a consistent engine boundary, not during an atomic transition. */

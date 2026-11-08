@@ -2,19 +2,14 @@ import {addMoney, ArithmeticError, MAX_UNITS, moneyFromJSON, moneyToJSON} from '
 import type {DeepReadonly, RunConfig} from './config.js';
 import {financialReport} from './financial-report.js';
 import type {Snapshot} from './state.js';
-
-/** Exact mean in micro-money: costMs / durationMs. Display alone may round it. */
-export interface InvestmentAverage {costMs: string; durationMs: number}
-/** Dimensionless period return, not a percentage or an annualized return.
- * Both terms have units micro-money × milliseconds; the numerator may be negative.
- */
-export interface InvestmentRoi {numerator: string; denominator: string}
+import type {InvestmentAverage, InvestmentReport, InvestmentRoi} from './contract/output/reports/index.js';
+export type {InvestmentAverage, InvestmentReport, InvestmentRoi} from './contract/output/reports/index.js';
 
 /** Read-only observation of the same actual calendar period as the financial result.
  * Warehouse and WIP are already included in stockValue. Capital is constant from
  * time zero, adds to investments and never changes inventory cost or OE.
  */
-export function investmentReport(run: RunConfig, model: DeepReadonly<Snapshot>) {
+export function investmentReport(run: RunConfig, model: DeepReadonly<Snapshot>): InvestmentReport {
   const {calendarMs} = model.observation;
   const {currentCost, calendarCostMs} = model.line!.stockValue;
   const capital = run.resolved.stations.reduce((sum, station) => addMoney(sum, station.costs.capital), 0n);

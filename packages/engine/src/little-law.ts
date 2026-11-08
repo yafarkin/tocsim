@@ -2,9 +2,10 @@ import {calendarForDuration, workedMsUntil} from './calendar.js';
 import type {DeepReadonly, RunConfig} from './config.js';
 import {flowIdentityReport, flowIdentityReason} from './flow-identity.js';
 import type {Snapshot} from './state.js';
+import type {FlowRatio, LittleLawReport} from './contract/output/reports/index.js';
+export type {FlowRatio, LittleLawReport} from './contract/output/reports/index.js';
 
 /** Exact ratios. Quantity uses micro-units, time uses milliseconds. */
-export interface FlowRatio {numerator: string; denominator: string}
 const ratio = (numerator: bigint, denominator: bigint): FlowRatio | null => denominator === 0n ? null
   : {numerator: String(numerator), denominator: String(denominator)};
 const sumTime = (model: DeepReadonly<Snapshot>, scale: 'calendar' | 'work') => model.line!.flowTime.reduce((sum, row) =>
@@ -15,7 +16,7 @@ const unknownTime = (model: DeepReadonly<Snapshot>) => model.line!.flowTime.redu
  * At warmup=0 it precedes events at zero; otherwise it follows all events at warmup.
  * Production snapshots are immutable. No interpolation or CFD samples are used.
  */
-export function littleLawReport(run: RunConfig, model: DeepReadonly<Snapshot>, start: DeepReadonly<Snapshot> | null) {
+export function littleLawReport(run: RunConfig, model: DeepReadonly<Snapshot>, start: DeepReadonly<Snapshot> | null): LittleLawReport {
   const reason = flowIdentityReason(run);
   if (reason !== null) return {applicable: false as const, reason};
   if (!start) return {applicable: false as const, reason: 'warmupNotReached' as const};

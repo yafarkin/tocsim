@@ -1,16 +1,12 @@
 import type {DeepReadonly, RunConfig} from './config.js';
 import type {Snapshot, StockState} from './state.js';
+import type {FlowReport, MaterialStock, ProductionLocation} from './contract/output/reports/index.js';
+export type {FlowReport, MaterialStock, ProductionLocation} from './contract/output/reports/index.js';
 
 const compareIds = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 export const productionLocations = ['input', 'reserved', 'held', 'output'] as const;
-export type ProductionLocation = typeof productionLocations[number];
-export interface MaterialStock {
-  materialId: string;
-  input: string; reserved: string; held: string; output: string;
-  total: string;
-}
 /** Read-only aggregation of disjoint physical lots. No quality flags or UI state. */
-export function flowReport(run: RunConfig, model: DeepReadonly<Snapshot>) {
+export function flowReport(run: RunConfig, model: DeepReadonly<Snapshot>): FlowReport {
   const stockByMaterial = new Map(run.resolved.materials.map(m => [m.id, {input: 0n, reserved: 0n, held: 0n, output: 0n, warehouse: 0n}]));
   const places = new Map<string, {ownerId: string; materialId: string; location: StockState['location']; quantity: bigint}>();
   for (const stock of model.stocks) {

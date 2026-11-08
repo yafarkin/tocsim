@@ -1,9 +1,9 @@
 /** Counter-based FNV-1a/Murmur finalizer, midpoint uniforms, fixed-series Box–Muller.
  * Versioned arithmetic uses only IEEE-754 basic operations; no host log/exp/trig. */
+import type {BoundedDistribution} from './contract/input/index.js';
+export type {BoundedDistribution, DurationDistribution} from './contract/input/index.js';
+
 export const RNG_VERSION = 'counter32-fixed-distributions-2';
-export type BoundedDistribution = {kind: 'uniform'; minMs: number; maxMs: number}
-  | {kind: 'triangular'; minMs: number; peakMs: number; maxMs: number};
-export type DurationDistribution = BoundedDistribution | {kind: 'constant'; timeMs: number} | {kind: 'lognormal'; meanMs: number; cv: number};
 export class RandomError extends Error {
   readonly code = 'random';
   constructor(public readonly messages: {ru: string; en: string}) {super(messages.en); this.name = 'RandomError';}

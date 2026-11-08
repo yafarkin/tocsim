@@ -1,6 +1,6 @@
 import type {RunConfig} from './config.js';
-
-export type ComparableFlowReason = 'assembly' | 'quantityChange' | 'mixedProducts' | null;
+import type {ComparableFlowReason} from './contract/output/reports/ComparableFlowReason.js';
+export type {ComparableFlowReason} from './contract/output/reports/ComparableFlowReason.js';
 /** One conserved unit across the whole line; routing may split that same flow. */
 export function comparableFlowReason(run: RunConfig): ComparableFlowReason {
   if (run.resolved.recipes.some(r => r.kind === 'production' && r.inputs.length !== 1)) return 'assembly';
