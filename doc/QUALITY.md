@@ -40,10 +40,10 @@ EditorConfig/RunConfig сохраняют schemaVersion 1, добавлено н
 
 | Файл | Результат |
 |---|---|
-| src/engine/config.ts | Необязательная вероятность, валидация, нормализация и идентичность профиля |
-| src/engine/random.ts | defectOccurs и отдельный purpose/sampleIndex |
-| src/engine/inventory.ts | Атомарное завершение по комплектам, поштучные исходы и распределение учёта |
-| src/engine/simulation.ts | Профиль/seed/номер текущей операции передаются в завершение |
+| packages/engine/src/config.ts | Необязательная вероятность, валидация, нормализация и идентичность профиля |
+| packages/engine/src/random.ts | defectOccurs и отдельный purpose/sampleIndex |
+| packages/engine/src/inventory.ts | Атомарное завершение по комплектам, поштучные исходы и распределение учёта |
+| packages/engine/src/simulation.ts | Профиль/seed/номер текущей операции передаются в завершение |
 | src/engine/quality.test.ts | Конфигурация, RNG, комплекты, сборка, доли и воспроизводимость |
 | src/ui/quality-hidden.test.tsx | Скрытый брак не раскрывается схемой на RU/EN |
 

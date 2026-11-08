@@ -118,10 +118,11 @@ Bfe № 121 от 2026-10-25: актуальная передача после з
 
 | Документ | Содержание |
 |---|---|
+| [doc/ENGINE_API.md](doc/ENGINE_API.md) | Самостоятельное ядро, JSON API, CLI, локальный npm-пакет и его проверка |
 | [doc/FLOW_REPORT.md](doc/FLOW_REPORT.md) | Выпуск по сменам, остатки, границы отчёта и проверки № 83 |
 | [doc/SESSION_HANDOFF.md](doc/SESSION_HANDOFF.md) | Актуальное состояние, карта кода, проверки, Git, ограничения и условия старта следующей задачи |
 | [agents.md](agents.md), [tasks.md](tasks.md) | Правила работы и постоянные номера задач |
-| [doc/CONCEPT.md](doc/CONCEPT.md), [doc/BUILD_PLAN.md](doc/BUILD_PLAN.md) | Согласованная модель 1.4 и последовательный план 1.2 |
+| [doc/CONCEPT.md](doc/CONCEPT.md), [doc/BUILD_PLAN.md](doc/BUILD_PLAN.md) | Согласованная модель 1.26 и последовательный план 1.35 |
 | [doc/REVIEW.md](doc/REVIEW.md) | Проверки требований и принятые предметные уточнения |
 | [doc/ARITHMETIC.md](doc/ARITHMETIC.md), [doc/CONFIGURATION.md](doc/CONFIGURATION.md), [doc/INVENTORY.md](doc/INVENTORY.md) | Точная арифметика, компиляция конфигурации и материальный учёт |
 | [doc/CALENDAR.md](doc/CALENDAR.md), [doc/EVENTS.md](doc/EVENTS.md), [doc/SOURCES.md](doc/SOURCES.md) | Календарь, атомарные отметки и допуск сырья |
@@ -162,7 +163,7 @@ Dev-сервер доступен локально, адрес выводитс�
 
 ## Ядро и CLI
 
-Общий пакет `@toc/engine` не зависит от React и DOM. После `npm run build:engine` можно выполнить полный прогон `node packages/engine/dist/cli.js input.json > result.json` или передать вход через stdin. Результат содержит Snapshot, материальный и финансовые отчёты, инвестиции и историю. API, формат ошибок и примеры описаны в [doc/ENGINE_API.md](doc/ENGINE_API.md). Пакет пока не опубликован в npm.
+Общий пакет `@toc/engine` не зависит от React и DOM. После `npm run build:engine` можно выполнить полный прогон `node packages/engine/dist/cli.js input.json > result.json` или передать вход через stdin. Результат содержит Snapshot, материальный и финансовые отчёты, инвестиции и историю. API, формат ошибок и примеры описаны в [doc/ENGINE_API.md](doc/ENGINE_API.md). Это локальный npm workspace в исходниках проекта, а не публикация в npm registry: команда `npm install @toc/engine` из публичного registry пока недоступна. Любой может получить исходники и собрать пакет самостоятельно.
 
 ## Git и публикация
 

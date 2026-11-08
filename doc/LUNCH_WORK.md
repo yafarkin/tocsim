@@ -22,11 +22,11 @@ Snapshot 14 добавляет каждому посту lunchBusyMs и lunchCos
 
 | Файл | Изменение |
 |---|---|
-| src/engine/config.ts | Флаг boolean, проверка типа, ResolvedConfig и расчётный hash |
-| src/engine/simulation.ts | Рабочий календарь поста, выборочная остановка в обед, запуск и интеграция, накопление занятости |
-| src/engine/arithmetic.ts | Доплата от накопленного времени, точная арифметика и проверка диапазона |
-| src/engine/state.ts | Snapshot 14, lunchBusyMs и lunchCost |
-| src/engine/sources.ts | Начальное нулевое время; общий календарь источников сохранён |
+| packages/engine/src/config.ts | Флаг boolean, проверка типа, ResolvedConfig и расчётный hash |
+| packages/engine/src/simulation.ts | Рабочий календарь поста, выборочная остановка в обед, запуск и интеграция, накопление занятости |
+| packages/engine/src/arithmetic.ts | Доплата от накопленного времени, точная арифметика и проверка диапазона |
+| packages/engine/src/state.ts | Snapshot 14, lunchBusyMs и lunchCost |
+| packages/engine/src/sources.ts | Начальное нулевое время; общий календарь источников сохранён |
 | src/engine/lunch.test.ts | Конфигурация, операции, расходы, календари и воспроизводимость |
 
 ## Проверки № 71

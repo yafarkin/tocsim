@@ -32,9 +32,9 @@ RunSummary теперь доступен в готовом, текущем, пр
 
 ## Карта кода и версии
 
-- src/engine/simulation.ts: атомарное начисление shiftOutput при годной передаче.
-- src/engine/state.ts: состояние/снимок суточных агрегатов.
-- src/engine/flow-report.ts: общий независимый от DOM слой чтения и группировки непересекающихся физических запасов. Суммы bigint сериализуются строками, в том числе выше Number.MAX_SAFE_INTEGER; UI не пересчитывает производственную модель.
+- packages/engine/src/simulation.ts: атомарное начисление shiftOutput при годной передаче.
+- packages/engine/src/state.ts: состояние/снимок суточных агрегатов.
+- packages/engine/src/flow-report.ts: общий независимый от DOM слой чтения и группировки непересекающихся физических запасов. Суммы bigint сериализуются строками, в том числе выше Number.MAX_SAFE_INTEGER; UI не пересчитывает производственную модель.
 - src/ui/RunSummary.tsx и i18n.ts: таблицы, раскрытие, фактический интервал и понятные границы.
 - src/engine/flow-report.test.ts и src/ui/RunSummary.test.tsx: учёт, границы и отображение.
 

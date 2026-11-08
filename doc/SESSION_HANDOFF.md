@@ -216,11 +216,11 @@ DBR всё ещё не исполняется: policy=push, canStart=false. quan
 | Просмотр и передачи | src/runner/runner.ts, transfers.ts и тесты |
 | Схема/индикатор передач | src/ui/FlowDiagram.tsx, diagram.ts, diagram.test.tsx |
 | Отчёты/CFD/форматирование | src/ui/RunSummary.tsx, ExperimentResult.tsx, RunMetrics.tsx, FlowCharts.tsx, flow-chart-data.ts, metric-format.ts, i18n.ts |
-| Конфигурация/хеш/версии | src/engine/config.ts, random.ts, state.ts |
-| Время/исполнение/партии | src/engine/calendar.ts, events.ts, simulation.ts, sources.ts, setup.ts |
-| FIFO/происхождение/средние | src/engine/inventory.ts, flow-time.ts, stock-age.ts, stock-time.ts, flow-history.ts |
-| Деньги/тождество/факты | src/engine/financial-report.ts, investment-report.ts, little-law.ts, constraint-facts.ts |
-| DBR | src/engine/dbr-validation.ts, dbr-schedule.ts, dbr-demand.ts, dbr-slot-groups.ts и тесты |
+| Конфигурация/хеш/версии | packages/engine/src/config.ts, random.ts, state.ts |
+| Время/исполнение/партии | packages/engine/src/calendar.ts, events.ts, simulation.ts, sources.ts, setup.ts |
+| FIFO/происхождение/средние | packages/engine/src/inventory.ts, flow-time.ts, stock-age.ts, stock-time.ts, flow-history.ts |
+| Деньги/тождество/факты | packages/engine/src/financial-report.ts, investment-report.ts, little-law.ts, constraint-facts.ts |
+| DBR | packages/engine/src/dbr-validation.ts, dbr-schedule.ts, dbr-demand.ts, dbr-slot-groups.ts и тесты |
 | Проверочные прогоны поиска | src/runner/bottleneck-search.ts, bottleneck-search.test.ts, bottleneck-acceptance.test.ts |
 | Кнопка и результаты поиска | src/ui/BottleneckSearch.tsx, BottleneckSearch.test.tsx |
 | Структурные потоки и несколько рамок | src/ui/diagram.ts (flowThroughStation), FlowDiagram.tsx, bottleneck-flow.test.tsx, i18n.ts, src/styles.css |

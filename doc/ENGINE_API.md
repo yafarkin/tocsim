@@ -91,7 +91,9 @@ cat input.json | node packages/engine/dist/cli.js - > result.json
 cat input.json | node packages/engine/dist/cli.js > result.json
 ```
 
-Успешный прогон возвращает код завершения 0. Ошибка данных, чтения или вызова — 1 и JSON с `ok: false` в stdout. При установленном npm-пакете та же команда доступна как `toc-engine [input.json|-]`. Пакет пока не опубликован в npm.
+Успешный прогон возвращает код завершения 0. Ошибка данных, чтения или вызова — 1 и JSON с `ok: false` в stdout. При установленном npm-пакете та же команда доступна как `toc-engine [input.json|-]`.
+
+`@toc/engine` сейчас является локальным npm workspace внутри репозитория. Пакет не опубликован в npm registry, поэтому обычная команда `npm install @toc/engine` из публичного registry пока недоступна. Любой может получить исходники, выполнить `npm ci && npm run build:engine` и использовать пакет локально. Для распространения архива можно отдельно выполнить `npm pack -w @toc/engine`; публикация в registry является следующей отдельной задачей.
 
 ## Сборка и разработка
 
