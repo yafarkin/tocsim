@@ -1,8 +1,8 @@
-import type {DeepReadonly, RunConfig} from './config';
-import {flowReport} from './flow-report';
-import type {Snapshot} from './state';
-import {stationTimeReport} from './station-time';
-import {stockTimeReport} from './stock-time';
+import type {DeepReadonly, RunConfig} from './config.js';
+import {flowReport} from './flow-report.js';
+import type {Snapshot} from './state.js';
+import {stationTimeReport} from './station-time.js';
+import {stockTimeReport} from './stock-time.js';
 
 /** Existing observations in [0,timeMs], grouped for comparison, never ranked.
  * Queue quantities use micro-units; averages retain exact quantityMs/durationMs.

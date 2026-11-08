@@ -1,13 +1,13 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from './config';
-import type {DeepReadonly, EditorConfig} from './config';
-import {FlowHistoryCollector, MAX_FLOW_POINTS} from './flow-history';
-import type {FlowPoint} from './flow-history';
-import {createCalendar, DAY_MS, workedMsUntil} from './calendar';
-import {Simulation} from './simulation';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import type {DeepReadonly, EditorConfig} from '../../packages/engine/src/config.js';
+import {FlowHistoryCollector, MAX_FLOW_POINTS} from '../../packages/engine/src/flow-history.js';
+import type {FlowPoint} from '../../packages/engine/src/flow-history.js';
+import {createCalendar, DAY_MS, workedMsUntil} from '../../packages/engine/src/calendar.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
-import {flowReport} from './flow-report';
-import type {Snapshot} from './state';
+import {flowReport} from '../../packages/engine/src/flow-report.js';
+import type {Snapshot} from '../../packages/engine/src/state.js';
 import {exampleIds, previewConfig} from '../ui/preview';
 const Q = 1_000_000, M = 60_000;
 function single(): EditorConfig {

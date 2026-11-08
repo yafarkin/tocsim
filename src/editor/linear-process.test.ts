@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig, ConfigError} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig, ConfigError} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {blockingLessonConfig} from '../lessons/lesson-blocking';
 import {previewConfig} from '../ui/preview';
 import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';

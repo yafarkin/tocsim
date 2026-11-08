@@ -1,12 +1,12 @@
-import { addMoney, addQuantity, MAX_UNITS, purchaseCost, splitCost } from './arithmetic';
-import { calendarForDuration, sourceAttemptTime } from './calendar';
-import { inputCapacity } from './config';
-import type { RunConfig } from './config';
-import { EventError, EventScheduler } from './events';
-import type { EventContext, EventHandlers } from './events';
-import { createInventory, receiveStock, transferStock } from './inventory';
-import type { EngineState } from './state';
-import { emptyStationTime } from './station-time';
+import { addMoney, addQuantity, MAX_UNITS, purchaseCost, splitCost } from './arithmetic.js';
+import { calendarForDuration, sourceAttemptTime } from './calendar.js';
+import { inputCapacity } from './config.js';
+import type { RunConfig } from './config.js';
+import { EventError, EventScheduler } from './events.js';
+import type { EventContext, EventHandlers } from './events.js';
+import { createInventory, receiveStock, transferStock } from './inventory.js';
+import type { EngineState } from './state.js';
+import { emptyStationTime } from './station-time.js';
 
 const BATCH_ID = '@sources';
 type Source = RunConfig['resolved']['sources'][number];

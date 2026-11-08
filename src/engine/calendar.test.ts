@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { activeWorkMs, advanceWork, CalendarError, calendarForDuration, canStart, clockAt, createCalendar, DAY_MS, nextOpening, sourceAttemptTime, workedMsUntil } from './calendar';
-import { compileConfig, ConfigError } from './config';
+import { activeWorkMs, advanceWork, CalendarError, calendarForDuration, canStart, clockAt, createCalendar, DAY_MS, nextOpening, sourceAttemptTime, workedMsUntil } from '../../packages/engine/src/calendar.js';
+import { compileConfig, ConfigError } from '../../packages/engine/src/config.js';
 import { line } from './test-fixtures';
 const minute = 60_000;
 const hour = 60 * minute;

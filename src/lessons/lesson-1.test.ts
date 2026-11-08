@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {lesson1Config, lesson1Result, lesson1Variants} from './lesson-1';
 
 describe('lesson 1 paired experiments', () => {

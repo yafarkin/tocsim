@@ -1,10 +1,10 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig,ConfigError} from './config';
-import {planDbrDemand,DbrDemandLimitError,MAX_DBR_DEMAND_RECORDS,MAX_DBR_DEMAND_LINKS} from './dbr-demand';
-import type {DbrDemandPlan} from './dbr-demand';
-import type {DbrSelection} from './dbr-validation';
+import {compileConfig,ConfigError} from '../../packages/engine/src/config.js';
+import {planDbrDemand,DbrDemandLimitError,MAX_DBR_DEMAND_RECORDS,MAX_DBR_DEMAND_LINKS} from '../../packages/engine/src/dbr-demand.js';
+import type {DbrDemandPlan} from '../../packages/engine/src/dbr-demand.js';
+import type {DbrSelection} from '../../packages/engine/src/dbr-validation.js';
 import {line,cyclicLine} from './test-fixtures';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 const M=60_000;
 type Spec={id:string;input:[string,string][];output:[string,string];repetitions?:number;time?:number};
 function network(specs:Spec[],drum:string,horizon=5*M) {

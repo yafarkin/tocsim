@@ -1,6 +1,6 @@
 import {expect,it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig,ConfigError} from '../engine/config';
+import {compileConfig,ConfigError} from '@toc/engine';
 import {previewConfig} from './preview';
 import {warmupFromMinutes,WarmupPanel} from './WarmupPanel';
 import {labels} from './i18n';

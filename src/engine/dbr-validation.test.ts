@@ -1,10 +1,10 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig,ConfigError} from './config';
-import type {EditorConfig} from './config';
-import {validateDbrSelection} from './dbr-validation';
-import type {DbrSelection} from './dbr-validation';
+import {compileConfig,ConfigError} from '../../packages/engine/src/config.js';
+import type {EditorConfig} from '../../packages/engine/src/config.js';
+import {validateDbrSelection} from '../../packages/engine/src/dbr-validation.js';
+import type {DbrSelection} from '../../packages/engine/src/dbr-validation.js';
 import {line,cyclicLine} from './test-fixtures';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {previewConfig} from '../ui/preview';
 
 function selection(config: EditorConfig, drumStationId=config.stations.at(-1)!.id): DbrSelection {

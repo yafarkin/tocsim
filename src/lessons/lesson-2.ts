@@ -1,5 +1,5 @@
-import type {EditorConfig} from '../engine/config';
-import {createCalendar} from '../engine/calendar';
+import type {EditorConfig} from '@toc/engine';
+import {createCalendar} from '@toc/engine';
 
 export const lesson2Variants = ['base', 'faster-second', 'faster-third'] as const;
 export type Lesson2Variant = typeof lesson2Variants[number];

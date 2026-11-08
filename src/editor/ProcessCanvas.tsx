@@ -1,5 +1,5 @@
 import {useEffect, useId, useRef, useState} from 'react';
-import type {EditorConfig} from '../engine/config';
+import type {EditorConfig} from '@toc/engine';
 import type {Language} from '../ui/i18n';
 import type {ProcessDraft} from './process-form';
 import {layoutNodes, NODE_HEIGHT, NODE_WIDTH, placeNode} from './process-layout';

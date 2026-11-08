@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError } from './config';
-import type { EditorConfig } from './config';
-import { Simulation } from './simulation';
-import { createPushScheduler } from './sources';
+import { compileConfig, ConfigError } from '../../packages/engine/src/config.js';
+import type { EditorConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import { createPushScheduler } from '../../packages/engine/src/sources.js';
 import { line } from './test-fixtures';
 
 function plannedLine(): EditorConfig {

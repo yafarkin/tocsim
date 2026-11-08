@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Simulation } from '../engine/simulation';
-import { compileConfig } from '../engine/config';
+import { Simulation } from '@toc/engine';
+import { compileConfig } from '@toc/engine';
 import { Runner } from '../runner/runner';
 import type { RunnerHost } from '../runner/runner';
 import { defaultBatchProfiles, exampleIds, exampleRuns, previewConfig } from './preview';

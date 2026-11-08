@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {processingDuration, distributionMoments, RandomError, meanDurationSixths} from './random';
-import type {BoundedDistribution, DurationDistribution} from './random';
-import {compileConfig, ConfigError, inputCapacity} from './config';
+import {processingDuration, distributionMoments, RandomError, meanDurationSixths} from '../../packages/engine/src/random.js';
+import type {BoundedDistribution, DurationDistribution} from '../../packages/engine/src/random.js';
+import {compileConfig, ConfigError, inputCapacity} from '../../packages/engine/src/config.js';
 import {line, cyclicLine} from './test-fixtures';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {Runner} from '../runner/runner';
 const distributions: BoundedDistribution[] = [
   {kind: 'uniform', minMs: 120_000, maxMs: 360_000},

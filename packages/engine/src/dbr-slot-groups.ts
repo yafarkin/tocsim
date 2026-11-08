@@ -1,6 +1,6 @@
-import type {RunConfig} from './config';
-import {planDbrDemand} from './dbr-demand';
-import type {DbrSelection} from './dbr-validation';
+import type {RunConfig} from './config.js';
+import {planDbrDemand} from './dbr-demand.js';
+import type {DbrSelection} from './dbr-validation.js';
 
 export interface DbrSlotGroupIssue {
   code: 'slotGroupLimit';

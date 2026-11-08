@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import type {DeepReadonly, RunConfig} from '../engine/config';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
 import type {RunnerView} from '../runner/runner';
 import {lostProcessingMs, minutesText} from './quality';
 import {quantityText} from './diagram';

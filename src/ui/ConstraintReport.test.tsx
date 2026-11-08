@@ -1,11 +1,11 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
-import {constraintFactsReport} from '../engine/constraint-facts';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
+import {constraintFactsReport} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import {RunMetrics} from './RunMetrics';
-import {stockTimeReport} from '../engine/stock-time';
+import {stockTimeReport} from '@toc/engine';
 import {RunSummary} from './RunSummary';
 import {exampleIds, previewConfig} from './preview';
 import {labels} from './i18n';

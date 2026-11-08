@@ -1,7 +1,7 @@
-import {ConfigError} from '../engine/config';
-import type {EditorConfig, InputBufferConfig} from '../engine/config';
-import {calendarForDuration, DAY_MS} from '../engine/calendar';
-import {parseQuantity} from '../engine/arithmetic';
+import {ConfigError} from '@toc/engine';
+import type {EditorConfig, InputBufferConfig} from '@toc/engine';
+import {calendarForDuration, DAY_MS} from '@toc/engine';
+import {parseQuantity} from '@toc/engine';
 import {compileLinearProcess} from './linear-process';
 
 export interface BufferDraft {kind: 'inherit' | 'quantity' | 'shift' | 'infinite'; value: string}

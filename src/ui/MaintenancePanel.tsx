@@ -1,6 +1,6 @@
 import {memo, useState} from 'react';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {EditorConfig, MaintenanceConfig, RunConfig} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {EditorConfig, MaintenanceConfig, RunConfig} from '@toc/engine';
 import {maintenanceFromDraft, withMaintenance, workMinutes} from './maintenance';
 import type {MaintenanceDraft} from './maintenance';
 import type {Labels, Language} from './i18n';

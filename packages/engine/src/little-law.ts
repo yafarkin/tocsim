@@ -1,7 +1,7 @@
-import {calendarForDuration, workedMsUntil} from './calendar';
-import type {DeepReadonly, RunConfig} from './config';
-import {flowIdentityReport, flowIdentityReason} from './flow-identity';
-import type {Snapshot} from './state';
+import {calendarForDuration, workedMsUntil} from './calendar.js';
+import type {DeepReadonly, RunConfig} from './config.js';
+import {flowIdentityReport, flowIdentityReason} from './flow-identity.js';
+import type {Snapshot} from './state.js';
 
 /** Exact ratios. Quantity uses micro-units, time uses milliseconds. */
 export interface FlowRatio {numerator: string; denominator: string}

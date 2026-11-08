@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseMoney, parseQuantity } from './arithmetic';
-import { compileConfig } from './config';
-import type { DeepReadonly } from './config';
-import { Simulation } from './simulation';
-import type { Snapshot } from './state';
+import { parseMoney, parseQuantity } from '../../packages/engine/src/arithmetic.js';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import type { DeepReadonly } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import type { Snapshot } from '../../packages/engine/src/state.js';
 import { blockedCyclicLine } from './test-fixtures';
 const M = 60_000, Q = 1_000_000;
 function totals(snapshot: DeepReadonly<Snapshot>, config: ReturnType<typeof blockedCyclicLine>) {

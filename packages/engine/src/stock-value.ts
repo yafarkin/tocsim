@@ -1,5 +1,5 @@
-import {addMoney, ArithmeticError} from './arithmetic';
-import type {StockState} from './state';
+import {addMoney, ArithmeticError} from './arithmetic.js';
+import type {StockState} from './state.js';
 
 /** All disjoint physical lots, including the warehouse. Existing costs are
  * inherited raw-material values: never multiply them by a new material price.

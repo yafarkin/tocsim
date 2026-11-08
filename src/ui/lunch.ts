@@ -1,8 +1,8 @@
-import {formatMoney, parseMoney} from '../engine/arithmetic';
-import {ConfigError} from '../engine/config';
-import type {DeepReadonly, EditorConfig, RunConfig} from '../engine/config';
-import type {StationSnapshot} from '../engine/state';
-import {canStart, calendarForDuration} from '../engine/calendar';
+import {formatMoney, parseMoney} from '@toc/engine';
+import {ConfigError} from '@toc/engine';
+import type {DeepReadonly, EditorConfig, RunConfig} from '@toc/engine';
+import type {StationSnapshot} from '@toc/engine';
+import {canStart, calendarForDuration} from '@toc/engine';
 import {messages} from './i18n';
 import type {Labels} from './i18n';
 export interface LunchSetting {enabled: boolean; hourlyRate: string}

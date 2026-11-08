@@ -1,8 +1,8 @@
 import {expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {MaintenanceConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {MaintenanceConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import {previewConfig} from './preview';
 import {withMaintenance, maintenanceFromDraft, maintenanceNotice, maintenanceCounters, maintenanceTime} from './maintenance';

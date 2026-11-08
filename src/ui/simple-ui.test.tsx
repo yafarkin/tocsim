@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
-import {flowReport} from '../engine/flow-report';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
+import {flowReport} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import {advancedSettingKeys} from './ExperimentContext';
 import {ExperimentResult} from './ExperimentResult';

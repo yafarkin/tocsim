@@ -1,12 +1,12 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig} from './config';
-import type {EditorConfig} from './config';
-import {planDrumSchedule,DrumScheduleError,MAX_DRUM_SLOTS} from './dbr-schedule';
-import type {DrumSchedule} from './dbr-schedule';
-import type {DbrSelection} from './dbr-validation';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import type {EditorConfig} from '../../packages/engine/src/config.js';
+import {planDrumSchedule,DrumScheduleError,MAX_DRUM_SLOTS} from '../../packages/engine/src/dbr-schedule.js';
+import type {DrumSchedule} from '../../packages/engine/src/dbr-schedule.js';
+import type {DbrSelection} from '../../packages/engine/src/dbr-validation.js';
 import {line,cyclicLine} from './test-fixtures';
-import {Simulation} from './simulation';
-import {DAY_MS} from './calendar';
+import {Simulation} from '../../packages/engine/src/simulation.js';
+import {DAY_MS} from '../../packages/engine/src/calendar.js';
 const M=60_000;
 function one(timeMs=4*M,repetitions=1,mode:'sequential'|'simultaneous'='sequential'):EditorConfig {
   const c=line();c.stations=[c.stations[0]!];c.recipes=[c.recipes[0]!];c.materials=c.materials.filter(m=>m.id!=='product');

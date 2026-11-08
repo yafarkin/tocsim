@@ -1,7 +1,7 @@
-import type {DeepReadonly, EditorConfig, RunConfig} from '../engine/config';
-import {createCalendar} from '../engine/calendar';
-import {stockTimeReport} from '../engine/stock-time';
-import type {Snapshot} from '../engine/state';
+import type {DeepReadonly, EditorConfig, RunConfig} from '@toc/engine';
+import {createCalendar} from '@toc/engine';
+import {stockTimeReport} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 
 export const lesson3Buffers = [1, 8, 40] as const;
 export type Lesson3Buffer = typeof lesson3Buffers[number];

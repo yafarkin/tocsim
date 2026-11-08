@@ -1,6 +1,6 @@
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import {constraintFactsReport} from '../engine/constraint-facts';
-import type {Snapshot} from '../engine/state';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import {constraintFactsReport} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 import {quantityText} from './diagram';
 import {nameFor} from './i18n';
 import type {Labels} from './i18n';

@@ -1,6 +1,6 @@
-import {elapsedTime} from './calendar';
-import type {WorkCalendar} from './calendar';
-import type {ProcessingOrigin, StockOrigin, StockState} from './state';
+import {elapsedTime} from './calendar.js';
+import type {WorkCalendar} from './calendar.js';
+import type {ProcessingOrigin, StockOrigin, StockState} from './state.js';
 
 /** Current physical quantity, not a time average or completed output. */
 export interface AgeSummary {

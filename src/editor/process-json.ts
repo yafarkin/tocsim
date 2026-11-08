@@ -1,5 +1,5 @@
-import {ConfigError} from '../engine/config';
-import type {EditorConfig} from '../engine/config';
+import {ConfigError} from '@toc/engine';
+import type {EditorConfig} from '@toc/engine';
 import {compileLinearProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
 import type {ProcessDocument, ProcessLayout} from './process-layout';

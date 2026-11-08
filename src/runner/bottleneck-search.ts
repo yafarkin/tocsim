@@ -1,6 +1,6 @@
-import {compileConfig} from '../engine/config';
-import type {EditorConfig, RunConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import type {EditorConfig, RunConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 
 export interface BottleneckSample {seed: number; baseline: string[]; outputs: {stationId: string; quantities: string[]}[]}
 export interface BottleneckResult {

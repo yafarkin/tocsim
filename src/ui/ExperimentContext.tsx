@@ -1,4 +1,4 @@
-import type {DeepReadonly, InputBufferConfig, RunConfig} from '../engine/config';
+import type {DeepReadonly, InputBufferConfig, RunConfig} from '@toc/engine';
 import {previewConfig} from './preview';
 import type {ExampleId} from './preview';
 import {CV_PRESETS} from './DurationPanel';

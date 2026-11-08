@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import type {EditorConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import type {EditorConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {defaultBatchProfiles,previewConfig} from './preview';
 import {withDuration} from './DurationPanel';
 const M=60_000,Q=1_000_000;

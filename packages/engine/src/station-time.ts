@@ -1,5 +1,5 @@
-import type {DeepReadonly} from './config';
-import type {Snapshot, StationState, StationTime} from './state';
+import type {DeepReadonly} from './config.js';
+import type {Snapshot, StationState, StationTime} from './state.js';
 
 export function emptyStationTime(): StationTime {
   return {processingMs: 0, setupMs: 0, maintenanceMs: 0, starvedMs: 0, blockedMs: 0, idleMs: 0, lunchMs: 0, offShiftMs: 0};

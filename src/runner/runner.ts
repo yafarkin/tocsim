@@ -1,11 +1,11 @@
-import { freezeData } from '../engine/config';
-import type { DeepReadonly, RunConfig } from '../engine/config';
-import { Simulation } from '../engine/simulation';
-import type {FlowHistory} from '../engine/flow-history';
-import type { Snapshot } from '../engine/state';
+import { freezeData } from '@toc/engine';
+import type { DeepReadonly, RunConfig } from '@toc/engine';
+import { Simulation } from '@toc/engine';
+import type {FlowHistory} from '@toc/engine';
+import type { Snapshot } from '@toc/engine';
 import { collectTransfers } from './transfers';
 import type { TransferBatch, TransferSummary } from './transfers';
-import { ArithmeticError } from '../engine/arithmetic';
+import { ArithmeticError } from '@toc/engine';
 
 export type PlaybackSpeed = number | 'max';
 export type PlaybackStatus = 'ready' | 'running' | 'paused' | 'finished' | 'stopped' | 'error' | 'disposed';

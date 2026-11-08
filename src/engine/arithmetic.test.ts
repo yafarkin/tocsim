@@ -3,7 +3,7 @@ import {
   ArithmeticError, MAX_UNITS, addMoney, addQuantity, formatMoney, formatQuantity,
   moneyFromJSON, moneyToJSON, multiplyQuantity, parseMoney, parseQuantity,
   purchaseCost, splitCost, subtractMoney, subtractQuantity,
-} from './arithmetic';
+} from '../../packages/engine/src/arithmetic.js';
 
 function expectCode(action: () => unknown, code: string) {
   expect(action).toThrow(ArithmeticError);

@@ -1,6 +1,6 @@
-import type {DeepReadonly, EditorConfig, RunConfig} from '../engine/config';
-import type {Snapshot} from '../engine/state';
-import {Simulation} from '../engine/simulation';
+import type {DeepReadonly, EditorConfig, RunConfig} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {previewConfig, defaultBatchProfiles} from '../ui/preview';
 
 export const batchThresholds = [3, 1] as const;

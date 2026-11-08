@@ -1,10 +1,10 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig} from './config';
+import {compileConfig} from '../../packages/engine/src/config.js';
 import {line} from './test-fixtures';
-import {planDbrSlotGroups} from './dbr-slot-groups';
-import {planDbrDemand} from './dbr-demand';
-import {Simulation} from './simulation';
-import type {DbrSelection} from './dbr-validation';
+import {planDbrSlotGroups} from '../../packages/engine/src/dbr-slot-groups.js';
+import {planDbrDemand} from '../../packages/engine/src/dbr-demand.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
+import type {DbrSelection} from '../../packages/engine/src/dbr-validation.js';
 const M=60_000;
 function fixture(batchSize=1,slots=4) {
   const c=line();c.initialStocks=[];c.durationMs=slots*M;

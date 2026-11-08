@@ -1,7 +1,7 @@
 import {memo, useState} from 'react';
-import {parseQuantity} from '../engine/arithmetic';
-import {ConfigError} from '../engine/config';
-import type {RunConfig} from '../engine/config';
+import {parseQuantity} from '@toc/engine';
+import {ConfigError} from '@toc/engine';
+import type {RunConfig} from '@toc/engine';
 import {durationText} from './metric-format';
 import type {Labels, Language} from './i18n';
 

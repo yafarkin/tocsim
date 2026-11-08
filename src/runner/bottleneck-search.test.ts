@@ -1,8 +1,8 @@
 import {describe,expect,it,vi} from 'vitest';
-import type {EditorConfig} from '../engine/config';
-import {compileConfig} from '../engine/config';
+import type {EditorConfig} from '@toc/engine';
+import {compileConfig} from '@toc/engine';
 import {line} from '../engine/test-fixtures';
-import {Simulation} from '../engine/simulation';
+import {Simulation} from '@toc/engine';
 import {lesson2Config} from '../lessons/lesson-2';
 import {previewConfig} from '../ui/preview';
 import {bottleneckConfig,searchBottleneck,summarizeBottleneck} from './bottleneck-search';

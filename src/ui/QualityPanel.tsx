@@ -1,6 +1,6 @@
 import {memo, useState} from 'react';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {EditorConfig, RunConfig} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {EditorConfig, RunConfig} from '@toc/engine';
 import {withQuality} from './quality';
 import type {QualitySettings} from './quality';
 import type {Labels, Language} from './i18n';

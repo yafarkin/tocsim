@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError, inputCapacity } from './config';
-import type { DeepReadonly, RunConfig } from './config';
-import { Simulation } from './simulation';
-import type { Snapshot } from './state';
+import { compileConfig, ConfigError, inputCapacity } from '../../packages/engine/src/config.js';
+import type { DeepReadonly, RunConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import type { Snapshot } from '../../packages/engine/src/state.js';
 import { line } from './test-fixtures';
 const minute = 60_000, q = (n: number) => Math.round(n * 1_000_000);
 function assembly() {

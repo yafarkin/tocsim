@@ -1,5 +1,5 @@
-import type {DeepReadonly, RunConfig} from './config';
-import type {Snapshot, StockState} from './state';
+import type {DeepReadonly, RunConfig} from './config.js';
+import type {Snapshot, StockState} from './state.js';
 
 const compareIds = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 export const productionLocations = ['input', 'reserved', 'held', 'output'] as const;

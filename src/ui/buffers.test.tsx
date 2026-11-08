@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig, ConfigError} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
 import {bufferSettings, routeCapacities, withBuffers} from './buffers';
 import {previewConfig} from './preview';
-import {Simulation} from '../engine/simulation';
+import {Simulation} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import {BufferPanel} from './BufferPanel';
 import {labels} from './i18n';

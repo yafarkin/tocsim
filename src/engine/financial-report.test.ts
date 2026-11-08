@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {fixedCost, MAX_UNITS, ArithmeticError} from './arithmetic';
-import {compileConfig} from './config';
-import {financialReport} from './financial-report';
-import type {Snapshot} from './state';
-import {Simulation} from './simulation';
+import {fixedCost, MAX_UNITS, ArithmeticError} from '../../packages/engine/src/arithmetic.js';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import {financialReport} from '../../packages/engine/src/financial-report.js';
+import type {Snapshot} from '../../packages/engine/src/state.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
 import {exampleRuns} from '../ui/preview';
 

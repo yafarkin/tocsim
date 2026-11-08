@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig } from './config';
-import { Simulation } from './simulation';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
 import { cyclicLine, blockedCyclicLine } from './test-fixtures';
-import { processingDuration } from './random';
+import { processingDuration } from '../../packages/engine/src/random.js';
 const M = 60_000, Q = 1_000_000, DAY = 86_400_000;
 function setupLine() {
   const c = cyclicLine(); c.stations[0]!.setupMs = 7 * M;

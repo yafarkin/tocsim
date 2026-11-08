@@ -1,7 +1,7 @@
 import {expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig, ConfigError} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig, ConfigError} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import {previewConfig} from './preview';
 import {lunchFromDraft, lunchStatus, withLunch} from './lunch';

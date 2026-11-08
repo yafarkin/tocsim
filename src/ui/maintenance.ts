@@ -1,8 +1,8 @@
-import {parseQuantity} from '../engine/arithmetic';
-import {ConfigError} from '../engine/config';
-import type {EditorConfig, MaintenanceConfig, RunConfig, DeepReadonly} from '../engine/config';
-import type {StationSnapshot, MaintenanceTrigger, MaintenanceDeferral} from '../engine/state';
-import {calendarForDuration, clockAt} from '../engine/calendar';
+import {parseQuantity} from '@toc/engine';
+import {ConfigError} from '@toc/engine';
+import type {EditorConfig, MaintenanceConfig, RunConfig, DeepReadonly} from '@toc/engine';
+import type {StationSnapshot, MaintenanceTrigger, MaintenanceDeferral} from '@toc/engine';
+import {calendarForDuration, clockAt} from '@toc/engine';
 import type {Labels} from './i18n';
 export interface MaintenanceDraft {enabled: boolean; duration: string; hours: string; repetitions: string}
 export function withMaintenance(config: EditorConfig, id: string, maintenance: MaintenanceConfig): EditorConfig {

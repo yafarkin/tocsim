@@ -1,7 +1,7 @@
-import { createSnapshot } from './state';
-import type { EngineState, Snapshot, StationState } from './state';
-import { freezeData } from './config';
-import type { DeepReadonly, RunConfig } from './config';
+import { createSnapshot } from './state.js';
+import type { EngineState, Snapshot, StationState } from './state.js';
+import { freezeData } from './config.js';
+import type { DeepReadonly, RunConfig } from './config.js';
 
 export const MAX_TRANSITIONS_PER_TIMESTAMP = 10_000;
 type EventBase = { id: string; timeMs: number };

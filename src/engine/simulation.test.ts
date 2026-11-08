@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig } from './config';
-import type { DeepReadonly, EditorConfig, RunConfig } from './config';
-import { createCalendar, DAY_MS } from './calendar';
-import { Simulation } from './simulation';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import type { DeepReadonly, EditorConfig, RunConfig } from '../../packages/engine/src/config.js';
+import { createCalendar, DAY_MS } from '../../packages/engine/src/calendar.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
 import { line } from './test-fixtures';
-import type { Snapshot } from './state';
+import type { Snapshot } from '../../packages/engine/src/state.js';
 const minute = 60_000, q = (value: number) => value * 1_000_000;
 function production(times: number[] = [5, 5, 5]): EditorConfig {
   const config = line();

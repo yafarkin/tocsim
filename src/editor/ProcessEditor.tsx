@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
-import {ConfigError} from '../engine/config';
-import type {EditorConfig, RunConfig} from '../engine/config';
-import {calendarForDuration} from '../engine/calendar';
+import {ConfigError} from '@toc/engine';
+import type {EditorConfig, RunConfig} from '@toc/engine';
+import {calendarForDuration} from '@toc/engine';
 import type {Language} from '../ui/i18n';
 import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';

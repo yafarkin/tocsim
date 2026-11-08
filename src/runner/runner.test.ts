@@ -1,8 +1,8 @@
 import {exampleIds, previewConfig} from '../ui/preview';
 import { describe, expect, it } from 'vitest';
-import { compileConfig } from '../engine/config';
-import type { DeepReadonly } from '../engine/config';
-import { Simulation } from '../engine/simulation';
+import { compileConfig } from '@toc/engine';
+import type { DeepReadonly } from '@toc/engine';
+import { Simulation } from '@toc/engine';
 import { cyclicLine, line } from '../engine/test-fixtures';
 import { Runner, RunnerError, TURN_BUDGET_MS } from './runner';
 import type { RunnerHost, RunnerView } from './runner';

@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from './config';
-import type {EditorConfig} from './config';
-import {Simulation} from './simulation';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import type {EditorConfig} from '../../packages/engine/src/config.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
-import {flowReport} from './flow-report';
+import {flowReport} from '../../packages/engine/src/flow-report.js';
 import {previewConfig, defaultBatchProfiles} from '../ui/preview';
 import {defaultQuality, withQuality} from '../ui/quality';
 const M = 60_000, DAY = 86_400_000;

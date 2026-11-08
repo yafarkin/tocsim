@@ -1,7 +1,7 @@
 import {beforeAll, describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {lesson2Config, lesson2Variants} from '../lessons/lesson-2';
 import {Lesson2Comparison, Lesson2Intro, lesson2Labels} from './Lesson2';
 import type {Lesson2Results} from './Lesson2';

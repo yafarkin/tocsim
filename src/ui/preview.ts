@@ -1,5 +1,5 @@
-import { compileConfig } from '../engine/config';
-import type { EditorConfig } from '../engine/config';
+import { compileConfig } from '@toc/engine';
+import type { EditorConfig } from '@toc/engine';
 import {defaultQuality, withQuality} from './quality';
 export const exampleIds = ['balanced', 'queue', 'blocking', 'split', 'assembly', 'batches', 'plans', 'quality'] as const;
 export type ExampleId = typeof exampleIds[number];

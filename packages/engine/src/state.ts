@@ -1,11 +1,11 @@
-import type {FlowBoundaryMoments} from './flow-identity';
-import {stockCost} from './stock-value';
-import {stockAge} from './stock-age';
-import type {StockAge} from './stock-age';
-import { lunchCost, moneyToJSON } from './arithmetic';
-import { calendarForDuration, elapsedTime } from './calendar';
-import { freezeData, outputCapacity } from './config';
-import type { DeepReadonly, RunConfig } from './config';
+import type {FlowBoundaryMoments} from './flow-identity.js';
+import {stockCost} from './stock-value.js';
+import {stockAge} from './stock-age.js';
+import type {StockAge} from './stock-age.js';
+import { lunchCost, moneyToJSON } from './arithmetic.js';
+import { calendarForDuration, elapsedTime } from './calendar.js';
+import { freezeData, outputCapacity } from './config.js';
+import type { DeepReadonly, RunConfig } from './config.js';
 
 export type MaintenanceTrigger = 'processingTime' | 'repetitions';
 export type MaintenanceDeferral = 'batch' | 'output' | 'calendar';

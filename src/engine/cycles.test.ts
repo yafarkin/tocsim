@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { activeWorkMs, calendarForDuration } from './calendar';
-import { compileConfig } from './config';
-import type { DeepReadonly } from './config';
-import { processingDuration } from './random';
-import { Simulation } from './simulation';
-import type { Snapshot } from './state';
+import { activeWorkMs, calendarForDuration } from '../../packages/engine/src/calendar.js';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import type { DeepReadonly } from '../../packages/engine/src/config.js';
+import { processingDuration } from '../../packages/engine/src/random.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import type { Snapshot } from '../../packages/engine/src/state.js';
 import { blockedCyclicLine, cyclicLine } from './test-fixtures';
 const M = 60_000, Q = 1_000_000;
 const counter = (s: DeepReadonly<Snapshot>, material: string) => s.line!.counters.find(c => c.materialId === material)!;

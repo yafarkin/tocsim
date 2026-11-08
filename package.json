@@ -4,20 +4,27 @@
   "version": "0.1.0",
   "type": "module",
   "packageManager": "npm@12.1.0",
+  "workspaces": [
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24.15.0 <25"
   },
   "scripts": {
+    "predev": "npm run build:engine",
     "dev": "vite --host 127.0.0.1",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "build:engine": "npm run build -w @toc/engine",
+    "test:engine": "npm test -w @toc/engine",
+    "typecheck": "npm run build:engine && tsc --noEmit",
+    "test": "npm run build:engine && vitest run",
+    "test:watch": "npm run build:engine && vitest",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "check:dist": "node tools/check-dist.mjs",
     "ci": "npm test && npm run build && npm run check:dist"
   },
   "dependencies": {
+    "@toc/engine": "0.34.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

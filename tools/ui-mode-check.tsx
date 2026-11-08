@@ -3,7 +3,7 @@ import {StrictMode, useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {App} from '../src/App';
 import {Runner} from '../src/runner/runner';
-import {Simulation} from '../src/engine/simulation';
+import {Simulation} from '@toc/engine';
 import {readUiMode, UI_MODE_STORAGE_KEY, useUiMode} from '../src/ui/ui-mode';
 import '../src/styles.css';
 

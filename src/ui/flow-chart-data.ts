@@ -1,6 +1,6 @@
-import {comparableFlowReason, type ComparableFlowReason} from '../engine/flow-scope';
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import type {FlowHistory, FlowPoint} from '../engine/flow-history';
+import {comparableFlowReason, type ComparableFlowReason} from '@toc/engine';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import type {FlowHistory, FlowPoint} from '@toc/engine';
 
 export const LINE_SCOPE = '@line';
 export type TimeScale = 'calendar' | 'work';

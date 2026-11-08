@@ -1,6 +1,6 @@
 import {memo, useCallback, useEffect, useState} from 'react';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {BufferConfig, EditorConfig, InputBufferConfig, OutputBufferConfig, RunConfig, ShiftBufferConfig} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {BufferConfig, EditorConfig, InputBufferConfig, OutputBufferConfig, RunConfig, ShiftBufferConfig} from '@toc/engine';
 import {bufferSettings, withBuffers, simpleInputRule} from './buffers';
 import type {BufferSettings} from './buffers';
 import {quantityText} from './diagram';

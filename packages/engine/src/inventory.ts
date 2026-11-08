@@ -1,7 +1,7 @@
-import {defectOccurs} from './random';
-import { addMoney, ArithmeticError, MAX_UNITS, splitCost } from './arithmetic';
-import type { DeepReadonly, ResolvedBuffer, RunConfig } from './config';
-import type { InventoryState, Provenance, StockState } from './state';
+import {defectOccurs} from './random.js';
+import { addMoney, ArithmeticError, MAX_UNITS, splitCost } from './arithmetic.js';
+import type { DeepReadonly, ResolvedBuffer, RunConfig } from './config.js';
+import type { InventoryState, Provenance, StockState } from './state.js';
 
 export type StockAddress = Pick<StockState, 'ownerId' | 'location'>;
 export interface MaterialAmount { materialId: string; quantity: number }

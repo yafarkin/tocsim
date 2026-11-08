@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {Simulation} from '../engine/simulation';
+import {Simulation} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import type {RunnerHost} from '../runner/runner';
 import {searchBottleneck} from '../runner/bottleneck-search';
@@ -8,7 +8,7 @@ import {FlowDiagram} from '../ui/FlowDiagram';
 import {RunSummary} from '../ui/RunSummary';
 import {labels, nameFor} from '../ui/i18n';
 import {blockingLessonConfig} from '../lessons/lesson-blocking';
-import {compileConfig, ConfigError} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
 import {appendLinearStation, compileLinearProcess, createLinearProcess, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import {copyImportedProcess} from './process-json';

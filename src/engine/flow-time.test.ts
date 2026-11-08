@@ -1,14 +1,14 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from './config';
-import type {EditorConfig} from './config';
-import {createCalendar, DAY_MS} from './calendar';
-import {emptyFlowTime, recordFlowTime} from './flow-time';
-import {EventScheduler} from './events';
-import {createPushState} from './sources';
-import {Simulation} from './simulation';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import type {EditorConfig} from '../../packages/engine/src/config.js';
+import {createCalendar, DAY_MS} from '../../packages/engine/src/calendar.js';
+import {emptyFlowTime, recordFlowTime} from '../../packages/engine/src/flow-time.js';
+import {EventScheduler} from '../../packages/engine/src/events.js';
+import {createPushState} from '../../packages/engine/src/sources.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
 import {exampleIds, previewConfig} from '../ui/preview';
-import type {ProductFlowTime, StockState} from './state';
+import type {ProductFlowTime, StockState} from '../../packages/engine/src/state.js';
 const M = 60_000, Q = 1_000_000;
 function single(mode: 'sequential' | 'simultaneous' = 'sequential', repetitions = 1): EditorConfig {
   const c = line(); c.initialStocks = []; c.stations = [c.stations[0]!];

@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig, ConfigError} from './config';
-import {Simulation} from './simulation';
+import {compileConfig, ConfigError} from '../../packages/engine/src/config.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
-import {lunchCost, parseMoney, ArithmeticError, MAX_UNITS} from './arithmetic';
-import {DAY_MS} from './calendar';
+import {lunchCost, parseMoney, ArithmeticError, MAX_UNITS} from '../../packages/engine/src/arithmetic.js';
+import {DAY_MS} from '../../packages/engine/src/calendar.js';
 import {Runner} from '../runner/runner';
 const M = 60_000;
 function lunchLine(replacement = true) {

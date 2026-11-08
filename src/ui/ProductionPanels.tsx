@@ -1,6 +1,6 @@
 import {useState} from 'react';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {EditorConfig, RunConfig} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {EditorConfig, RunConfig} from '@toc/engine';
 import type {BatchProfile, PlanProfile} from './preview';
 import type {Labels, Language} from './i18n';
 import {nameFor} from './i18n';

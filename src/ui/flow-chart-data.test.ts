@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {line} from '../engine/test-fixtures';
 import {exampleIds, previewConfig} from './preview';
 import {chartGeometry, chartStationOrder, closestChartPoint, flowChartData, globalCfdReason, LINE_SCOPE, plot} from './flow-chart-data';

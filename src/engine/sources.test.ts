@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError } from './config';
-import { createCalendar, DAY_MS } from './calendar';
-import { EventScheduler } from './events';
-import { consumeStock } from './inventory';
-import { createPushHandlers, createPushScheduler, createPushState, scheduleInitialSources } from './sources';
+import { compileConfig, ConfigError } from '../../packages/engine/src/config.js';
+import { createCalendar, DAY_MS } from '../../packages/engine/src/calendar.js';
+import { EventScheduler } from '../../packages/engine/src/events.js';
+import { consumeStock } from '../../packages/engine/src/inventory.js';
+import { createPushHandlers, createPushScheduler, createPushState, scheduleInitialSources } from '../../packages/engine/src/sources.js';
 import { line } from './test-fixtures';
-import type { DeepReadonly, EditorConfig } from './config';
-import type { Snapshot } from './state';
+import type { DeepReadonly, EditorConfig } from '../../packages/engine/src/config.js';
+import type { Snapshot } from '../../packages/engine/src/state.js';
 
 const minute = 60_000, q = (amount: number) => amount * 1_000_000;
 function dual(): EditorConfig {

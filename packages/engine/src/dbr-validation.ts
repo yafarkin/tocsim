@@ -1,5 +1,5 @@
-import {parseQuantity} from './arithmetic';
-import type {RunConfig} from './config';
+import {parseQuantity} from './arithmetic.js';
+import type {RunConfig} from './config.js';
 
 /** Separate planning input. This is not an EditorConfig policy or a saved format. */
 export interface DbrSelection {

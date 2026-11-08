@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import {calendarForDuration, clockAt} from '../engine/calendar';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import {calendarForDuration, clockAt} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import type {PlaybackSpeed, PlaybackStatus, RunnerView} from '../runner/runner';
 import type {Language} from '../ui/i18n';
