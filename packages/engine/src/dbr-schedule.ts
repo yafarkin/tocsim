@@ -1,9 +1,9 @@
-import type {RunConfig} from './config';
-import {activeWorkMs, advanceWork, calendarForDuration, nextOpening} from './calendar';
-import {validateDbrSelection} from './dbr-validation';
-import type {DbrSelection} from './dbr-validation';
-import {meanDurationSixths} from './random';
-import {setupDurationMs} from './setup';
+import type {RunConfig} from './config.js';
+import {activeWorkMs, advanceWork, calendarForDuration, nextOpening} from './calendar.js';
+import {validateDbrSelection} from './dbr-validation.js';
+import type {DbrSelection} from './dbr-validation.js';
+import {meanDurationSixths} from './random.js';
+import {setupDurationMs} from './setup.js';
 
 /** A 1 ms operation over one normal shift would otherwise allocate millions of slots. */
 export const MAX_DRUM_SLOTS = 100_000;

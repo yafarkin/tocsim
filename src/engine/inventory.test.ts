@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_UNITS, parseQuantity as q } from './arithmetic';
-import { compileConfig } from './config';
-import { completeProduction, consumeStock, createInventory, InventoryError, receiveStock, reserveInputs, transferStock } from './inventory';
-import type { StockAddress } from './inventory';
-import type { InventoryState, Provenance, StockState } from './state';
-import { createSnapshot } from './state';
+import { MAX_UNITS, parseQuantity as q } from '../../packages/engine/src/arithmetic.js';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { completeProduction, consumeStock, createInventory, InventoryError, receiveStock, reserveInputs, transferStock } from '../../packages/engine/src/inventory.js';
+import type { StockAddress } from '../../packages/engine/src/inventory.js';
+import type { InventoryState, Provenance, StockState } from '../../packages/engine/src/state.js';
+import { createSnapshot } from '../../packages/engine/src/state.js';
 import { line } from './test-fixtures';
 
 const infinite = {kind: 'infinite'} as const;

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError } from './config';
-import { setupDurationMs } from './setup';
-import { Simulation } from './simulation';
-import { createPushScheduler, createPushState } from './sources';
+import { compileConfig, ConfigError } from '../../packages/engine/src/config.js';
+import { setupDurationMs } from '../../packages/engine/src/setup.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import { createPushScheduler, createPushState } from '../../packages/engine/src/sources.js';
 import { cyclicLine, line } from './test-fixtures';
 import { exampleRuns } from '../ui/preview';
 const M = 60_000;

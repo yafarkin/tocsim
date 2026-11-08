@@ -1,7 +1,7 @@
-import {calendarForDuration, workedMsUntil} from './calendar';
-import {freezeData} from './config';
-import type {DeepReadonly, RunConfig} from './config';
-import type {Snapshot, StockState} from './state';
+import {calendarForDuration, workedMsUntil} from './calendar.js';
+import {freezeData} from './config.js';
+import type {DeepReadonly, RunConfig} from './config.js';
+import type {Snapshot, StockState} from './state.js';
 
 /** At most this many plotted points, including the current endpoint. Initial state is separate. */
 export const MAX_FLOW_POINTS = 2048;

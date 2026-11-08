@@ -1,6 +1,6 @@
-import { calendarForDuration, clockAt } from '../engine/calendar';
-import type { DeepReadonly, RunConfig } from '../engine/config';
-import {flowReport, productionLocations} from '../engine/flow-report';
+import { calendarForDuration, clockAt } from '@toc/engine';
+import type { DeepReadonly, RunConfig } from '@toc/engine';
+import {flowReport, productionLocations} from '@toc/engine';
 import type { RunnerView } from '../runner/runner';
 import { quantityText } from './diagram';
 import { nameFor } from './i18n';

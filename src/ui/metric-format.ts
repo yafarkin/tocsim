@@ -1,5 +1,5 @@
-import type {InvestmentAverage, InvestmentRoi} from '../engine/investment-report';
-import type {StockAverage} from '../engine/stock-time';
+import type {InvestmentAverage, InvestmentRoi} from '@toc/engine';
+import type {StockAverage} from '@toc/engine';
 
 function decimal(value: bigint, places: number): string {
   const scale = 10n ** BigInt(places);

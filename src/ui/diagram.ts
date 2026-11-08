@@ -1,4 +1,4 @@
-import type { DeepReadonly, ResolvedBuffer, RunConfig } from '../engine/config';
+import type { DeepReadonly, ResolvedBuffer, RunConfig } from '@toc/engine';
 export const NODE_GAP = 490, FIRST_X = 335;
 export function quantityText(value: number | string): string {
   const units = BigInt(value), whole = units / 1_000_000n;

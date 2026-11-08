@@ -1,7 +1,7 @@
-import {parseQuantity} from './arithmetic';
-import type {RunConfig} from './config';
-import {planDrumSchedule} from './dbr-schedule';
-import type {DbrSelection} from './dbr-validation';
+import {parseQuantity} from './arithmetic.js';
+import type {RunConfig} from './config.js';
+import {planDrumSchedule} from './dbr-schedule.js';
+import type {DbrSelection} from './dbr-validation.js';
 
 // Bound the explicit accounting graph, not physical production quantities.
 export const MAX_DBR_DEMAND_RECORDS = 300_000;

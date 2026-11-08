@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { inputCapacity, outputCapacity } from '../engine/config';
-import type { DeepReadonly, RunConfig, ResolvedBuffer } from '../engine/config';
+import { inputCapacity, outputCapacity } from '@toc/engine';
+import type { DeepReadonly, RunConfig, ResolvedBuffer } from '@toc/engine';
 import type { RunnerView } from '../runner/runner';
-import type { StationSnapshot } from '../engine/state';
+import type { StationSnapshot } from '@toc/engine';
 import { fillRatio, graphLayout, quantityText, tokenFills, multiInputY, stationReasonY, stationReasonHeight, flowThroughStation } from './diagram';
 import { MaintenanceRecords } from './MaintenanceRecords';
 import { maintenanceNotice, maintenanceCounters, workMinutes } from './maintenance';

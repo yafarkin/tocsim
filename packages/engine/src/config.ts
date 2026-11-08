@@ -1,12 +1,12 @@
-import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arithmetic';
-import { distributionMoments, meanDurationSixths } from './random';
-import type { BoundedDistribution, DurationDistribution } from './random';
-import { CalendarError, calendarForDuration } from './calendar';
+import { ArithmeticError, moneyToJSON, parseMoney, parseQuantity } from './arithmetic.js';
+import { distributionMoments, meanDurationSixths } from './random.js';
+import type { BoundedDistribution, DurationDistribution } from './random.js';
+import { CalendarError, calendarForDuration } from './calendar.js';
 
 export const SCHEMA_VERSION = 1;
 export const ENGINE_VERSION = '0.34.0';
-import { RNG_VERSION } from './random';
-export { RNG_VERSION } from './random';
+import { RNG_VERSION } from './random.js';
+export { RNG_VERSION } from './random.js';
 
 export type DeepReadonly<T> = T extends object
   ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;

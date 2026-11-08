@@ -1,8 +1,8 @@
-import {workedMsUntil} from './calendar';
-import type {WorkCalendar} from './calendar';
-import type {DeepReadonly, RunConfig} from './config';
-import {comparableFlowReason} from './flow-scope';
-import type {Snapshot} from './state';
+import {workedMsUntil} from './calendar.js';
+import type {WorkCalendar} from './calendar.js';
+import type {DeepReadonly, RunConfig} from './config.js';
+import {comparableFlowReason} from './flow-scope.js';
+import type {Snapshot} from './state.js';
 
 /** Four cumulative scalar sums, not a log. Units are micro-quantity × milliseconds. */
 export interface FlowBoundaryMoments {

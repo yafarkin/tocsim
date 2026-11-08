@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { processingDuration, uniform, RandomError } from './random';
-import { compileConfig } from './config';
-import { Simulation } from './simulation';
+import { processingDuration, uniform, RandomError } from '../../packages/engine/src/random.js';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
 import { previewConfig } from '../ui/preview';
 import { Runner } from '../runner/runner';
 import type { RunnerHost } from '../runner/runner';

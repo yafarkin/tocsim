@@ -1,6 +1,6 @@
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import type {FlowTimeSnapshot, Snapshot} from '../engine/state';
-import type {AgeSummary, MaterialAge} from '../engine/stock-age';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import type {FlowTimeSnapshot, Snapshot} from '@toc/engine';
+import type {AgeSummary, MaterialAge} from '@toc/engine';
 import {nameFor} from './i18n';
 import type {Labels} from './i18n';
 import {quantityText} from './diagram';

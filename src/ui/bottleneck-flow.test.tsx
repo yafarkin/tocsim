@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
+import {compileConfig} from '@toc/engine';
 import {flowThroughStation} from './diagram';
 import {exampleRuns,previewConfig} from './preview';
 import {FlowDiagram} from './FlowDiagram';

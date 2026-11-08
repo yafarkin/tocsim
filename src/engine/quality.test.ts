@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig, ConfigError} from './config';
+import {compileConfig, ConfigError} from '../../packages/engine/src/config.js';
 import {line} from './test-fixtures';
-import {defectOccurs, processingDuration, RandomError, uniform} from './random';
-import {completeProductionBatch, InventoryError, receiveStock, reserveInputs, transferStock} from './inventory';
-import type {InventoryState, Provenance, StockState} from './state';
-import {Simulation} from './simulation';
+import {defectOccurs, processingDuration, RandomError, uniform} from '../../packages/engine/src/random.js';
+import {completeProductionBatch, InventoryError, receiveStock, reserveInputs, transferStock} from '../../packages/engine/src/inventory.js';
+import type {InventoryState, Provenance, StockState} from '../../packages/engine/src/state.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {Runner} from '../runner/runner';
-import {MAX_UNITS} from './arithmetic';
+import {MAX_UNITS} from '../../packages/engine/src/arithmetic.js';
 const Q = 1_000_000, M = 60_000, DAY = 86_400_000, infinite = {kind: 'infinite'} as const;
 const state = (): InventoryState => ({stocks: [], nextStockOrdinal: 0});
 function receive(s: InventoryState, material: string, count: number, cost: bigint, bad = false, prior = 0n) {

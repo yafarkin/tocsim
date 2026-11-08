@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { collectTransfers } from './transfers';
 import type { TransferSummary } from './transfers';
-import { Simulation } from '../engine/simulation';
+import { Simulation } from '@toc/engine';
 import { exampleRuns } from '../ui/preview';
 const previewRun = exampleRuns.queue;
 import { Runner } from './runner';

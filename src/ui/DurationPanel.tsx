@@ -1,8 +1,8 @@
 import {memo, useState} from 'react';
-import {parseQuantity} from '../engine/arithmetic';
-import {compileConfig, ConfigError} from '../engine/config';
-import type {EditorConfig, RunConfig} from '../engine/config';
-import type {DurationDistribution} from '../engine/random';
+import {parseQuantity} from '@toc/engine';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {EditorConfig, RunConfig} from '@toc/engine';
+import type {DurationDistribution} from '@toc/engine';
 import type {Labels, Language} from './i18n';
 import {nameFor} from './i18n';
 import {useModeDisclosure} from './ui-mode';

@@ -1,4 +1,4 @@
-import type {RunConfig} from './config';
+import type {RunConfig} from './config.js';
 
 export type ComparableFlowReason = 'assembly' | 'quantityChange' | 'mixedProducts' | null;
 /** One conserved unit across the whole line; routing may split that same flow. */

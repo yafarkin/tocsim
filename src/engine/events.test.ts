@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig } from './config';
-import { activeWorkMs, advanceWork, calendarForDuration } from './calendar';
-import { completeProduction, createInventory, reserveInputs } from './inventory';
-import { EventError, EventScheduler, MAX_TRANSITIONS_PER_TIMESTAMP } from './events';
-import type { EventContext, EventHandlers, ModelEvent } from './events';
-import type { EngineState } from './state';
-import { emptyStationTime } from './station-time';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { activeWorkMs, advanceWork, calendarForDuration } from '../../packages/engine/src/calendar.js';
+import { completeProduction, createInventory, reserveInputs } from '../../packages/engine/src/inventory.js';
+import { EventError, EventScheduler, MAX_TRANSITIONS_PER_TIMESTAMP } from '../../packages/engine/src/events.js';
+import type { EventContext, EventHandlers, ModelEvent } from '../../packages/engine/src/events.js';
+import type { EngineState } from '../../packages/engine/src/state.js';
+import { emptyStationTime } from '../../packages/engine/src/station-time.js';
 import { line } from './test-fixtures';
 
 function initial(): EngineState {

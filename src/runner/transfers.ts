@@ -1,5 +1,5 @@
-import type { DeepReadonly } from '../engine/config';
-import type { Snapshot } from '../engine/state';
+import type { DeepReadonly } from '@toc/engine';
+import type { Snapshot } from '@toc/engine';
 export interface TransferSummary {
   fromId: string;
   toId: string;

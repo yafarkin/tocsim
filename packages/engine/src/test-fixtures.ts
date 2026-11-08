@@ -1,0 +1,88 @@
+// Technical test input, not a built-in lesson.
+import type { EditorConfig } from './config.js';
+
+export function line(): EditorConfig {
+  return {
+    schemaVersion: 1, id: 'line', name: 'Линия', language: 'ru',
+    seed: 42, durationMs: 32_400_000, policy: 'push',
+    calendar: {shiftStartMs: 28_800_000, lunchStartMs: 43_200_000, lunchEndMs: 46_800_000, shiftEndMs: 61_200_000},
+    materials: [
+      {id: 'raw', name: 'Сырьё', color: '#ccc', role: 'raw', purchasePrice: '10'},
+      {id: 'part', name: 'Деталь', color: '#aaa', role: 'intermediate'},
+      {id: 'product', name: 'Изделие', color: '#000', role: 'finished', salePrice: '30'},
+    ],
+    recipes: [
+      {id: 'cut', name: 'Раскрой', kind: 'production', inputs: [{materialId: 'raw', quantity: '0.3'}], output: {materialId: 'part', quantity: '10'}},
+      {id: 'finish', name: 'Отделка', kind: 'production', inputs: [{materialId: 'part', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
+    ],
+    stations: [
+      {id: 's1', name: 'Первый', priority: 0, plan: [{id: 'plan1', recipeId: 'cut', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 60_000, cv: 0}}], inputBuffer: {kind: 'quantity', quantity: '2'}, outputBuffer: {kind: 'quantity', quantity: '0'}, setupMs: 0, maintenance: {enabled: false}, lunchReplacement: false, costs: {perShift: '5', perLunchHour: '0', capital: '100'}},
+      {id: 's2', name: 'Второй', priority: 0, plan: [{id: 'plan2', recipeId: 'finish', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 90_000, cv: 0}}], inputBuffer: {kind: 'quantity', quantity: '6'}, outputBuffer: {kind: 'quantity', quantity: '2'}, setupMs: 0, maintenance: {enabled: false}, lunchReplacement: false, costs: {perShift: '5', perLunchHour: '0', capital: '100'}},
+    ],
+    sources: [{id: 'source', name: 'Источник', materialId: 'raw', availability: 'virtual', quantity: '1', intervalMs: 60_000}],
+    routes: [
+      {id: 'r1', fromId: 'source', toId: 's1', materialId: 'raw'},
+      {id: 'r2', fromId: 's1', toId: 's2', materialId: 'part'},
+      {id: 'r3', fromId: 's2', toId: 'market', materialId: 'product'},
+    ],
+    initialStocks: [{id: 'initial', ownerId: 's1', location: 'input', materialId: 'raw', quantity: '0.5', cost: '5'}],
+  };
+}
+
+/** Two recipe outputs and two independent raw inputs, with finite initial kits. */
+export function cyclicLine(): EditorConfig {
+  const config = line();
+  config.materials = [config.materials[0]!,
+    {id: 'rawB', name: 'Raw B', color: 'blue', role: 'raw', purchasePrice: '2'},
+    {id: 'a', name: 'A', color: 'red', role: 'finished', salePrice: '10'},
+    {id: 'b', name: 'B', color: 'green', role: 'finished', salePrice: '20'},
+  ];
+  config.recipes = [
+    {id: 'recipeA', name: 'A', kind: 'production', inputs: [{materialId: 'raw', quantity: '1'}], output: {materialId: 'a', quantity: '1'}},
+    {id: 'recipeB', name: 'B', kind: 'production', inputs: [{materialId: 'rawB', quantity: '1'}], output: {materialId: 'b', quantity: '1'}},
+  ];
+  config.stations = [config.stations[0]!];
+  config.stations[0]!.inputBuffer = {kind: 'infinite'};
+  config.stations[0]!.plan = [
+    {id: 'rowA', recipeId: 'recipeA', batches: 2, processing: {mode: 'sequential', repetitions: 1, timeMs: 60_000, cv: 0}},
+    {id: 'rowB', recipeId: 'recipeB', batches: 1, processing: {mode: 'simultaneous', repetitions: 1, timeMs: 120_000, cv: 0}},
+  ];
+  config.sources[0]!.availability = 'warehouse';
+  config.sources.push({id: 'sourceB', name: 'B', materialId: 'rawB', availability: 'warehouse', quantity: '1', intervalMs: 60_000});
+  config.routes = [config.routes[0]!,
+    {id: 'rawBRoute', fromId: 'sourceB', toId: 's1', materialId: 'rawB'},
+    {id: 'sellA', fromId: 's1', toId: 'market', materialId: 'a'},
+    {id: 'sellB', fromId: 's1', toId: 'market', materialId: 'b'},
+  ];
+  config.initialStocks = [
+    {id: 'stockA', ownerId: 's1', location: 'input', materialId: 'raw', quantity: '12', cost: '120'},
+    {id: 'stockB', ownerId: 's1', location: 'input', materialId: 'rawB', quantity: '12', cost: '24'},
+  ];
+  return config;
+}
+
+export function blockedCyclicLine(buffered: boolean) {
+  const config = cyclicLine();
+  config.stations[0]!.plan[0]!.batches = 1;
+  config.stations[0]!.outputBuffer = {kind: 'quantity', quantity: buffered ? '1' : '0'};
+  for (const material of config.materials.filter(m => m.id === 'a' || m.id === 'b')) {
+    material.role = 'intermediate'; delete material.salePrice;
+  }
+  config.materials.push({id: 'product', name: 'Product', role: 'finished', color: 'black', salePrice: '30'});
+  config.recipes.push(
+    {id: 'finishA', name: 'Finish A', kind: 'production', inputs: [{materialId: 'a', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
+    {id: 'finishB', name: 'Finish B', kind: 'production', inputs: [{materialId: 'b', quantity: '1'}], output: {materialId: 'product', quantity: '1'}},
+  );
+  const consumer = structuredClone(config.stations[0]!);
+  consumer.id = 's2'; consumer.outputBuffer = {kind: 'quantity', quantity: '0'};
+  consumer.inputBuffer = {kind: 'quantity', quantity: '1'};
+  consumer.plan = [
+    {id: 'finishRowB', recipeId: 'finishB', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 600_000, cv: 0}},
+    {id: 'finishRowA', recipeId: 'finishA', batches: 1, processing: {mode: 'sequential', repetitions: 1, timeMs: 600_000, cv: 0}},
+  ];
+  config.stations.push(consumer);
+  for (const route of config.routes.filter(r => r.toId === 'market')) route.toId = 's2';
+  config.routes.push({id: 'sellProduct', fromId: 's2', toId: 'market', materialId: 'product'});
+  config.initialStocks.push({id: 'waitingA', ownerId: 's2', location: 'input', materialId: 'a', quantity: '1', cost: '7'});
+  return config;
+}

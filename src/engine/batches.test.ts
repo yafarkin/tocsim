@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig } from './config';
-import { Simulation } from './simulation';
-import { processingDuration } from './random';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
+import { processingDuration } from '../../packages/engine/src/random.js';
 import { line } from './test-fixtures';
 const M = 60_000, Q = 1_000_000;
 function batch(mode: 'sequential' | 'simultaneous' = 'sequential', repetitions = 10) {

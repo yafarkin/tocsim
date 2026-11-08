@@ -1,5 +1,5 @@
-import type {DeepReadonly, RunConfig} from './config';
-import type {Snapshot, StockState, StockTime} from './state';
+import type {DeepReadonly, RunConfig} from './config.js';
+import type {Snapshot, StockState, StockTime} from './state.js';
 
 const keyOf = (row: Pick<StockState, 'ownerId' | 'materialId' | 'location'>) => JSON.stringify([row.ownerId, row.materialId, row.location]);
 

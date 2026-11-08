@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import {calendarForDuration, workedMsUntil} from '../engine/calendar';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {calendarForDuration, workedMsUntil} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {lesson2Config, lesson2Text, lesson2Variants} from './lesson-2';
 
 describe('lesson 2 reference scenarios', () => {

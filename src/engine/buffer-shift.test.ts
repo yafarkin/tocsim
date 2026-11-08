@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig, ConfigError, inputCapacity} from './config';
+import {compileConfig, ConfigError, inputCapacity} from '../../packages/engine/src/config.js';
 import {line, cyclicLine} from './test-fixtures';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 const Q = 1_000_000, M = 60_000;
 const capacity = (config: ReturnType<typeof line>, index = 1, material = 'part') => inputCapacity(compileConfig(config).resolved.stations[index]!, material);
 

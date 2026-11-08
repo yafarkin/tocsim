@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import type {FlowHistory} from '../engine/flow-history';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import type {FlowHistory} from '@toc/engine';
 import {durationText} from './metric-format';
 import {quantityText} from './diagram';
 import {nameFor} from './i18n';

@@ -1,5 +1,5 @@
-import {ConfigError} from '../engine/config';
-import type {EditorConfig} from '../engine/config';
+import {ConfigError} from '@toc/engine';
+import type {EditorConfig} from '@toc/engine';
 
 export interface NodePosition {id: string; x: number; y: number}
 /** Presentation metadata. Never supplied to compileConfig or Simulation. */

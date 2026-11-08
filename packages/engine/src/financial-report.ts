@@ -1,7 +1,7 @@
-import {addMoney, subtractMoney, fixedCost, purchaseCost, moneyFromJSON, moneyToJSON} from './arithmetic';
-import {calendarForDuration, workedMsUntil} from './calendar';
-import type {DeepReadonly, RunConfig} from './config';
-import type {Snapshot} from './state';
+import {addMoney, subtractMoney, fixedCost, purchaseCost, moneyFromJSON, moneyToJSON} from './arithmetic.js';
+import {calendarForDuration, workedMsUntil} from './calendar.js';
+import type {DeepReadonly, RunConfig} from './config.js';
+import type {Snapshot} from './state.js';
 
 /** Exact cumulative financial result. Independent of rendering and sampled history.
  * Fixed charges round once per station; revenue rounds once per product total.

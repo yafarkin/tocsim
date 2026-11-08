@@ -1,11 +1,11 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig,ConfigError} from './config';
-import type {DeepReadonly,EditorConfig} from './config';
-import {completeInspection,InventoryError,receiveStock,reserveInputs} from './inventory';
-import type {InventoryState,Provenance,Snapshot} from './state';
-import {MAX_UNITS} from './arithmetic';
+import {compileConfig,ConfigError} from '../../packages/engine/src/config.js';
+import type {DeepReadonly,EditorConfig} from '../../packages/engine/src/config.js';
+import {completeInspection,InventoryError,receiveStock,reserveInputs} from '../../packages/engine/src/inventory.js';
+import type {InventoryState,Provenance,Snapshot} from '../../packages/engine/src/state.js';
+import {MAX_UNITS} from '../../packages/engine/src/arithmetic.js';
 import {line} from './test-fixtures';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {Runner} from '../runner/runner';
 const Q=1_000_000,M=60_000,DAY=86_400_000;
 function inspectionLine(late=false,mode:'sequential'|'simultaneous'='sequential',repetitions=1):EditorConfig {

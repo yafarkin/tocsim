@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import {createCalendar} from '../engine/calendar';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {createCalendar} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {previewConfig} from '../ui/preview';
 import type {ExampleId} from '../ui/preview';
 import {bottleneckConfig,searchBottleneck} from './bottleneck-search';

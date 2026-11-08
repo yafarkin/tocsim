@@ -1,7 +1,7 @@
-import {addMoney, ArithmeticError, MAX_UNITS, moneyFromJSON, moneyToJSON} from './arithmetic';
-import type {DeepReadonly, RunConfig} from './config';
-import {financialReport} from './financial-report';
-import type {Snapshot} from './state';
+import {addMoney, ArithmeticError, MAX_UNITS, moneyFromJSON, moneyToJSON} from './arithmetic.js';
+import type {DeepReadonly, RunConfig} from './config.js';
+import {financialReport} from './financial-report.js';
+import type {Snapshot} from './state.js';
 
 /** Exact mean in micro-money: costMs / durationMs. Display alone may round it. */
 export interface InvestmentAverage {costMs: string; durationMs: number}

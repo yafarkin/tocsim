@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig, ConfigError} from './config';
-import type {EditorConfig, MaintenanceConfig} from './config';
-import {Simulation} from './simulation';
+import {compileConfig, ConfigError} from '../../packages/engine/src/config.js';
+import type {EditorConfig, MaintenanceConfig} from '../../packages/engine/src/config.js';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line, cyclicLine} from './test-fixtures';
-import {processingDuration} from './random';
+import {processingDuration} from '../../packages/engine/src/random.js';
 import {Runner} from '../runner/runner';
 const M = 60_000, Q = 1_000_000, DAY = 86_400_000;
 function serviceLine(maintenance: MaintenanceConfig = {enabled: true, durationMs: 5 * M, repetitionsThreshold: 1}): EditorConfig {

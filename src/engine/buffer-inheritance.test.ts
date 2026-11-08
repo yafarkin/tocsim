@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError, inputCapacity, outputCapacity } from './config';
-import { Simulation } from './simulation';
+import { compileConfig, ConfigError, inputCapacity, outputCapacity } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
 import { blockedCyclicLine, cyclicLine, line } from './test-fixtures';
 const Q = 1_000_000, M = 60_000;
 function failure(config: unknown) {

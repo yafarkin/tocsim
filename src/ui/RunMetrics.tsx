@@ -1,7 +1,7 @@
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import type {Snapshot, StationTime} from '../engine/state';
-import {stockTimeReport} from '../engine/stock-time';
-import {stationTimeReport} from '../engine/station-time';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import type {Snapshot, StationTime} from '@toc/engine';
+import {stockTimeReport} from '@toc/engine';
+import {stationTimeReport} from '@toc/engine';
 import {ConstraintReport} from './ConstraintReport';
 import {nameFor} from './i18n';
 import type {Labels} from './i18n';

@@ -3,8 +3,8 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {FinancialReport, moneyText} from './FinancialReport';
 import {labels} from './i18n';
 import {exampleRuns} from './preview';
-import {Simulation} from '../engine/simulation';
-import {compileConfig} from '../engine/config';
+import {Simulation} from '@toc/engine';
+import {compileConfig} from '@toc/engine';
 import {line} from '../engine/test-fixtures';
 
 describe('financial report UI', () => {

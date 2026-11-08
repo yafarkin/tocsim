@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {previewConfig} from '../ui/preview';
 import {blockingLessonConfig, blockingLessonResult} from './lesson-blocking';
 

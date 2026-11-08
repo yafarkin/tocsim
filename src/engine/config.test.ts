@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { compileConfig, ConfigError } from './config';
-import type { EditorConfig } from './config';
-import { createSnapshot } from './state';
-import type { EngineState } from './state';
-import { emptyStationTime } from './station-time';
+import { compileConfig, ConfigError } from '../../packages/engine/src/config.js';
+import type { EditorConfig } from '../../packages/engine/src/config.js';
+import { createSnapshot } from '../../packages/engine/src/state.js';
+import type { EngineState } from '../../packages/engine/src/state.js';
+import { emptyStationTime } from '../../packages/engine/src/station-time.js';
 import { line } from './test-fixtures';
 
 

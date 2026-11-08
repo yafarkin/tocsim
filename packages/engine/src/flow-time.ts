@@ -1,7 +1,7 @@
-import {addQuantity} from './arithmetic';
-import {elapsedTime} from './calendar';
-import type {WorkCalendar} from './calendar';
-import type {FlowTimeTotal, ProductFlowTime, StockState} from './state';
+import {addQuantity} from './arithmetic.js';
+import {elapsedTime} from './calendar.js';
+import type {WorkCalendar} from './calendar.js';
+import type {FlowTimeTotal, ProductFlowTime, StockState} from './state.js';
 
 export const emptyFlowTime = (): FlowTimeTotal => ({knownQuantity: 0, unknownQuantity: 0, calendarQuantityMs: 0n, workQuantityMs: 0n});
 

@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {createElement} from 'react';
-import {ConfigError} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {ConfigError} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {appendLinearStation, compileLinearProcess, createLinearProcess, moveLinearStation, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import {exportProcessJson, parseProcessJson} from './process-json';

@@ -1,8 +1,8 @@
 import {describe,expect,it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import type {Snapshot} from '../engine/state';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import type {RunnerView} from '../runner/runner';
 import {Runner} from '../runner/runner';
 import {line} from '../engine/test-fixtures';

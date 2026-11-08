@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import type {RunConfig} from '../engine/config';
+import type {RunConfig} from '@toc/engine';
 import {searchBottleneck} from '../runner/bottleneck-search';
 import type {BottleneckResult} from '../runner/bottleneck-search';
 import {nameFor} from './i18n';

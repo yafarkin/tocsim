@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { version as appVersion } from '../package.json';
-import { clockAt, calendarForDuration } from './engine/calendar';
-import { compileConfig, ConfigError } from './engine/config';
-import type { DeepReadonly, MaintenanceConfig } from './engine/config';
+import { clockAt, calendarForDuration } from '@toc/engine';
+import { compileConfig, ConfigError } from '@toc/engine';
+import type { DeepReadonly, MaintenanceConfig } from '@toc/engine';
 import { Runner } from './runner/runner';
 import type { PlaybackSpeed, RunnerView } from './runner/runner';
 import { WarmupPanel } from './ui/WarmupPanel';
 import { DurationPanel, withDuration } from './ui/DurationPanel';
-import type { DurationDistribution } from './engine/random';
+import type { DurationDistribution } from '@toc/engine';
 import { LunchPanel } from './ui/LunchPanel';
 import { withLunch } from './ui/lunch';
 import type { LunchSetting, LunchSettings } from './ui/lunch';

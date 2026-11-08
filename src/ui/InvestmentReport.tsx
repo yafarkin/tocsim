@@ -1,7 +1,7 @@
-import {ArithmeticError} from '../engine/arithmetic';
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import {investmentReport} from '../engine/investment-report';
-import type {Snapshot} from '../engine/state';
+import {ArithmeticError} from '@toc/engine';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import {investmentReport} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 import type {Labels} from './i18n';
 import {investmentAverageText, investmentMoneyText, investmentRoiText} from './metric-format';
 

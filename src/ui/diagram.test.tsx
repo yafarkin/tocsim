@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { compileConfig } from '../engine/config';
+import { compileConfig } from '@toc/engine';
 import { Runner } from '../runner/runner';
-import { Simulation } from '../engine/simulation';
+import { Simulation } from '@toc/engine';
 import { blockedCyclicLine, cyclicLine } from '../engine/test-fixtures';
 import { FIRST_X, NODE_GAP, fillRatio, graphLayout, quantityText, tokenFills } from './diagram';
 import { previewConfig, exampleRuns } from './preview';

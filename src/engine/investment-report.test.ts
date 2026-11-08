@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {ArithmeticError, MAX_UNITS} from './arithmetic';
-import {DAY_MS} from './calendar';
-import {compileConfig} from './config';
-import type {EditorConfig} from './config';
-import {financialReport} from './financial-report';
-import {investmentReport} from './investment-report';
+import {ArithmeticError, MAX_UNITS} from '../../packages/engine/src/arithmetic.js';
+import {DAY_MS} from '../../packages/engine/src/calendar.js';
+import {compileConfig} from '../../packages/engine/src/config.js';
+import type {EditorConfig} from '../../packages/engine/src/config.js';
+import {financialReport} from '../../packages/engine/src/financial-report.js';
+import {investmentReport} from '../../packages/engine/src/investment-report.js';
 import {Runner} from '../runner/runner';
-import {Simulation} from './simulation';
+import {Simulation} from '../../packages/engine/src/simulation.js';
 import {line} from './test-fixtures';
 import {exampleIds, previewConfig} from '../ui/preview';
 

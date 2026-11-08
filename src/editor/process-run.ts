@@ -1,4 +1,4 @@
-import type {RunConfig} from '../engine/config';
+import type {RunConfig} from '@toc/engine';
 import {labels} from '../ui/i18n';
 import type {Labels, Language} from '../ui/i18n';
 

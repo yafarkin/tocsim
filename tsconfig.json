@@ -19,5 +19,5 @@
     "skipLibCheck": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "tools/ui-mode-check.tsx", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "packages/engine/src", "tools/ui-mode-check.tsx", "vite.config.ts", "vitest.config.ts", "packages/engine/vitest.config.ts"]
 }

@@ -1,5 +1,5 @@
-import type {DeepReadonly, EditorConfig} from '../engine/config';
-import type {Snapshot} from '../engine/state';
+import type {DeepReadonly, EditorConfig} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 import {previewConfig} from '../ui/preview';
 
 export const blockingBuffers = [1, 8] as const;

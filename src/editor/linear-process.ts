@@ -1,5 +1,5 @@
-import {compileConfig, ConfigError} from '../engine/config';
-import type {EditorConfig, RunConfig, StationConfig} from '../engine/config';
+import {compileConfig, ConfigError} from '@toc/engine';
+import type {EditorConfig, RunConfig, StationConfig} from '@toc/engine';
 
 const calendar = {shiftStartMs: 28_800_000, lunchStartMs: 43_200_000,
   lunchEndMs: 46_800_000, shiftEndMs: 61_200_000};

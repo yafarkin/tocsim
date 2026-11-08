@@ -1,7 +1,7 @@
-import {ArithmeticError} from '../engine/arithmetic';
-import {financialReport} from '../engine/financial-report';
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import type {Snapshot} from '../engine/state';
+import {ArithmeticError} from '@toc/engine';
+import {financialReport} from '@toc/engine';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 import type {Labels} from './i18n';
 
 export function moneyText(value: string): string {

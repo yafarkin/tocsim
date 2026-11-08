@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import {investmentReport} from '../engine/investment-report';
-import {Simulation} from '../engine/simulation';
+import {compileConfig} from '@toc/engine';
+import {investmentReport} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {line} from '../engine/test-fixtures';
 import {Runner} from '../runner/runner';
 import {exampleIds, previewConfig} from './preview';

@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {compileConfig} from '../engine/config';
-import {Simulation} from '../engine/simulation';
-import type {Snapshot} from '../engine/state';
+import {compileConfig} from '@toc/engine';
+import {Simulation} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 import {line} from '../engine/test-fixtures';
 import {exampleIds, previewConfig} from './preview';
 import {FlowTimeReport} from './FlowTimeReport';

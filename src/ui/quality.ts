@@ -1,5 +1,5 @@
-import type {DeepReadonly, EditorConfig} from '../engine/config';
-import type {Snapshot} from '../engine/state';
+import type {DeepReadonly, EditorConfig} from '@toc/engine';
+import type {Snapshot} from '@toc/engine';
 
 export interface QualitySettings {probability: number; source: 'prep' | 'work'; position: 'early' | 'late'}
 export const defaultQuality: QualitySettings = {probability: 0.25, source: 'prep', position: 'early'};

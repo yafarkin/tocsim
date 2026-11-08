@@ -1,5 +1,5 @@
-import type {DeepReadonly, RunConfig} from '../engine/config';
-import {flowIdentityReport} from '../engine/flow-identity';
+import type {DeepReadonly, RunConfig} from '@toc/engine';
+import {flowIdentityReport} from '@toc/engine';
 import type {RunnerView} from '../runner/runner';
 import {quantityText} from './diagram';
 import type {Labels} from './i18n';

@@ -1,5 +1,5 @@
-import {inputCapacity, outputCapacity} from '../engine/config';
-import type {EditorConfig, InputBufferConfig, OutputBufferConfig, RunConfig} from '../engine/config';
+import {inputCapacity, outputCapacity} from '@toc/engine';
+import type {EditorConfig, InputBufferConfig, OutputBufferConfig, RunConfig} from '@toc/engine';
 import {quantityText} from './diagram';
 export interface BufferSettings {
   defaults: NonNullable<EditorConfig['bufferDefaults']>;

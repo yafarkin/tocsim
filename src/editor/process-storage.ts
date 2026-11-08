@@ -1,4 +1,4 @@
-import type {EditorConfig} from '../engine/config';
+import type {EditorConfig} from '@toc/engine';
 import {compileLinearProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
 import type {ProcessLayout} from './process-layout';

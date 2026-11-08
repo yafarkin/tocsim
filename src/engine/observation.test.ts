@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createCalendar, DAY_MS, elapsedTime } from './calendar';
-import { compileConfig } from './config';
-import { Simulation } from './simulation';
+import { createCalendar, DAY_MS, elapsedTime } from '../../packages/engine/src/calendar.js';
+import { compileConfig } from '../../packages/engine/src/config.js';
+import { Simulation } from '../../packages/engine/src/simulation.js';
 import { line } from './test-fixtures';
 
 const hour = 3_600_000;

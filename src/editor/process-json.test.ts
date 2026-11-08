@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
-import {ConfigError} from '../engine/config';
-import {Simulation} from '../engine/simulation';
+import {ConfigError} from '@toc/engine';
+import {Simulation} from '@toc/engine';
 import {createLinearProcess, compileLinearProcess, appendLinearStation} from './linear-process';
 import {openProcessStorage} from './process-storage';
 import {copyImportedProcess, exportProcessJson, parseProcessJson, PROCESS_JSON_MAX_BYTES, readProcessJsonFile} from './process-json';

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {Simulation} from '../engine/simulation';
+import {Simulation} from '@toc/engine';
 import {compileLinearProcess, createLinearProcess, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import {layoutNodes, parseProcessLayout, placeNode, retainLayout} from './process-layout';
