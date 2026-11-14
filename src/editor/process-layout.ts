@@ -28,10 +28,18 @@ export function parseProcessLayout(value: unknown, config: EditorConfig): Proces
   })};
 }
 
-/** The chain graph determines the initial order, independently of entity array order. */
+/** Stable traversal also includes disconnected nodes while a route draft is incomplete. */
 export function layoutNodes(config: EditorConfig, layout: ProcessLayout): NodePosition[] {
-  const ids = [config.sources[0]!.id];
-  while (ids.at(-1) !== 'market') ids.push(config.routes.find(route => route.fromId === ids.at(-1))!.toId);
+  const ids: string[] = [], seen = new Set<string>();
+  const known = new Set([...config.sources.map(item => item.id), ...config.stations.map(item => item.id)]);
+  function visit(id: string) {
+    if (seen.has(id) || !known.has(id)) return;
+    seen.add(id); ids.push(id);
+    for (const route of config.routes.filter(route => route.fromId === id)) visit(route.toId);
+  }
+  for (const source of config.sources) visit(source.id);
+  for (const station of config.stations) visit(station.id);
+  ids.push('market');
   return ids.map((id, index) => layout.positions.find(position => position.id === id)
     ?? {id, x: 32 + index * 260, y: 96});
 }

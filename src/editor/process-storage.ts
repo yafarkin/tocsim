@@ -1,5 +1,5 @@
 import type {EditorConfig} from '@toc/engine';
-import {compileLinearProcess} from './linear-process';
+import {compileEditableProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
 import type {ProcessLayout} from './process-layout';
 
@@ -43,7 +43,7 @@ function readRecord(raw: string, key: string): ProcessRecord {
     || typeof record.updatedAt !== 'string' || !Number.isFinite(Date.parse(record.updatedAt))) {
     throw issue('invalid', key);
   }
-  compileLinearProcess(record.config);
+  compileEditableProcess(record.config);
   // Version 1 had no coordinates. Migrate in memory; only explicit save writes version 2.
   const layout = value.schemaVersion === 1 ? {positions: []} : parseProcessLayout(record.layout, record.config);
   return {...record, schemaVersion: 2, layout};
@@ -109,7 +109,7 @@ export function openProcessStorage(storage: () => ProcessStorage = () => localSt
     /** Pass zero for a new ID. Failed writes retain the draft with its last persisted revision. */
     save(id: string, config: EditorConfig, expectedRevision: number, layout: ProcessLayout = {positions: []}): ProcessStorageResult {
       validateIdentity(id, expectedRevision);
-      compileLinearProcess(config);
+      compileEditableProcess(config);
       const key = PROCESS_STORAGE_PREFIX + id;
       const record: ProcessRecord = {schemaVersion: 2, layout: parseProcessLayout(layout, config), id, revision: expectedRevision,
         updatedAt: new Date().toISOString(), config: structuredClone(config)};

@@ -2,12 +2,14 @@ import {ConfigError} from '@toc/engine';
 import type {EditorConfig, InputBufferConfig} from '@toc/engine';
 import {calendarForDuration, DAY_MS} from '@toc/engine';
 import {parseQuantity} from '@toc/engine';
-import {compileLinearProcess} from './linear-process';
+import {compileEditableProcess} from './linear-process';
+import {layoutNodes} from './process-layout';
 
 export interface BufferDraft {kind: 'inherit' | 'quantity' | 'shift' | 'infinite'; value: string}
 export interface ProcessDraft {
   name: string; seed: string; shifts: string; input: BufferDraft; output: BufferDraft;
-  materials: {id: string; name: string}[];
+  materials: {id: string; name: string; role: EditorConfig['materials'][number]['role']}[];
+  routes: EditorConfig['routes'];
   stations: {id: string; name: string; minutes: string; cv: string; input: BufferDraft; output: BufferDraft;
     recipeId: string; recipeName: string; inputMaterialId: string; inputQuantity: string; outputMaterialId: string; outputQuantity: string}[];
 }
@@ -16,13 +18,11 @@ function bufferDraft(rule: InputBufferConfig): BufferDraft {
   return {kind: rule.kind, value: rule.kind === 'quantity' ? rule.quantity : rule.kind === 'shift' ? rule.shifts : ''};
 }
 export function processDraft(config: EditorConfig): ProcessDraft {
-  compileLinearProcess(config);
+  compileEditableProcess(config);
   // Use graph order, including for files with a different station array order.
   const stations: ProcessDraft['stations'] = [];
-  let id = config.sources[0]!.id;
-  while (true) {
-    id = config.routes.find(route => route.fromId === id)!.toId;
-    if (id === 'market') break;
+  for (const {id} of layoutNodes(config, {positions: []})) {
+    if (!config.stations.some(item => item.id === id)) continue;
     const station = config.stations.find(item => item.id === id)!, processing = station.plan[0]!.processing;
     const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
     stations.push({recipeId: recipe.id, recipeName: recipe.name, inputMaterialId: recipe.inputs[0]!.materialId,
@@ -30,7 +30,7 @@ export function processDraft(config: EditorConfig): ProcessDraft {
       id, name: station.name, minutes: String(processing.timeMs! / 60_000), cv: String(processing.cv!),
       input: bufferDraft(station.inputBuffer), output: bufferDraft(station.outputBuffer)});
   }
-  return {materials: config.materials.map(({id, name}) => ({id, name})), name: config.name, seed: String(config.seed),
+  return {routes: structuredClone(config.routes), materials: config.materials.map(({id, name, role}) => ({id, name, role})), name: config.name, seed: String(config.seed),
     shifts: String(calendarForDuration(config.calendar, config.durationMs).days),
     input: bufferDraft(config.bufferDefaults?.input ?? {kind: 'shift', shifts: '0.5'}),
     output: bufferDraft(config.bufferDefaults?.output ?? {kind: 'quantity', quantity: '0'}), stations};
@@ -74,7 +74,9 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
       output: buffer(draft.output, 'config.bufferDefaults.output', null) as NonNullable<NonNullable<EditorConfig['bufferDefaults']>['output']>};
   }
   for (const material of config.materials) {
-    material.name = draft.materials.find(item => item.id === material.id)!.name;
+    const fields = draft.materials.find(item => item.id === material.id)!;
+    material.name = fields.name; material.role = fields.role;
+    if (material.role === 'finished' && material.salePrice === undefined) material.salePrice = '0';
   }
   for (const [i, station] of config.stations.entries()) {
     const fields = draft.stations.find(item => item.id === station.id)!;
@@ -82,6 +84,7 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
     station.name = fields.name;
     const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
     recipe.name = fields.recipeName;
+    recipe.inputs[0]!.materialId = fields.inputMaterialId;
     recipe.inputs[0]!.quantity = fields.inputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
     recipe.output.quantity = fields.outputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
     if (fields.minutes !== previous.stations.find(item => item.id === station.id)!.minutes) {
@@ -97,6 +100,7 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
     station.inputBuffer = buffer(fields.input, `${path}.inputBuffer`, station.id);
     station.outputBuffer = buffer(fields.output, `${path}.outputBuffer`, station.id) as typeof station.outputBuffer;
   }
-  compileLinearProcess(config);
+  config.routes = structuredClone(draft.routes);
+  compileEditableProcess(config);
   return config;
 }

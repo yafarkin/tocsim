@@ -213,3 +213,5 @@ main[data-ui-mode=simple] .show-expert{min-height:24px;padding:0;border:0;backgr
 .process-canvas-status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
 .process-canvas-viewport:focus-visible{outline:3px solid var(--focus);outline-offset:4px}
+
+.process-route{margin:16px 0;padding:16px;border:1px solid var(--border);border-radius:8px;min-width:0}.process-route legend{position:static;width:auto;height:auto;overflow:visible;clip-path:none;padding:0 6px;font-weight:600}.process-route>.process-station-fields{margin-bottom:12px}.process-materials>div{display:grid;gap:10px}.process-editor select[aria-invalid=true]{border-color:var(--error)}

@@ -6,7 +6,7 @@ const calendar = {shiftStartMs: 28_800_000, lunchStartMs: 43_200_000,
 
 function unsupported(path: string, objectId: string | null, ru: string, en: string): never {
   throw new ConfigError('unsupported', path, objectId,
-    {ru: `Линейный MVP: ${ru}`, en: `Linear MVP: ${en}`});
+    {ru: `Редактор: ${ru}`, en: `Editor: ${en}`});
 }
 
 function station(id: string, name: string, timeMs = 180_000): StationConfig {
@@ -42,8 +42,8 @@ export function createLinearProcess(id: string, language: 'ru' | 'en' = 'ru'): E
   return reconnect(config);
 }
 
-/** Uses the general validator first; returns the same immutable RunConfig contract. */
-export function compileLinearProcess(value: unknown): RunConfig {
+/** Validates the supported editor settings using the shared engine, including non-linear routes. */
+export function compileEditableProcess(value: unknown): RunConfig {
   const run = compileConfig(value), config = run.source, resolved = run.resolved;
   const check = (ok: boolean, path: string, id: string | null, ru: string, en: string) => {
     if (!ok) unsupported(`config.${path}`, id, ru, en);
@@ -51,8 +51,8 @@ export function compileLinearProcess(value: unknown): RunConfig {
   check(config.stations.length <= 30 && config.sources.length === 1
     && config.recipes.length === config.stations.length
     && config.materials.length === config.stations.length + 1
-    && config.routes.length === config.stations.length + 1,
-  'routes', null, 'нужна одна цепочка из 1–30 постов.', 'one chain of 1–30 stations is required.');
+    && new Set(config.stations.map(item => item.plan[0]!.recipeId)).size === config.stations.length,
+  'routes', null, 'нужны 1–30 постов с отдельными рецептами и выходными материалами.', 'use 1–30 stations with separate recipes and output materials.');
   check(resolved.initialStocks.length === 0 && resolved.warmupMs === 0,
     'initialStocks', null, 'начальные запасы и прогрев не поддерживаются.', 'initial stock and warmup are unsupported.');
   check(Object.entries(calendar).every(([key, time]) => config.calendar[key as keyof typeof calendar] === time),
@@ -61,22 +61,13 @@ export function compileLinearProcess(value: unknown): RunConfig {
   const source = resolved.sources[0]!;
   check(source.availability === 'virtual' && source.quantity === 1_000_000 && source.intervalMs === 180_000,
     'sources', source.id, 'источник подаёт одну единицу каждые 3 минуты.', 'the source supplies one unit every 3 minutes.');
-  const visited = new Set<string>();
-  let producer = source.id, material = source.materialId;
-  while (true) {
-    const routes = config.routes.filter(route => route.fromId === producer);
-    check(routes.length === 1 && routes[0]!.materialId === material,
-      'routes', producer, 'каждый узел имеет один выход к следующему.', 'each node has one route to the next node.');
-    const next = routes[0]!.toId;
-    if (next === 'market') break;
-    const item = config.stations.find(item => item.id === next)!;
-    check(!visited.has(next) && item.plan.length === 1,
-      'stations', next, 'у поста один рецепт в цепочке.', 'each station has one recipe in the chain.');
-    visited.add(next);
+  for (const item of config.stations) {
+    const next = item.id;
+    check(item.plan.length === 1, 'stations', next,
+      'у поста один рецепт.', 'each station has one recipe.');
     const row = item.plan[0]!, recipe = resolved.recipes.find(recipe => recipe.id === row.recipeId)!;
     const processing = row.processing;
-    check(recipe.kind === 'production' && recipe.inputs.length === 1
-      && recipe.inputs[0]!.materialId === material,
+    check(recipe.kind === 'production' && recipe.inputs.length === 1,
     'recipes', recipe.id, 'нужен производственный рецепт с одним входным материалом.', 'a production recipe with one input material is required.');
     const numeric = resolved.stations.find(station => station.id === next)!;
     check(row.batches === 1 && processing.mode === 'sequential' && processing.repetitions === 1
@@ -90,13 +81,29 @@ export function compileLinearProcess(value: unknown): RunConfig {
       'stations', next, 'буфер задаётся общим количеством.', 'buffers use a single capacity.');
     check(Object.values(numeric.costs).every(cost => cost === 0n),
       'stations', next, 'затраты должны быть нулевыми.', 'costs must be zero.');
-    material = recipe.output.materialId;
-    producer = next;
   }
-  check(visited.size === config.stations.length, 'routes', null,
-    'все посты должны входить в одну цепочку.', 'all stations must belong to one chain.');
   check(resolved.materials.every(item => (item.purchasePrice ?? 0n) === 0n && (item.salePrice ?? 0n) === 0n),
     'materials', null, 'цены должны быть нулевыми.', 'prices must be zero.');
+  return run;
+}
+
+/** Chain operations still require one complete chain and never rewrite a graph implicitly. */
+export function compileLinearProcess(value: unknown): RunConfig {
+  const run = compileEditableProcess(value), config = run.source;
+  const visited = new Set<string>();
+  let producer = config.sources[0]!.id;
+  while (true) {
+    const routes = config.routes.filter(route => route.fromId === producer);
+    if (routes.length !== 1 || visited.has(producer)) {
+      unsupported('config.routes', producer, 'нужна одна цепочка.', 'one chain is required.');
+    }
+    visited.add(producer);
+    producer = routes[0]!.toId;
+    if (producer === 'market') break;
+  }
+  if (visited.size !== config.stations.length + 1) {
+    unsupported('config.routes', null, 'все посты должны входить в одну цепочку.', 'all stations must belong to one chain.');
+  }
   return run;
 }
 

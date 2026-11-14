@@ -1,6 +1,6 @@
 import {ConfigError} from '@toc/engine';
 import type {EditorConfig} from '@toc/engine';
-import {compileLinearProcess} from './linear-process';
+import {compileEditableProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
 import type {ProcessDocument, ProcessLayout} from './process-layout';
 
@@ -18,7 +18,7 @@ function checkSize(size: number): void {
 
 /** Portable configuration and editor layout, without library revision, timestamps or run results. */
 export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = {positions: []}): string {
-  compileLinearProcess(config);
+  compileEditableProcess(config);
   const text = JSON.stringify({format: 'toc-process', schemaVersion: 2, config, layout: parseProcessLayout(layout, config)}, null, 2);
   checkSize(new TextEncoder().encode(text).byteLength);
   return text;
@@ -42,7 +42,7 @@ export function parseProcessDocument(text: string): ProcessDocument {
     fail('file', 'Оболочка файла содержит неподдерживаемые поля.', 'The file envelope contains unsupported fields.');
   }
   const config: unknown = 'config' in value ? value.config : undefined;
-  compileLinearProcess(config);
+  compileEditableProcess(config);
   const source = structuredClone(config) as EditorConfig;
   const layout = value.schemaVersion === 1 ? {positions: []} : parseProcessLayout('layout' in value ? value.layout : undefined, source);
   return {config: source, layout};
@@ -66,12 +66,12 @@ export async function readProcessJsonFile(file: Pick<Blob, 'size' | 'text'>): Pr
 
 /** Call only after accepting a preview, then save under a new library record ID. */
 export function copyImportedProcess(config: EditorConfig, newConfigId: string): EditorConfig {
-  compileLinearProcess(config);
+  compileEditableProcess(config);
   if (newConfigId === config.id) {
     fail('config.id', 'Для импорта нужен новый ID конфигурации.', 'Import requires a new configuration ID.');
   }
   const copy = structuredClone(config);
   copy.id = newConfigId;
-  compileLinearProcess(copy);
+  compileEditableProcess(copy);
   return copy;
 }
