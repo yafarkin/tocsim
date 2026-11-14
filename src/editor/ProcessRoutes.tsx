@@ -1,6 +1,7 @@
 import type {EditorConfig} from '@toc/engine';
 import type {Language} from '../ui/i18n';
 import type {ProcessDraft} from './process-form';
+import {nextConnectionId} from './process-connections';
 
 const words = {
   ru: {title: 'Связи', route: 'Связь', from: 'Откуда', to: 'Куда', material: 'Материал',
@@ -19,13 +20,7 @@ export function ProcessRoutes({config, draft, language, onChange}: {
   const producers = [...config.sources, ...draft.stations];
   const consumers = [...draft.stations, {id: 'market', name: text.market}];
   function add() {
-    const used = new Set([config.id, 'market', 'warehouse', ...config.materials.map(item => item.id),
-      ...config.recipes.map(item => item.id), ...config.stations.map(item => item.id),
-      ...config.stations.flatMap(item => item.plan.map(row => row.id)), ...config.sources.map(item => item.id),
-      ...draft.routes.map(item => item.id)]);
-    let index = 1;
-    while (used.has(`connection-${index}`)) index++;
-    onChange([...draft.routes, {id: `connection-${index}`, fromId: config.sources[0]!.id,
+    onChange([...draft.routes, {id: nextConnectionId(config, draft.routes), fromId: config.sources[0]!.id,
       toId: draft.stations[0]!.id, materialId: config.sources[0]!.materialId}]);
   }
   return <section aria-labelledby="process-routes-title"><h2 id="process-routes-title">{text.title}</h2>

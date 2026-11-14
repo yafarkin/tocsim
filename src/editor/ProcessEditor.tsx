@@ -261,6 +261,7 @@ export function ProcessEditor({language, active = true, onBack}: {language: Lang
             <button type="button" disabled={!selectedEntry || locked} onClick={() => setDeleting(true)}>{text.remove}</button></div>
           <fieldset className="process-form-fields" disabled={locked}>
           <ProcessCanvas key={session.id} config={session.config} draft={session.draft} layout={session.layout} language={language} locked={locked}
+            onRoutesChange={routes => {if (!locked) edit({...session.draft, routes});}}
             onChange={layout => {if (!locked) {setSession({...session, layout}); setNotice(null);}}}/>
           <div className="process-general">
             <label className="process-name">{text.name}<input value={session.draft.name} aria-invalid={fieldError('name')} onChange={event => edit({...session.draft, name: event.target.value})}/></label>
