@@ -3,7 +3,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {Simulation} from '@toc/engine';
 import {Runner} from '../runner/runner';
 import type {RunnerHost} from '../runner/runner';
-import {searchBottleneck} from '../runner/bottleneck-search';
+import {searchBottleneck} from '@toc/engine';
 import {FlowDiagram} from '../ui/FlowDiagram';
 import {RunSummary} from '../ui/RunSummary';
 import {labels, nameFor} from '../ui/i18n';

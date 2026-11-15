@@ -54,7 +54,7 @@ import type {BatchThreshold, BatchesResults} from './lessons/lesson-batches';
 import {LessonBatchesIntro, LessonBatchesComparison, batchesLabels} from './ui/LessonBatches';
 
 import {BottleneckSearch} from './ui/BottleneckSearch';
-import type {BottleneckResult} from './runner/bottleneck-search';
+import type {BottleneckResult} from '@toc/engine';
 import {ProcessEditor} from './editor/ProcessEditor';
 
 // Mode is a viewing preference, absent from RunConfig/Runner dependencies and editor keys.

@@ -5,8 +5,8 @@ import {line} from '../engine/test-fixtures';
 import {Simulation} from '@toc/engine';
 import {lesson2Config} from '../lessons/lesson-2';
 import {previewConfig} from '../ui/preview';
-import {bottleneckConfig,searchBottleneck,summarizeBottleneck} from './bottleneck-search';
-import type {BottleneckSample} from './bottleneck-search';
+import {bottleneckConfig,searchBottleneck,summarizeBottleneck} from '@toc/engine';
+import type {BottleneckSample} from '@toc/engine';
 import {Runner} from './runner';
 const immediate=async()=>{};
 function short(c:EditorConfig,ms:number) {c.durationMs=ms;c.calendar={shiftStartMs:0,lunchStartMs:ms-2,lunchEndMs:ms-1,shiftEndMs:ms};}

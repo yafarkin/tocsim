@@ -6,6 +6,7 @@ import {spawnSync} from 'node:child_process';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {runSimulation} from './run.js';
 import {line} from './test-fixtures.js';
+import {searchBottleneckJson} from './bottleneck-search.js';
 import type {EngineRunResponse} from './run.js';
 
 const cliPath = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
@@ -82,5 +83,42 @@ describe('toc-engine CLI', () => {
     expect(missing.response).toMatchObject({ok: false, error: {code: 'io'}});
     expect(usage.status).toBe(1);
     expect(usage.response).toMatchObject({ok: false, error: {code: 'usage'}});
+  });
+});
+
+describe('toc-engine bottleneck mode', () => {
+  it('returns the shared search result for file and both stdin forms', async () => {
+    const json = JSON.stringify(line());
+    const path = join(directory, 'input.json');
+    await writeFile(path, json);
+    const expected = await searchBottleneckJson(json);
+    expect(expected).toMatchObject({ok: true, result: {stationIds: ['s2'], outcome: 'candidate'}});
+    for (const [args, input] of [
+      [['--bottleneck', path], undefined],
+      [['--bottleneck', '-'], json],
+      [['--bottleneck'], json],
+    ] as const) {
+      const completed = run([...args], input);
+      expect(completed.status).toBe(0);
+      expect(completed.stderr).toBe('');
+      expect(completed.response).toEqual(expected);
+    }
+  });
+
+  it('reports JSON, validation, IO and usage errors without partial results', () => {
+    const invalid = line(); invalid.stations = [];
+    for (const [args, input, code] of [
+      [['--bottleneck'], '{broken', 'json'],
+      [['--bottleneck'], JSON.stringify(invalid), 'reference'],
+      [['--bottleneck', join(directory, 'missing.json')], undefined, 'io'],
+      [['--bottleneck', 'a', 'b'], undefined, 'usage'],
+      [['--unknown'], undefined, 'usage'],
+    ] as const) {
+      const completed = run([...args], input);
+      expect(completed.status).toBe(1);
+      expect(completed.response).toMatchObject({ok: false, error: {code}});
+      expect(completed.response).not.toHaveProperty('result');
+      expect(completed.stdout).not.toContain('stack');
+    }
   });
 });

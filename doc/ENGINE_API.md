@@ -127,3 +127,26 @@ cat input.json | node packages/engine/dist/cli.js > result.json
 ## Проверка
 
 Проверяются равенство фасада прежнему `Simulation.runToEnd()`, повторяемость, пошаговый и нерегулярный прогон, JSON round-trip, неизменяемость входа, независимость от представления, ошибки RU/EN, файл и stdin CLI, коды завершения и равенство CLI прямому вызову. Production-сборка UI и `check:dist` подтверждают, что выделение пакета не нарушило автономный HTML.
+
+## Поиск узкого места, задача № 166
+
+Движок экспортирует `searchBottleneck(run, options?)` для проверенного `RunConfig` и `searchBottleneckJson(json)` для входного JSON `EditorConfig`. Веб и CLI используют одну реализацию в [bottleneck-search.ts](../packages/engine/src/bottleneck-search.ts). Прежний модуль в Runner удалён.
+
+```sh
+node packages/engine/dist/cli.js --bottleneck input.json > bottleneck.json
+cat input.json | node packages/engine/dist/cli.js --bottleneck - > bottleneck.json
+```
+
+Без `--bottleneck` CLI выполняет прежний полный прогон. В режиме поиска результат имеет вид `{ok: true, result: BottleneckResult}`; ошибки, коды завершения, файл и stdin работают как в режиме прогона. В stdout попадает только JSON. Неизвестные флаги отклоняются как `usage`.
+
+```ts
+import {compileConfig, searchBottleneck, searchBottleneckJson} from '@toc/engine';
+const result = await searchBottleneck(compileConfig(configuration));
+const response = await searchBottleneckJson(jsonText);
+```
+
+Контракт описан в [contract/search](../packages/engine/src/contract/search). `stationIds` содержит одного кандидата или равную лучшую группу. `outcome` принимает `candidate`, `tied`, `ambiguous` или `noGain`. В samples сохраняются базовый выпуск и результаты ускорения каждого поста. Количества записаны строками целых миллионных долей единицы в порядке `productIds`.
+
+Алгоритм сокращает время обработки каждого поста на 10%, фиксирует физические буферы и сравнивает проданный выпуск по каждому продукту отдельно. Для случайной обработки или качества используются три парных seed, для детерминированной модели один. Это кандидаты на заданном горизонте, а не доказательство точного критического пути. Начальная конфигурация и текущий Runner не меняются.
+
+Веб передаёт `cancelled` и `onProgress`; поиск отдаёт управление через `yieldTurn`, по умолчанию таймер. Отмена возвращает `null` без частичного результата. JSON API выполняет полный поиск без таймерных задержек. Новые настройки модели и изменения существующих JSON-форматов не требуются.

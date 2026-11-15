@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import type {RunConfig} from '@toc/engine';
-import {searchBottleneck} from '../runner/bottleneck-search';
-import type {BottleneckResult} from '../runner/bottleneck-search';
+import {searchBottleneck} from '@toc/engine';
+import type {BottleneckResult} from '@toc/engine';
 import {nameFor} from './i18n';
 import type {Labels, Language} from './i18n';
 import {quantityText} from './diagram';

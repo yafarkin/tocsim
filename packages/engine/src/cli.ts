@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import {readFile} from 'node:fs/promises';
 import {runSimulationJson} from './run.js';
+import {searchBottleneckJson} from './bottleneck-search.js';
+import type {BottleneckSearchResponse} from './contract/index.js';
 import type {EngineRunResponse} from './run.js';
 
 function failure(code: 'usage' | 'io', ru: string, en: string): EngineRunResponse {
@@ -15,15 +17,17 @@ async function readStdin(): Promise<string> {
 }
 
 const args = process.argv.slice(2);
-let response: EngineRunResponse;
-if (args.length > 1) {
-  response = failure('usage', 'Использование: toc-engine [input.json|-].', 'Usage: toc-engine [input.json|-].');
+const bottleneck = args[0] === '--bottleneck';
+if (bottleneck) args.shift();
+let response: EngineRunResponse | BottleneckSearchResponse;
+if (args.length > 1 || args.some(arg => arg.startsWith('-') && arg !== '-')) {
+  response = failure('usage', 'Использование: toc-engine [--bottleneck] [input.json|-].', 'Usage: toc-engine [--bottleneck] [input.json|-].');
 } else {
   try {
     const source = args[0] === undefined || args[0] === '-'
       ? await readStdin()
       : await readFile(args[0], 'utf8');
-    response = runSimulationJson(source);
+    response = bottleneck ? await searchBottleneckJson(source) : runSimulationJson(source);
   } catch {
     response = failure('io', 'Не удалось прочитать входной JSON.', 'Unable to read the input JSON.');
   }

@@ -4,7 +4,7 @@ import {createCalendar} from '@toc/engine';
 import {Simulation} from '@toc/engine';
 import {previewConfig} from '../ui/preview';
 import type {ExampleId} from '../ui/preview';
-import {bottleneckConfig,searchBottleneck} from './bottleneck-search';
+import {bottleneckConfig,searchBottleneck} from '@toc/engine';
 
 type Expected={base:number[][];changed:Record<string,number[][]>;ids:string[];outcome:string};
 const cases:{id:ExampleId;one:Expected;five:Expected}[]=[

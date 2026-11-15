@@ -1,5 +1,7 @@
 # Контекст для новой сессии
 
+№ 166 от 2026-11-15: поиск узкого места перенесён в @toc/engine. CLI поддерживает --bottleneck, веб использует тот же код напрямую; копии алгоритма в Runner нет. Сохранены результаты, прогресс и отмена. Локальный npm run ci прошёл: 1720 тестов в 91 файле, TypeScript/build/check:dist. Концепт 1.29, план 1.40; расчётные версии и прежние форматы не менялись. Живая браузерная приёмка этой задачи не выполнялась. Материалы/сборки № 38 и публикация npm не входят в задачу.
+
 Bfe № 165, 2026-11-14. Актуальный снимок после завершённых и опубликованных № 163/164. Проект: `/Users/yafarkin/Documents/dev/TOC`. Сначала читать [agents.md](../agents.md), эту передачу и последние карточки [tasks.md](../tasks.md). Предметная модель в [CONCEPT.md](CONCEPT.md), порядок в [BUILD_PLAN.md](BUILD_PLAN.md), границы редактора в [PROCESS_EDITOR_MVP.md](PROCESS_EDITOR_MVP.md).
 
 ## Остановка и разрешения
@@ -100,7 +102,7 @@ Chrome № 164 через Playwright Extension проверил реальные
 | Библиотека / переносимый процесс | 2 / 2, чтение версии 1 |
 | RNG | counter32-fixed-distributions-2 |
 | Тема / режим UI | 1 / 1 |
-| Концепт / план | 1.28 / 1.39 |
+| Концепт / план | 1.29 / 1.40 |
 | Node / npm | 24.15.0 / 12.1.0 |
 
 npm run build:engine собирает пакет, npm run test:engine проверяет самостоятельный API/CLI. npm test, npm run typecheck и npm run build предварительно собирают пакет. npm run check:dist проверяет уже готовый dist/index.html без пересборки. npm run ci выполняет тесты, production build и check:dist. npm run dev запускает Vite, npm run preview показывает готовую сборку. Перед новым сервером проверить порт. При sandbox/сети использовать require_escalated, не обходить разрешения. Публикация: https://yafarkin.github.io/tocsim/. dist и node_modules не коммитятся.
@@ -209,7 +211,7 @@ DBR всё ещё не исполняется: policy=push, canStart=false. quan
 | Общая проверка и расчёт | packages/engine/src/config.ts, packages/engine/src/simulation.ts |
 | Выбор уроков и примеров | src/App.tsx, src/ui/preview.ts, src/ui/example-guide.ts |
 | Уроки | src/lessons/lesson-1.ts, src/lessons/lesson-2.ts, src/lessons/lesson-3.ts, src/lessons/lesson-blocking.ts, src/lessons/lesson-batches.ts |
-| Runner и поиск | src/runner/runner.ts, src/runner/bottleneck-search.ts |
+| Runner и поиск | src/runner/runner.ts, packages/engine/src/bottleneck-search.ts |
 | Схема, отчёты и CFD | src/ui/FlowDiagram.tsx, src/ui/diagram.ts, src/ui/RunSummary.tsx, src/ui/FlowCharts.tsx |
 | DBR | packages/engine/src/dbr-validation.ts, packages/engine/src/dbr-schedule.ts, packages/engine/src/dbr-demand.ts, packages/engine/src/dbr-slot-groups.ts |
 | Оформление и поставка | src/styles.css, vite.config.ts, tools/check-dist.mjs, .github/workflows/ci-pages.yml |

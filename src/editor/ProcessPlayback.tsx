@@ -5,7 +5,7 @@ import {Runner} from '../runner/runner';
 import type {PlaybackSpeed, PlaybackStatus, RunnerView} from '../runner/runner';
 import type {Language} from '../ui/i18n';
 import {BottleneckSearch} from '../ui/BottleneckSearch';
-import type {BottleneckResult} from '../runner/bottleneck-search';
+import type {BottleneckResult} from '@toc/engine';
 import {FlowDiagram} from '../ui/FlowDiagram';
 import {RunSummary} from '../ui/RunSummary';
 import {processLabels} from './process-run';
