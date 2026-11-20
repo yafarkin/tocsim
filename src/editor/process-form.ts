@@ -2,16 +2,20 @@ import {ConfigError} from '@toc/engine';
 import type {EditorConfig, InputBufferConfig} from '@toc/engine';
 import {calendarForDuration, DAY_MS} from '@toc/engine';
 import {parseQuantity} from '@toc/engine';
-import {compileEditableProcess} from './linear-process';
+import {compileEditableProcess, createProcessStation} from './linear-process';
 import {layoutNodes} from './process-layout';
 
 export interface BufferDraft {kind: 'inherit' | 'quantity' | 'shift' | 'infinite'; value: string}
+type Source = EditorConfig['sources'][number];
+export type SourceDraft = Omit<Source, 'intervalMs'> & {intervalSeconds: string};
 export interface ProcessDraft {
   name: string; seed: string; shifts: string; input: BufferDraft; output: BufferDraft;
-  materials: {id: string; name: string; role: EditorConfig['materials'][number]['role']}[];
+  materials: EditorConfig['materials'];
+  sources: SourceDraft[];
+  initialStocks: EditorConfig['initialStocks'];
   routes: EditorConfig['routes'];
   stations: {id: string; name: string; minutes: string; cv: string; input: BufferDraft; output: BufferDraft;
-    recipeId: string; recipeName: string; inputMaterialId: string; inputQuantity: string; outputMaterialId: string; outputQuantity: string}[];
+    recipeId: string; recipeName: string; inputs: EditorConfig['recipes'][number]['inputs']; outputMaterialId: string; outputQuantity: string}[];
 }
 function bufferDraft(rule: InputBufferConfig): BufferDraft {
   if (rule.kind === 'materials') throw new Error('Linear buffers do not use material lists');
@@ -25,12 +29,14 @@ export function processDraft(config: EditorConfig): ProcessDraft {
     if (!config.stations.some(item => item.id === id)) continue;
     const station = config.stations.find(item => item.id === id)!, processing = station.plan[0]!.processing;
     const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
-    stations.push({recipeId: recipe.id, recipeName: recipe.name, inputMaterialId: recipe.inputs[0]!.materialId,
-      inputQuantity: recipe.inputs[0]!.quantity, outputMaterialId: recipe.output.materialId, outputQuantity: recipe.output.quantity,
+    stations.push({recipeId: recipe.id, recipeName: recipe.name, inputs: structuredClone(recipe.inputs),
+      outputMaterialId: recipe.output.materialId, outputQuantity: recipe.output.quantity,
       id, name: station.name, minutes: String(processing.timeMs! / 60_000), cv: String(processing.cv!),
       input: bufferDraft(station.inputBuffer), output: bufferDraft(station.outputBuffer)});
   }
-  return {routes: structuredClone(config.routes), materials: config.materials.map(({id, name, role}) => ({id, name, role})), name: config.name, seed: String(config.seed),
+  return {routes: structuredClone(config.routes), materials: structuredClone(config.materials),
+    sources: config.sources.map(({intervalMs, ...source}) => ({...source, intervalSeconds: String(intervalMs / 1000)})),
+    initialStocks: structuredClone(config.initialStocks), name: config.name, seed: String(config.seed),
     shifts: String(calendarForDuration(config.calendar, config.durationMs).days),
     input: bufferDraft(config.bufferDefaults?.input ?? {kind: 'shift', shifts: '0.5'}),
     output: bufferDraft(config.bufferDefaults?.output ?? {kind: 'quantity', quantity: '0'}), stations};
@@ -51,9 +57,40 @@ function integer(value: string, path: string): number {
   }
   return Number(value);
 }
+function quantity(value: string): string {
+  return value.trim().replace(',', '.').replace(/^\./, '0.');
+}
+
+function milliseconds(value: string, factor: number, path: string, id: string): number {
+  decimal(value, path, id);
+  const [whole, fraction = ''] = value.trim().replace(',', '.').split('.');
+  const scale = 10n ** BigInt(fraction.length);
+  const time = BigInt((whole || '0') + fraction) * BigInt(factor);
+  if (time % scale !== 0n || time / scale > BigInt(Number.MAX_SAFE_INTEGER)) {
+    invalid(path, id, 'Время должно задаваться с точностью до миллисекунды.', 'Time must be a whole number of milliseconds.');
+  }
+  return Number(time / scale);
+}
+
+export function addDraftStation(draft: ProcessDraft, id: string, name: string, outputName: string): ProcessDraft {
+  const outputMaterialId = `output-${id}`;
+  return {...draft, materials: [...draft.materials, {id: outputMaterialId, name: outputName, role: 'finished', color: '#247e70'}],
+    stations: [...draft.stations, {id, name, minutes: '3', cv: '0', input: {kind: 'inherit', value: ''},
+      output: {kind: 'inherit', value: ''}, recipeId: `recipe-${id}`, recipeName: name,
+      inputs: [{materialId: draft.materials.find(material => material.role === 'raw')?.id ?? '', quantity: '1'}],
+      outputMaterialId, outputQuantity: '1'}]};
+}
+
+/** Deleting a node removes its own routes and stock. Other recipe fields stay in the draft. */
+export function removeDraftNode(draft: ProcessDraft, id: string): ProcessDraft {
+  return {...draft, stations: draft.stations.filter(station => station.id !== id), sources: draft.sources.filter(source => source.id !== id),
+    routes: draft.routes.filter(route => route.fromId !== id && route.toId !== id),
+    initialStocks: draft.initialStocks.filter(stock => stock.ownerId !== id)};
+}
+
 function buffer(rule: BufferDraft, path: string, id: string | null): InputBufferConfig {
   if (rule.kind === 'inherit' || rule.kind === 'infinite') return {kind: rule.kind};
-  const value = rule.value.trim().replace(',', '.').replace(/^\./, '0.');
+  const value = quantity(rule.value);
   try {parseQuantity(value);} catch {invalid(path, id, 'Введите допустимое количество.', 'Enter a valid quantity.');}
   return rule.kind === 'shift' ? {kind: 'shift', shifts: value} : {kind: 'quantity', quantity: value};
 }
@@ -73,37 +110,50 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
     config.bufferDefaults = {...config.bufferDefaults,
       output: buffer(draft.output, 'config.bufferDefaults.output', null) as NonNullable<NonNullable<EditorConfig['bufferDefaults']>['output']>};
   }
-  for (const material of config.materials) {
-    const fields = draft.materials.find(item => item.id === material.id)!;
-    material.name = fields.name; material.role = fields.role;
-    if (material.role === 'finished' && material.salePrice === undefined) material.salePrice = '0';
-  }
-  for (const [i, station] of config.stations.entries()) {
-    const fields = draft.stations.find(item => item.id === station.id)!;
-    const priorFields = previous.stations.find(item => item.id === station.id)!;
+  config.materials = draft.materials.map(material => ({
+    ...material,
+    ...(material.role === 'raw' && material.purchasePrice === undefined ? {purchasePrice: '0'} : {}),
+    ...(material.role === 'finished' && material.salePrice === undefined ? {salePrice: '0'} : {}),
+  }));
+  config.sources = draft.sources.map(({intervalSeconds, ...source}, i) => {
+    const original = config.sources.find(item => item.id === source.id);
+    const intervalMs = original && String(original.intervalMs / 1000) === intervalSeconds
+      ? original.intervalMs : milliseconds(intervalSeconds, 1000, `config.sources.${i}.intervalMs`, source.id);
+    return {...source, quantity: quantity(source.quantity), intervalMs};
+  });
+  config.initialStocks = draft.initialStocks.map(stock => ({...stock, quantity: quantity(stock.quantity), cost: quantity(stock.cost)}));
+  const fieldsById = new Map(draft.stations.map(fields => [fields.id, fields]));
+  const stationIds = [...config.stations.map(item => item.id).filter(id => fieldsById.has(id)),
+    ...draft.stations.map(item => item.id).filter(id => !config.stations.some(item => item.id === id))];
+  const recipes = new Map(config.recipes.map(recipe => [recipe.id, recipe]));
+  config.stations = stationIds.map((id, i) => {
+    const fields = fieldsById.get(id)!;
+    const station = config.stations.find(item => item.id === id) ?? createProcessStation(id, fields.name);
+    const priorFields = previous.stations.find(item => item.id === station.id);
     const path = `config.stations.${i}`;
     station.name = fields.name;
-    const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
-    recipe.name = fields.recipeName;
-    recipe.inputs[0]!.materialId = fields.inputMaterialId;
-    recipe.inputs[0]!.quantity = fields.inputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
-    recipe.output.quantity = fields.outputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
-    if (fields.minutes !== priorFields.minutes) {
-      decimal(fields.minutes, `${path}.plan.0.processing.timeMs`, station.id);
-      const [whole, fraction = ''] = fields.minutes.trim().replace(',', '.').split('.');
-      const scale = 10n ** BigInt(fraction.length), time = BigInt((whole || '0') + fraction) * 60_000n;
-      if (time % scale !== 0n || time / scale > BigInt(Number.MAX_SAFE_INTEGER)) {
-        invalid(`${path}.plan.0.processing.timeMs`, station.id, 'Время должно задаваться с точностью до миллисекунды.', 'Time must be a whole number of milliseconds.');
-      }
-      station.plan[0]!.processing.timeMs = Number(time / scale);
+    station.plan[0]!.recipeId = fields.recipeId;
+    recipes.set(fields.recipeId, {id: fields.recipeId, kind: 'production', name: fields.recipeName,
+      inputs: fields.inputs.map(input => ({...input, quantity: quantity(input.quantity)})),
+      output: {materialId: fields.outputMaterialId, quantity: quantity(fields.outputQuantity)}});
+    if (fields.minutes !== priorFields?.minutes) {
+      station.plan[0]!.processing.timeMs = milliseconds(fields.minutes, 60_000, `${path}.plan.0.processing.timeMs`, station.id);
     }
-    if (fields.cv !== priorFields.cv) {
+    if (fields.cv !== priorFields?.cv) {
       station.plan[0]!.processing.cv = decimal(fields.cv, `${path}.plan.0.processing.cv`, station.id);
     }
     station.inputBuffer = buffer(fields.input, `${path}.inputBuffer`, station.id);
     station.outputBuffer = buffer(fields.output, `${path}.outputBuffer`, station.id) as typeof station.outputBuffer;
-  }
+    return station;
+  });
+  const usedRecipes = new Set(draft.stations.map(item => item.recipeId));
+  config.recipes = [...recipes.values()].filter(recipe => usedRecipes.has(recipe.id));
   config.routes = structuredClone(draft.routes);
+  if (config.displayOrder) {
+    const ids = new Set([config.id, 'market', 'warehouse', ...config.stations.flatMap(station => [station.id, ...station.plan.map(row => row.id)]),
+      ...[config.materials, config.recipes, config.sources, config.initialStocks, config.routes].flatMap(items => items.map(item => item.id))]);
+    config.displayOrder = config.displayOrder.filter(id => ids.has(id));
+  }
   compileEditableProcess(config);
   return config;
 }

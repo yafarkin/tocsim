@@ -87,13 +87,13 @@ describe('linear process form', () => {
     const next = processDraft(removeLinearStation(appendLinearStation(moved, 'Extra', 60_000), 's3'));
     expect(next.materials.find(item => item.id === 'output-s2')!.name).toBe('Заготовка');
     expect(next.stations[0]).toMatchObject({id: 's2', name: 'Обработка', recipeName: 'Сделать заготовку',
-      inputMaterialId: 'raw', outputMaterialId: 'output-s2', outputQuantity: '2'});
-    expect(next.stations[1]!.inputMaterialId).toBe('output-s2');
+      inputs: [{materialId: 'raw', quantity: '1'}], outputMaterialId: 'output-s2', outputQuantity: '2'});
+    expect(next.stations[1]!.inputs[0]!.materialId).toBe('output-s2');
     expect(config).toEqual(createLinearProcess('editable'));
   });
   it('uses recipe quantities in the actual run and retains them in storage and JSON', () => {
     const config = createLinearProcess('editable'), draft = processDraft(config);
-    draft.stations[2]!.inputQuantity = '2'; draft.stations[2]!.outputQuantity = '3';
+    draft.stations[2]!.inputs[0]!.quantity = '2'; draft.stations[2]!.outputQuantity = '3';
     draft.stations[2]!.input = {kind: 'quantity', value: '2'};
     const edited = configFromDraft(config, draft);
     const records = new Map<string, string>();
@@ -109,7 +109,7 @@ describe('linear process form', () => {
   });
   it('normalizes fractional recipe input without losing quantity precision', () => {
     const config = createLinearProcess('editable'), draft = processDraft(config);
-    draft.stations[0]!.inputQuantity = ',125001';
+    draft.stations[0]!.inputs[0]!.quantity = ',125001';
     expect(configFromDraft(config, draft).recipes[0]!.inputs[0]!.quantity).toBe('0.125001');
   });
   it.each(['', '0', '-1', '1.5', '1e3'])('rejects invalid recipe output %s without losing the draft', output => {
@@ -121,7 +121,7 @@ describe('linear process form', () => {
   });
   it('reports the existing capacity error for a recipe kit larger than the input buffer', () => {
     const config = createLinearProcess('editable'), draft = processDraft(config);
-    draft.stations[1]!.inputQuantity = '2';
+    draft.stations[1]!.inputs[0]!.quantity = '2';
     try {configFromDraft(config, draft); throw new Error('Expected capacity error');}
     catch (error) {expect(error).toBeInstanceOf(ConfigError); expect(error).toMatchObject({code: 'capacity', objectId: 's2'});}
   });

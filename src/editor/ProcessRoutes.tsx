@@ -17,11 +17,13 @@ export function ProcessRoutes({config, draft, language, onChange}: {
   config: EditorConfig; draft: ProcessDraft; language: Language; onChange: (routes: EditorConfig['routes']) => void;
 }) {
   const text = words[language];
-  const producers = [...config.sources, ...draft.stations];
+  const producers = [...draft.sources, ...draft.stations];
   const consumers = [...draft.stations, {id: 'market', name: text.market}];
   function add() {
-    onChange([...draft.routes, {id: nextConnectionId(config, draft.routes), fromId: config.sources[0]!.id,
-      toId: draft.stations[0]!.id, materialId: config.sources[0]!.materialId}]);
+    const producer = producers[0];
+    if (!producer) return;
+    onChange([...draft.routes, {id: nextConnectionId(config, draft.routes), fromId: producer.id,
+      toId: consumers[0]!.id, materialId: 'materialId' in producer ? producer.materialId : producer.outputMaterialId}]);
   }
   return <section aria-labelledby="process-routes-title"><h2 id="process-routes-title">{text.title}</h2>
     <p className="process-help">{text.help}</p>
@@ -43,6 +45,6 @@ export function ProcessRoutes({config, draft, language, onChange}: {
         </button>
       </fieldset>;
     })}
-    <button type="button" onClick={add}>{text.add}</button>
+    <button type="button" disabled={producers.length === 0} onClick={add}>{text.add}</button>
   </section>;
 }

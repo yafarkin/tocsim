@@ -9,7 +9,7 @@ function unsupported(path: string, objectId: string | null, ru: string, en: stri
     {ru: `Редактор: ${ru}`, en: `Editor: ${en}`});
 }
 
-function station(id: string, name: string, timeMs = 180_000): StationConfig {
+export function createProcessStation(id: string, name: string, timeMs = 180_000): StationConfig {
   return {id, name, priority: 0,
     plan: [{id: `plan-${id}`, recipeId: `recipe-${id}`, batches: 1,
       processing: {mode: 'sequential', repetitions: 1, timeMs, cv: 0}}],
@@ -31,7 +31,7 @@ export function createLinearProcess(id: string, language: 'ru' | 'en' = 'ru'): E
   };
   for (const [i, timeMs] of [180_000, 480_000, 180_000].entries()) {
     const id = `s${i + 1}`;
-    const item = station(id, `${language === 'ru' ? 'Пост' : 'Station'} ${i + 1}`, timeMs);
+    const item = createProcessStation(id, `${language === 'ru' ? 'Пост' : 'Station'} ${i + 1}`, timeMs);
     config.stations.push(item);
     config.materials.push({id: `output-${id}`, name: item.name, color: '#247e70', role: 'intermediate', salePrice: '0'});
     config.recipes.push({id: `recipe-${id}`, name: item.name, kind: 'production',
@@ -48,27 +48,21 @@ export function compileEditableProcess(value: unknown): RunConfig {
   const check = (ok: boolean, path: string, id: string | null, ru: string, en: string) => {
     if (!ok) unsupported(`config.${path}`, id, ru, en);
   };
-  check(config.stations.length <= 30 && config.sources.length === 1
-    && config.recipes.length === config.stations.length
-    && config.materials.length === config.stations.length + 1
+  check(config.stations.length <= 30 && config.recipes.length === config.stations.length
     && new Set(config.stations.map(item => item.plan[0]!.recipeId)).size === config.stations.length,
-  'routes', null, 'нужны 1–30 постов с отдельными рецептами и выходными материалами.', 'use 1–30 stations with separate recipes and output materials.');
-  check(resolved.initialStocks.length === 0 && resolved.warmupMs === 0,
-    'initialStocks', null, 'начальные запасы и прогрев не поддерживаются.', 'initial stock and warmup are unsupported.');
+  'recipes', null, 'нужен отдельный рецепт для каждого поста.', 'each station needs its own recipe.');
+  check(resolved.warmupMs === 0, 'warmupMs', null, 'прогрев задаётся в JSON.', 'set warmup in JSON.');
   check(Object.entries(calendar).every(([key, time]) => config.calendar[key as keyof typeof calendar] === time),
     'calendar', null, 'используется календарь 08:00–17:00 с обедом 12:00–13:00.',
     'use the 08:00–17:00 calendar with lunch 12:00–13:00.');
-  const source = resolved.sources[0]!;
-  check(source.availability === 'virtual' && source.quantity === 1_000_000 && source.intervalMs === 180_000,
-    'sources', source.id, 'источник подаёт одну единицу каждые 3 минуты.', 'the source supplies one unit every 3 minutes.');
   for (const item of config.stations) {
     const next = item.id;
     check(item.plan.length === 1, 'stations', next,
       'у поста один рецепт.', 'each station has one recipe.');
     const row = item.plan[0]!, recipe = resolved.recipes.find(recipe => recipe.id === row.recipeId)!;
     const processing = row.processing;
-    check(recipe.kind === 'production' && recipe.inputs.length === 1,
-    'recipes', recipe.id, 'нужен производственный рецепт с одним входным материалом.', 'a production recipe with one input material is required.');
+    check(recipe.kind === 'production',
+    'recipes', recipe.id, 'нужен производственный рецепт.', 'a production recipe is required.');
     const numeric = resolved.stations.find(station => station.id === next)!;
     check(row.batches === 1 && processing.mode === 'sequential' && processing.repetitions === 1
       && processing.distribution === undefined && (processing.defectProbability ?? 0) === 0
@@ -82,14 +76,19 @@ export function compileEditableProcess(value: unknown): RunConfig {
     check(Object.values(numeric.costs).every(cost => cost === 0n),
       'stations', next, 'затраты должны быть нулевыми.', 'costs must be zero.');
   }
-  check(resolved.materials.every(item => (item.purchasePrice ?? 0n) === 0n && (item.salePrice ?? 0n) === 0n),
-    'materials', null, 'цены должны быть нулевыми.', 'prices must be zero.');
   return run;
 }
 
 /** Chain operations still require one complete chain and never rewrite a graph implicitly. */
 export function compileLinearProcess(value: unknown): RunConfig {
   const run = compileEditableProcess(value), config = run.source;
+  const source = run.resolved.sources[0]!;
+  if (config.sources.length !== 1 || config.materials.length !== config.stations.length + 1
+    || config.initialStocks.length > 0 || config.recipes.some(recipe => recipe.inputs.length !== 1)
+    || source.availability !== 'virtual' || source.quantity !== 1_000_000 || source.intervalMs !== 180_000
+    || run.resolved.materials.some(item => (item.purchasePrice ?? 0n) !== 0n || (item.salePrice ?? 0n) !== 0n)) {
+    unsupported('config.routes', null, 'нужна простая цепочка.', 'a simple chain is required.');
+  }
   const visited = new Set<string>();
   let producer = config.sources[0]!.id;
   while (true) {
@@ -151,7 +150,7 @@ export function appendLinearStation(config: EditorConfig, name: string, timeMs: 
     ...copy.sources.map(item => item.id), ...copy.routes.map(item => item.id)]);
   let index = 1;
   while ([`s${index}`, `plan-s${index}`, `recipe-s${index}`, `output-s${index}`, `route-s${index}`].some(id => used.has(id))) index++;
-  const item = station(`s${index}`, name, timeMs);
+  const item = createProcessStation(`s${index}`, name, timeMs);
   copy.stations.push(item);
   copy.materials.push({id: `output-${item.id}`, name, color: '#247e70', role: 'finished', salePrice: '0'});
   copy.recipes.push({id: `recipe-${item.id}`, name, kind: 'production',

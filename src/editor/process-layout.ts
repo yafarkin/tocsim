@@ -29,7 +29,9 @@ export function parseProcessLayout(value: unknown, config: EditorConfig): Proces
 }
 
 /** Stable traversal also includes disconnected nodes while a route draft is incomplete. */
-export function layoutNodes(config: EditorConfig, layout: ProcessLayout): NodePosition[] {
+type ProcessNodes = {sources: {id: string}[]; stations: {id: string}[]};
+
+export function layoutNodes(config: ProcessNodes & Pick<EditorConfig, 'routes'>, layout: ProcessLayout): NodePosition[] {
   const ids: string[] = [], seen = new Set<string>();
   const known = new Set([...config.sources.map(item => item.id), ...config.stations.map(item => item.id)]);
   function visit(id: string) {
@@ -50,7 +52,7 @@ export function placeNode(layout: ProcessLayout, position: NodePosition): Proces
   return {positions: [...layout.positions.filter(item => item.id !== position.id), next].sort((a, b) => a.id.localeCompare(b.id))};
 }
 
-export function retainLayout(config: EditorConfig, layout: ProcessLayout): ProcessLayout {
+export function retainLayout(config: ProcessNodes, layout: ProcessLayout): ProcessLayout {
   const ids = new Set([...config.sources.map(item => item.id), ...config.stations.map(item => item.id), 'market']);
   return {positions: layout.positions.filter(position => ids.has(position.id))};
 }

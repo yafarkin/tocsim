@@ -45,12 +45,11 @@ export function ProcessCanvas({config, draft, layout, language, locked, onChange
   const [announcement, setAnnouncement] = useState('');
   useEffect(() => {if (locked) {drag.current = null; connectionPointer.current = null; setConnection(null); setConnectionError(null); setPreview(null);}}, [locked]);
   useEffect(() => {setConnectionError(null);}, [draft]);
-  const graph = {...config, routes: draft.routes};
-  const nodes = layoutNodes(graph, layout).map(node => preview?.id === node.id ? preview : node);
+  const nodes = layoutNodes(draft, layout).map(node => preview?.id === node.id ? preview : node);
   const width = Math.max(1000, ...nodes.map(node => node.x + NODE_WIDTH + 80));
   const height = Math.max(400, ...nodes.map(node => node.y + NODE_HEIGHT + 80));
   const name = (id: string) => draft.stations.find(item => item.id === id)?.name
-    ?? config.sources.find(item => item.id === id)?.name ?? text.product;
+    ?? draft.sources.find(item => item.id === id)?.name ?? text.product;
   const materialName = (id: string) => draft.materials.find(item => item.id === id)?.name ?? id;
   function commit(position: NodePosition) {
     onChange(placeNode(layout, position));
@@ -91,7 +90,7 @@ export function ProcessCanvas({config, draft, layout, language, locked, onChange
     <p id={help} className="process-help">{locked ? text.locked : text.help}</p>
     {onRoutesChange && <><p id={connectionHelp} className="process-help">{text.connectHelp}</p>
       <div className="process-connecting" role="status"><span>{connection
-        ? `${name(connection.fromId)} → … (${materialName(outputMaterial(config, draft, connection.fromId)!)})` : text.chooseOutput}</span>
+        ? `${name(connection.fromId)} → … (${materialName(outputMaterial(draft, connection.fromId)!)})` : text.chooseOutput}</span>
         <button type="button" disabled={!connection || locked} onClick={cancelConnection}>{text.cancelConnection}</button></div></>}
     <div ref={viewport} className="process-canvas-viewport" tabIndex={0} role="region" aria-label={text.area} aria-describedby={help}>
       <div className="process-canvas-surface" style={{width, height}}>
@@ -116,7 +115,7 @@ export function ProcessCanvas({config, draft, layout, language, locked, onChange
         </svg>
         {nodes.map(node => {
           const station = draft.stations.find(item => item.id === node.id);
-          const input = draft.routes.find(route => route.toId === node.id);
+          const inputs = [...new Set(draft.routes.filter(route => route.toId === node.id).map(route => materialName(route.materialId)))].join(', ');
           const output = draft.routes.find(route => route.fromId === node.id);
           return <article key={node.id} data-node-id={node.id} className={`process-canvas-node${station ? '' : ' process-canvas-terminal'}${preview?.id === node.id ? ' is-dragging' : ''}`}
             style={{left: node.x, top: node.y, width: NODE_WIDTH, height: NODE_HEIGHT}}>
@@ -153,19 +152,19 @@ export function ProcessCanvas({config, draft, layout, language, locked, onChange
                 if (position.x !== node.x || position.y !== node.y) commit(position);
               }}><span aria-hidden="true">⠿</span><span>{name(node.id)}</span></button>
             <div className="process-canvas-node-content">
-              <p title={input ? materialName(input.materialId) : station ? text.noInput : text.source}>{input ? `${text.in}: ${materialName(input.materialId)}` : station ? text.noInput : text.source}</p>
+              <p title={inputs || (station ? text.noInput : text.source)}>{inputs ? `${text.in}: ${inputs}` : station ? text.noInput : text.source}</p>
               <p title={output ? materialName(output.materialId) : station ? text.noOutput : text.product}>{output ? `${text.out}: ${materialName(output.materialId)}` : station ? text.noOutput : text.product}</p>
               {station && <a href={`#process-station-${station.id}`}>{station.minutes} {text.unit} · CV {station.cv} · {text.settings}</a>}
             </div>
             {onRoutesChange ? <>
               {(station || node.id === 'market') && <button type="button" data-connect-to={node.id}
-                className={`process-canvas-port port-input${connection && !connectionIssue(config, draft, connection.fromId, node.id) ? ' can-connect' : ''}`}
+                className={`process-canvas-port port-input${connection && !connectionIssue(draft, connection.fromId, node.id) ? ' can-connect' : ''}`}
                 disabled={locked} aria-label={`${text.connectTo}: ${name(node.id)}`} aria-describedby={connectionHelp}
-                title={connection ? connectionIssue(config, draft, connection.fromId, node.id)?.[language] ?? `${text.connectTo}: ${name(node.id)}` : `${text.connectTo}: ${name(node.id)}`}
+                title={connection ? connectionIssue(draft, connection.fromId, node.id)?.[language] ?? `${text.connectTo}: ${name(node.id)}` : `${text.connectTo}: ${name(node.id)}`}
                 onClick={() => {if (connection) finishConnection(connection.fromId, node.id);}}><span aria-hidden="true">→</span></button>}
               {node.id !== 'market' && <button type="button" data-connect-from={node.id} className="process-canvas-port port-output"
                 disabled={locked} aria-label={`${text.connectFrom}: ${name(node.id)}`} aria-describedby={connectionHelp}
-                aria-pressed={connection?.fromId === node.id} title={`${text.connectFrom}: ${name(node.id)} (${materialName(outputMaterial(config, draft, node.id)!)})`}
+                aria-pressed={connection?.fromId === node.id} title={`${text.connectFrom}: ${name(node.id)} (${materialName(outputMaterial(draft, node.id)!)})`}
                 onClick={event => {if (event.detail === 0 && !locked) beginConnection(node.id);}}
                 onPointerDown={event => {
                   if (locked || event.button !== 0) return;
@@ -191,7 +190,7 @@ export function ProcessCanvas({config, draft, layout, language, locked, onChange
                   if (connectionPointer.current?.pointerId === event.pointerId) cancelConnection();
                 }}><span aria-hidden="true">+</span></button>}
             </> : <>
-              {input && <span className="process-canvas-port port-input" aria-hidden="true"/>}
+              {inputs && <span className="process-canvas-port port-input" aria-hidden="true"/>}
               {output && <span className="process-canvas-port port-output" aria-hidden="true"/>}
             </>}
           </article>;

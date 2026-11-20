@@ -2,13 +2,32 @@ import {describe, expect, it} from 'vitest';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {Simulation} from '@toc/engine';
-import {compileEditableProcess, createLinearProcess} from './linear-process';
+import {compileEditableProcess, createLinearProcess, removeLinearStation} from './linear-process';
 import {configFromDraft, processDraft} from './process-form';
 import {connectProcessNodes, connectionIssue, nextConnectionId} from './process-connections';
 import {ProcessCanvas} from './ProcessCanvas';
 import {exportProcessJson, parseProcessDocument} from './process-json';
 
 describe('canvas connections', () => {
+  it('connects a new finite source to the second input and limits assembly by warehouse stock', () => {
+    const config = removeLinearStation(removeLinearStation(createLinearProcess('tables'), 's3'), 's2');
+    const draft = processDraft(config);
+    draft.materials.push({id: 'legs', name: 'Legs', role: 'raw', color: '#357dad'});
+    draft.sources.push({id: 'leg-source', name: 'Leg supply', materialId: 'legs', availability: 'warehouse',
+      quantity: '4', intervalSeconds: '180,001'});
+    draft.initialStocks.push({id: 'legs-stock', ownerId: 'warehouse', location: 'warehouse', materialId: 'legs', quantity: '40', cost: '0'});
+    draft.stations[0]!.inputs.push({materialId: 'legs', quantity: '4'});
+    draft.stations[0]!.input = {kind: 'quantity', value: '4'};
+    expect(() => configFromDraft(config, draft)).toThrow();
+    draft.routes = connectProcessNodes(config, draft, 'leg-source', 's1');
+    const assembly = configFromDraft(config, draft);
+    expect(assembly.sources[1]!.intervalMs).toBe(180_001);
+    const reopened = parseProcessDocument(exportProcessJson(assembly)).config;
+    expect(configFromDraft(reopened, processDraft(reopened))).toEqual(assembly);
+    expect(new Simulation(compileEditableProcess(reopened)).runToEnd().line!.counters)
+      .toContainEqual(expect.objectContaining({materialId: 'output-s1', sold: 10_000_000}));
+  });
+
   it('repairs an incomplete graph without modifying other draft fields, route IDs or the base configuration', () => {
     const config = createLinearProcess('canvas'), draft = processDraft(config);
     const original = structuredClone(config), previous = structuredClone(draft.routes);
@@ -44,19 +63,19 @@ describe('canvas connections', () => {
     ['s1', 'market', 'Готовый продукт'], ['missing', 's1', 'Выберите выход'], ['s3', 'warehouse', 'Выберите выход'],
   ])('rejects %s → %s without changing the draft', (from, to, message) => {
     const config = createLinearProcess('canvas'), draft = processDraft(config), before = structuredClone(draft);
-    expect(connectionIssue(config, draft, from!, to!)).toMatchObject({ru: expect.stringContaining(message!), en: expect.any(String)});
+    expect(connectionIssue(draft, from!, to!)).toMatchObject({ru: expect.stringContaining(message!), en: expect.any(String)});
     expect(() => connectProcessNodes(config, draft, from!, to!)).toThrow();
     expect(draft).toEqual(before);
   });
   it('rejects a new cycle even when the rest of the draft is incomplete or already cyclic', () => {
     const config = createLinearProcess('canvas'), draft = processDraft(config);
-    draft.stations[0]!.inputMaterialId = 'output-s2';
+    draft.stations[0]!.inputs[0]!.materialId = 'output-s2';
     draft.routes = [{id: 'a', fromId: 's1', toId: 's2', materialId: 'output-s1'},
       {id: 'existing-loop', fromId: 's3', toId: 's3', materialId: 'output-s3'}];
-    expect(connectionIssue(config, draft, 's2', 's1')).toMatchObject({ru: 'Эта связь создаст цикл.'});
+    expect(connectionIssue(draft, 's2', 's1')).toMatchObject({ru: 'Эта связь создаст цикл.'});
     // An unrelated existing cycle must not make the reachability check loop forever.
-    draft.stations[2]!.inputMaterialId = 'output-s1';
-    expect(connectionIssue(config, draft, 's1', 's3')).toBeNull();
+    draft.stations[2]!.inputs[0]!.materialId = 'output-s1';
+    expect(connectionIssue(draft, 's1', 's3')).toBeNull();
   });
   it('allocates one namespace for form and canvas IDs, including unsaved routes', () => {
     const config = createLinearProcess('connection-1'), draft = processDraft(config);

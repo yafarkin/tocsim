@@ -222,3 +222,10 @@ main[data-ui-mode=simple] .show-expert{min-height:24px;padding:0;border:0;backgr
 
 .process-json{box-sizing:border-box;width:100%;min-width:0;resize:vertical;padding:12px;border:1px solid var(--control-border);border-radius:6px;background:var(--surface);color:var(--text);font:14px/1.5 ui-monospace,monospace;tab-size:2}
 .process-json[aria-invalid=true]{border-color:var(--error)}
+
+.process-material{border-block-end:1px solid var(--line);padding-block:0 12px}
+.process-material>button{justify-self:start}
+.process-add-material{margin-top:12px}
+.process-supply-fields,.process-recipe-input{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:end;margin-bottom:12px}
+.process-recipe-input{grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;margin-top:12px}
+@media(max-width:600px){.process-supply-fields,.process-recipe-input{grid-template-columns:1fr}.process-recipe-input>button{justify-self:start}}

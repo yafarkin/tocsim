@@ -12,7 +12,7 @@ import {ProcessRoutes} from './ProcessRoutes';
 
 function branch() {
   const base = createLinearProcess('branch'), draft = processDraft(base);
-  draft.stations.find(item => item.id === 's3')!.inputMaterialId = 'output-s1';
+  draft.stations.find(item => item.id === 's3')!.inputs[0]!.materialId = 'output-s1';
   draft.materials.find(item => item.id === 'output-s2')!.role = 'finished';
   draft.routes.find(item => item.id === 'route-s1')!.toId = 's3';
   const second = draft.routes.find(item => item.id === 'route-s2')!;
@@ -72,9 +72,9 @@ describe('editable process connections', () => {
       if (kind === 'consumer') route.toId = 's1';
       if (kind === 'cycle') {
         draft.materials.find(item => item.id === 'output-s2')!.role = 'intermediate';
-        draft.stations.find(item => item.id === 's1')!.inputMaterialId = 'output-s2';
+        draft.stations.find(item => item.id === 's1')!.inputs[0]!.materialId = 'output-s2';
         draft.routes.find(item => item.id === 'source-route')!.toId = 's3';
-        draft.stations.find(item => item.id === 's3')!.inputMaterialId = 'raw';
+        draft.stations.find(item => item.id === 's3')!.inputs[0]!.materialId = 'raw';
         draft.routes = draft.routes.filter(item => item.id !== 'route-s1');
         draft.routes.find(item => item.id === 'route-s2')!.toId = 's1';
       }

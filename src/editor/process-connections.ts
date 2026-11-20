@@ -2,34 +2,34 @@ import {ConfigError} from '@toc/engine';
 import type {EditorConfig} from '@toc/engine';
 import type {ProcessDraft} from './process-form';
 
-/** Shared by the route form and canvas; IDs must not collide with any entity. */
+/** Returns an unused route ID, including IDs occupied by the saved configuration. */
 export function nextConnectionId(config: EditorConfig, routes: EditorConfig['routes']): string {
   const used = new Set([config.id, 'market', 'warehouse', ...config.materials.map(item => item.id),
     ...config.recipes.map(item => item.id), ...config.stations.map(item => item.id),
     ...config.stations.flatMap(item => item.plan.map(row => row.id)), ...config.sources.map(item => item.id),
-    ...routes.map(item => item.id)]);
+    ...config.initialStocks.map(item => item.id), ...routes.map(item => item.id)]);
   let index = 1;
   while (used.has(`connection-${index}`)) index++;
   return `connection-${index}`;
 }
 
-export function outputMaterial(config: EditorConfig, draft: ProcessDraft, fromId: string): string | undefined {
-  return config.sources.find(item => item.id === fromId)?.materialId
+export function outputMaterial(draft: ProcessDraft, fromId: string): string | undefined {
+  return draft.sources.find(item => item.id === fromId)?.materialId
     ?? draft.stations.find(item => item.id === fromId)?.outputMaterialId;
 }
 
 /** Check one gesture even while other edges are missing. Full validation stays in compileConfig. */
-export function connectionIssue(config: EditorConfig, draft: ProcessDraft, fromId: string, toId: string): {ru: string; en: string} | null {
-  const materialId = outputMaterial(config, draft, fromId);
+export function connectionIssue(draft: ProcessDraft, fromId: string, toId: string): {ru: string; en: string} | null {
+  const materialId = outputMaterial(draft, fromId);
   const consumer = draft.stations.find(item => item.id === toId);
   if (!materialId || (!consumer && toId !== 'market')) return {
     ru: 'Выберите выход источника или поста и вход поста или готовой продукции.',
     en: 'Choose a source or station output and a station or finished goods input.',
   };
   if (fromId === toId) return {ru: 'Нельзя соединить пост с самим собой.', en: 'A station cannot connect to itself.'};
-  if (consumer && consumer.inputMaterialId !== materialId) return {
-    ru: 'Материал выхода не совпадает с входным материалом рецепта. Измените входной материал в форме рецепта.',
-    en: 'The output material does not match the recipe input. Change the input material in the recipe form.',
+  if (consumer && !consumer.inputs.some(input => input.materialId === materialId)) return {
+    ru: 'Материал выхода не совпадает с входным материалом рецепта. Добавьте или измените вход в форме рецепта.',
+    en: 'The output material does not match the recipe input. Add or change an input in the recipe form.',
   };
   if (toId === 'market' && draft.materials.find(item => item.id === materialId)?.role !== 'finished') return {
     ru: 'К готовой продукции можно подключить только материал с назначением «Готовый продукт».',
@@ -51,8 +51,8 @@ export function connectionIssue(config: EditorConfig, draft: ProcessDraft, fromI
 
 /** Commit only the new route; preserve all existing draft fields and route identities. */
 export function connectProcessNodes(config: EditorConfig, draft: ProcessDraft, fromId: string, toId: string): EditorConfig['routes'] {
-  const issue = connectionIssue(config, draft, fromId, toId);
+  const issue = connectionIssue(draft, fromId, toId);
   if (issue) throw new ConfigError('topology', 'config.routes', fromId, issue);
   return [...draft.routes.map(route => ({...route})), {id: nextConnectionId(config, draft.routes),
-    fromId, toId, materialId: outputMaterial(config, draft, fromId)!}];
+    fromId, toId, materialId: outputMaterial(draft, fromId)!}];
 }
