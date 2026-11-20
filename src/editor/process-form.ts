@@ -80,6 +80,7 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
   }
   for (const [i, station] of config.stations.entries()) {
     const fields = draft.stations.find(item => item.id === station.id)!;
+    const priorFields = previous.stations.find(item => item.id === station.id)!;
     const path = `config.stations.${i}`;
     station.name = fields.name;
     const recipe = config.recipes.find(item => item.id === station.plan[0]!.recipeId)!;
@@ -87,7 +88,7 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
     recipe.inputs[0]!.materialId = fields.inputMaterialId;
     recipe.inputs[0]!.quantity = fields.inputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
     recipe.output.quantity = fields.outputQuantity.trim().replace(',', '.').replace(/^\./, '0.');
-    if (fields.minutes !== previous.stations.find(item => item.id === station.id)!.minutes) {
+    if (fields.minutes !== priorFields.minutes) {
       decimal(fields.minutes, `${path}.plan.0.processing.timeMs`, station.id);
       const [whole, fraction = ''] = fields.minutes.trim().replace(',', '.').split('.');
       const scale = 10n ** BigInt(fraction.length), time = BigInt((whole || '0') + fraction) * 60_000n;
@@ -96,7 +97,9 @@ export function configFromDraft(base: EditorConfig, draft: ProcessDraft): Editor
       }
       station.plan[0]!.processing.timeMs = Number(time / scale);
     }
-    station.plan[0]!.processing.cv = decimal(fields.cv, `${path}.plan.0.processing.cv`, station.id);
+    if (fields.cv !== priorFields.cv) {
+      station.plan[0]!.processing.cv = decimal(fields.cv, `${path}.plan.0.processing.cv`, station.id);
+    }
     station.inputBuffer = buffer(fields.input, `${path}.inputBuffer`, station.id);
     station.outputBuffer = buffer(fields.output, `${path}.outputBuffer`, station.id) as typeof station.outputBuffer;
   }

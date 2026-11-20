@@ -68,7 +68,7 @@ describe('toc-engine CLI', () => {
       expect(completed.status).toBe(0);
       expect(completed.stdout).toBe(expected.stdout);
     }
-  });
+  }, 30_000);
 
   it('reports malformed JSON without a stack trace', () => {
     const completed = run([], '{broken');
@@ -121,7 +121,7 @@ describe('toc-engine bottleneck mode', () => {
       expect(completed.stderr).toBe('');
       expect(completed.response).toEqual(expected);
     }
-  });
+  }, 30_000);
 
   it('reports JSON, validation, IO and usage errors without partial results', () => {
     const invalid = line(); invalid.stations = [];

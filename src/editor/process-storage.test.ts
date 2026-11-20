@@ -132,7 +132,7 @@ describe('process storage', () => {
     const f = fixture(); f.open().save('a', createLinearProcess('a'), 0);
     const record = JSON.parse(f.data.get(prefix + 'a')!);
     record[field] = field === 'revision' ? 1.5 : field === 'config' ? createLinearProcess('x') : 'wrong';
-    if (field === 'config') record.config.stations[0].setupMs = 1;
+    if (field === 'config') record.config.stations[0].setupMs = -1;
     f.data.set(prefix + 'a', JSON.stringify(record));
     expect(f.open().issues()[0]!.code).toBe('invalid');
     expect(f.open().list()).toEqual([]);
@@ -167,9 +167,9 @@ describe('process storage', () => {
     expect(store.list()).toEqual([]); expect(f.open().list()).toHaveLength(1);
   });
 
-  it('rejects unsupported configurations before changing memory or storage', () => {
+  it('rejects invalid configurations before changing memory or storage', () => {
     const f = fixture(), store = f.open(), config = createLinearProcess('a');
-    config.stations[0]!.setupMs = 1;
+    config.stations[0]!.setupMs = -1;
     expect(() => store.save('a', config, 0)).toThrow();
     expect(store.list()).toEqual([]); expect(f.data.size).toBe(0);
     expect(() => store.save('', createLinearProcess('a'), 0)).toThrow();

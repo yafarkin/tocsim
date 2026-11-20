@@ -1,6 +1,5 @@
-import {ConfigError, parseProcessFile, PROCESS_FILE_VERSION} from '@toc/engine';
+import {compileConfig, ConfigError, parseProcessFile, PROCESS_FILE_VERSION} from '@toc/engine';
 import type {EditorConfig} from '@toc/engine';
-import {compileEditableProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
 import type {ProcessDocument, ProcessLayout} from './process-layout';
 
@@ -16,29 +15,36 @@ function checkSize(size: number): void {
   }
 }
 
-/** Portable configuration and editor layout, without library revision, timestamps or run results. */
-export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = {positions: []}): string {
-  compileEditableProcess(config);
+/** Format an already validated document for the JSON editor or file export. */
+export function formatProcessDocument({config, layout}: ProcessDocument, indent = 2): string {
   const {displayOrder, materials, ...conditions} = config;
-  const text = JSON.stringify({
+  return JSON.stringify({
     format: 'toc-process',
     schemaVersion: PROCESS_FILE_VERSION,
     config: {...conditions, materials: materials.map(({color, ...material}) => material)},
     web: {
-      layout: parseProcessLayout(layout, config),
+      layout,
       displayOrder,
       materialColors: Object.fromEntries(materials.map(({id, color}) => [id, color])),
     },
-  }, null, 2);
-  checkSize(new TextEncoder().encode(text).byteLength);
-  return text;
+  }, null, indent);
 }
 
-/** Preview data retains the source ID. This function never writes to the library. */
-export function parseProcessDocument(text: string): ProcessDocument {
-  checkSize(new TextEncoder().encode(text).byteLength);
+/** Portable configuration and editor layout, without library revision, timestamps or run results. */
+export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = {positions: []}): string {
+  compileConfig(config);
+  const document = {config, layout: parseProcessLayout(layout, config)};
+  const text = formatProcessDocument(document);
+  if (new TextEncoder().encode(text).byteLength <= PROCESS_JSON_MAX_BYTES) return text;
+  const compact = formatProcessDocument(document, 0);
+  checkSize(new TextEncoder().encode(compact).byteLength);
+  return compact;
+}
+
+/** Parse the JSON editor contents without applying the file import size limit. */
+export function decodeProcessDocument(text: string): ProcessDocument {
   const {config, web} = parseProcessFile(text);
-  compileEditableProcess(config);
+  compileConfig(config);
   const source = structuredClone(config) as EditorConfig;
   if (web === undefined) return {config: source, layout: {positions: []}};
   if (!web || typeof web !== 'object' || Array.isArray(web)
@@ -61,8 +67,14 @@ export function parseProcessDocument(text: string): ProcessDocument {
       if (Object.hasOwn(colors, material.id)) material.color = (colors as Record<string, string>)[material.id]!;
     }
   }
-  if ('displayOrder' in web) compileEditableProcess(source);
+  if ('displayOrder' in web) compileConfig(source);
   return {config: source, layout};
+}
+
+/** Preview data retains the source ID. This function never writes to the library. */
+export function parseProcessDocument(text: string): ProcessDocument {
+  checkSize(new TextEncoder().encode(text).byteLength);
+  return decodeProcessDocument(text);
 }
 
 // Config-only API retained for callers that do not display an editor.
@@ -83,12 +95,15 @@ export async function readProcessJsonFile(file: Pick<Blob, 'size' | 'text'>): Pr
 
 /** Call only after accepting a preview, then save under a new library record ID. */
 export function copyImportedProcess(config: EditorConfig, newConfigId: string): EditorConfig {
-  compileEditableProcess(config);
+  compileConfig(config);
   if (newConfigId === config.id) {
     fail('config.id', 'Для импорта нужен новый ID конфигурации.', 'Import requires a new configuration ID.');
   }
   const copy = structuredClone(config);
   copy.id = newConfigId;
-  compileEditableProcess(copy);
+  if (copy.displayOrder?.includes(config.id)) {
+    copy.displayOrder = copy.displayOrder.map(id => id === config.id ? newConfigId : id);
+  }
+  compileConfig(copy);
   return copy;
 }

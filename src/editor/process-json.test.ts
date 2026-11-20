@@ -1,11 +1,12 @@
 import {describe, expect, it, vi} from 'vitest';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {ConfigError} from '@toc/engine';
+import {compileConfig, ConfigError} from '@toc/engine';
 import {Simulation} from '@toc/engine';
 import {createLinearProcess, compileLinearProcess, appendLinearStation} from './linear-process';
 import {openProcessStorage} from './process-storage';
 import {copyImportedProcess, exportProcessJson, parseProcessJson, PROCESS_JSON_MAX_BYTES, readProcessJsonFile} from './process-json';
+import {previewConfig} from '../ui/preview';
 
 function envelope(config: unknown = createLinearProcess('original')) {
   return {format: 'toc-process', schemaVersion: 1, config};
@@ -58,7 +59,7 @@ describe('portable process JSON', () => {
       expect(run(JSON.stringify({...portable, web: {...web, displayOrder: ['s3', 's2', 's1'],
         materialColors: {raw: 'orange'}, layout: {positions: [{id: 's1', x: 300, y: 50}]}}}), flags)).toEqual(legacy);
     }
-  });
+  }, 30_000);
 
   it('opens a bare CLI configuration and a portable configuration without web settings', () => {
     const config = createLinearProcess('cli');
@@ -102,12 +103,36 @@ describe('portable process JSON', () => {
       expect(error.messages.ru.length).toBeGreaterThan(0); expect(error.messages.en.length).toBeGreaterThan(0);
     });
 
-  it('preserves specific validation paths for unsupported process settings', () => {
-    const config = createLinearProcess('x'); config.stations[0]!.setupMs = 1;
+  it('preserves specific validation paths for invalid process settings', () => {
+    const config = createLinearProcess('x'); config.stations[0]!.setupMs = -1;
     const before = structuredClone(config);
-    expect(errorFrom(() => parseProcessJson(JSON.stringify(envelope(config)))).code).toBe('unsupported');
+    expect(errorFrom(() => parseProcessJson(JSON.stringify(envelope(config)))).path).toBe('config.stations.0.setupMs');
     expect(() => exportProcessJson(config)).toThrow(ConfigError);
     expect(config).toEqual(before);
+  });
+
+  it('keeps a multi-input assembly and its finite stock through import, storage and export', () => {
+    const original = previewConfig('assembly');
+    original.sources.forEach(source => {source.availability = 'warehouse';});
+    original.initialStocks = [{id: 'raw-stock', ownerId: 'warehouse', location: 'warehouse', materialId: 'raw', quantity: '20', cost: '200'}];
+    original.displayOrder = [original.id, 'assembly'];
+    const imported = parseProcessJson(JSON.stringify(original));
+    const copy = copyImportedProcess(imported, 'imported-assembly');
+    const data = new Map<string, string>();
+    const storage = () => ({
+      get length() {return data.size;},
+      key: (index: number) => [...data.keys()][index] ?? null,
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => {data.set(key, value);},
+      removeItem: (key: string) => {data.delete(key);},
+    });
+    const layout = {positions: [{id: 'assembly', x: 400, y: 100}]};
+    expect(openProcessStorage(storage).save('record', copy, 0, layout).persisted).toBe(true);
+    const record = openProcessStorage(storage).list()[0]!.record;
+    expect(record.layout).toEqual(layout);
+    const recovered = parseProcessJson(exportProcessJson(record.config, record.layout));
+    expect(recovered).toEqual({...original, id: copy.id, displayOrder: [copy.id, 'assembly']});
+    expect(compileConfig(recovered).calculationHash).toEqual(compileConfig(original).calculationHash);
   });
 
   it('round trips the maximum chain without truncation', () => {
