@@ -69,6 +69,83 @@ CLI читает этот же файл в обычном режиме и с `--
 
 С № 174 «Мои процессы» проверяют конфигурацию по правилам движка. Для моделей за пределами возможностей форм веб открывает редактор JSON. Импорт и экспорт файлов в браузере ограничены 2 МиБ.
 
+### Источники, запасы и горизонт
+
+Один процесс может содержать несколько записей в `config.sources`. У каждой записи есть свой материал `materialId`, количество за попытку поставки `quantity` и интервал `intervalMs` в рабочих миллисекундах. `quantity` задаётся десятичной строкой, например `"4"`. Получателей материала задают связи в `config.routes`.
+
+| `availability` | Откуда поступает сырьё |
+| --- | --- |
+| `"virtual"` | Источник может подавать сырьё весь прогон. Поставки идут по расписанию в пределах свободного места в буфере. |
+| `"warehouse"` | Источник берёт сырьё из начального запаса. В `config.initialStocks` задайте `ownerId: "warehouse"`, `location: "warehouse"`, тот же `materialId`, количество и полную стоимость партии. |
+
+Источники одного материала используют один режим доступности. Если у материала несколько конечных источников, они расходуют один общий запас. В пределах одной модели можно сочетать конечные и неограниченные источники разных материалов. Начальный запас поста задаётся его ID и местом хранения `input` или `output`. [Поля источника](../packages/engine/src/contract/input/SourceConfig.ts), [поля запаса](../packages/engine/src/contract/input/InitialStockConfig.ts).
+
+Обычный прогон заканчивается в момент `config.durationMs`. Это календарное время от начала первой смены до конца последней. Например, для одной смены с 08:00 до 17:00 укажите `32400000`, включая обед. Если конечный склад опустеет раньше, поставки с него прекратятся, а посты смогут доработать остатки до конца горизонта. То же правило действует при неограниченном сырье.
+
+Для повторяемого прогона укажите `config.seed`. Необязательное поле `config.warmupMs` задаёт начало окна измерения в миллисекундах от начала прогона. Эти параметры задаются в файле процесса.
+
+### Готовый пример сборки
+
+Сохраните пример как `assembly.json`. Его можно открыть в «Моих процессах» или передать в CLI. На стол расходуются одна столешница и четыре ножки. Столешницы поступают весь прогон, а 40 ножек со склада дают ровно 10 столов. `web` в примере задаёт цвета для схемы.
+
+```json
+{
+  "format": "toc-process",
+  "schemaVersion": 3,
+  "config": {
+    "schemaVersion": 1,
+    "id": "table-assembly",
+    "name": "Сборка столов",
+    "language": "ru",
+    "seed": 42,
+    "durationMs": 32400000,
+    "policy": "push",
+    "calendar": {
+      "shiftStartMs": 28800000, "lunchStartMs": 43200000,
+      "lunchEndMs": 46800000, "shiftEndMs": 61200000
+    },
+    "materials": [
+      {"id": "top", "name": "Столешница", "role": "raw", "purchasePrice": "0"},
+      {"id": "leg", "name": "Ножка", "role": "raw", "purchasePrice": "0"},
+      {"id": "table", "name": "Стол", "role": "finished", "salePrice": "0"}
+    ],
+    "recipes": [{
+      "id": "table-recipe", "name": "Собрать стол", "kind": "production",
+      "inputs": [{"materialId": "top", "quantity": "1"}, {"materialId": "leg", "quantity": "4"}],
+      "output": {"materialId": "table", "quantity": "1"}
+    }],
+    "stations": [{
+      "id": "assembly", "name": "Сборка", "priority": 0,
+      "plan": [{
+        "id": "assembly-plan", "recipeId": "table-recipe", "batches": 1,
+        "processing": {"mode": "sequential", "repetitions": 1, "timeMs": 180000, "cv": 0}
+      }],
+      "inputBuffer": {"kind": "quantity", "quantity": "4"},
+      "outputBuffer": {"kind": "quantity", "quantity": "0"},
+      "setupMs": 0, "maintenance": {"enabled": false}, "lunchReplacement": false,
+      "costs": {"perShift": "0", "perLunchHour": "0", "capital": "0"}
+    }],
+    "sources": [
+      {"id": "top-source", "name": "Столешницы", "materialId": "top", "availability": "virtual", "quantity": "1", "intervalMs": 180000},
+      {"id": "leg-source", "name": "Ножки со склада", "materialId": "leg", "availability": "warehouse", "quantity": "4", "intervalMs": 180000}
+    ],
+    "routes": [
+      {"id": "top-route", "fromId": "top-source", "toId": "assembly", "materialId": "top"},
+      {"id": "leg-route", "fromId": "leg-source", "toId": "assembly", "materialId": "leg"},
+      {"id": "table-route", "fromId": "assembly", "toId": "market", "materialId": "table"}
+    ],
+    "initialStocks": [
+      {"id": "leg-stock", "ownerId": "warehouse", "location": "warehouse", "materialId": "leg", "quantity": "40", "cost": "0"}
+    ]
+  },
+  "web": {"materialColors": {"top": "#357dad", "leg": "#a46a29", "table": "#247e70"}}
+}
+```
+
+В примере входной буфер вмещает до четырёх единиц каждого материала. Для отдельных лимитов укажите `inputBuffer.kind: "materials"` и перечислите ёмкость каждого входного материала. Такие настройки работают в CLI и в вебе, где их можно задать через JSON. [Контракт буфера](../packages/engine/src/contract/input/buffers/MaterialBuffersConfig.ts).
+
+В результате прогона проверьте `result.reports.flow.products[0].delivered`. Значение `"10000000"` означает 10 столов, поскольку поле хранит количество в миллионных долях единицы. В `result.snapshot.line.termination` будет `"horizon"`.
+
 ## Результат
 
 [EngineRunResult](../packages/engine/src/contract/output/EngineRunResult.ts) имеет собственный `schemaVersion: 1`:
@@ -107,6 +184,8 @@ CLI читает этот же файл в обычном режиме и с `--
 
 ## CLI в репозитории
 
+Для общего JSON-файла достаточно передать путь к файлу или его содержимое через stdin. В задачах № 173, 174 и 175 новых флагов CLI не появилось. Изменился вход: CLI принимает файл, который экспортирует веб. Поля источников, запасов и горизонта уже были частью модели. В обычном режиме выполняется один прогон, а единственный флаг `--bottleneck` запускает поиск узкого места. Режимы завершения заказа, серий экспериментов и поиска по сроку пока запланированы. [Задачи № 169, 170 и 171](../tasks.md#задача-169-точное-измерение-завершения-заказа-в-движке-и-cli).
+
 Сначала собрать пакет:
 
 ```sh
@@ -117,17 +196,18 @@ npm run build:engine
 Запуск из файла:
 
 ```sh
-node packages/engine/dist/cli.js input.json > result.json
+node packages/engine/dist/cli.js assembly.json > result.json
+node packages/engine/dist/cli.js --bottleneck assembly.json > bottleneck.json
 ```
 
 Чтение stdin:
 
 ```sh
-cat input.json | node packages/engine/dist/cli.js - > result.json
-cat input.json | node packages/engine/dist/cli.js > result.json
+node packages/engine/dist/cli.js - < assembly.json > result.json
+node packages/engine/dist/cli.js < assembly.json > result.json
 ```
 
-Успешный прогон возвращает код завершения 0. Ошибка данных, чтения или вызова — 1 и JSON с `ok: false` в stdout. При установленном npm-пакете та же команда доступна как `toc-engine [input.json|-]`.
+Успешный прогон возвращает код завершения 0. При ошибке данных, чтения или вызова CLI возвращает код 1 и JSON с `ok: false` в stdout. Команда установленного пакета имеет вид `toc-engine [--bottleneck] [input.json|-]`.
 
 `@toc/engine` сейчас является локальным npm workspace внутри репозитория. Пакет не опубликован в npm registry, поэтому обычная команда `npm install @toc/engine` из публичного registry пока недоступна. Любой может получить исходники, выполнить `npm ci && npm run build:engine` и использовать пакет локально. Для распространения архива можно отдельно выполнить `npm pack -w @toc/engine`; публикация в registry является следующей отдельной задачей.
 
