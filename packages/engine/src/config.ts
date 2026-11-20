@@ -26,7 +26,7 @@ export function outputCapacity(station: DeepReadonly<ResolvedConfig['stations'][
   return buffer.capacity;
 }
 
-type ErrorCode = 'shape' | 'unsupported' | 'id' | 'reference' | 'value' | 'capacity' | 'topology';
+type ErrorCode = 'json' | 'shape' | 'unsupported' | 'id' | 'reference' | 'value' | 'capacity' | 'topology';
 export class ConfigError extends Error {
   constructor(
     public readonly code: ErrorCode,

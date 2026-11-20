@@ -1,4 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import {ConfigError} from '@toc/engine';
 import {Simulation} from '@toc/engine';
 import {createLinearProcess, compileLinearProcess, appendLinearStation} from './linear-process';
@@ -21,14 +23,48 @@ describe('portable process JSON', () => {
     config.seed = 123; config.durationMs += 86_400_000;
     config.stations[0]!.plan[0]!.processing.cv = 0.5;
     config.stations[1]!.inputBuffer = {kind: 'quantity', quantity: '8'};
+    config.displayOrder = ['source', 's1', 's2', 's3', 'market'];
     const text = exportProcessJson(config), imported = parseProcessJson(text);
-    expect(JSON.parse(text)).toEqual({...envelope(config), schemaVersion: 2, layout: {positions: []}});
-    expect(Object.keys(JSON.parse(text))).toEqual(['format', 'schemaVersion', 'config', 'layout']);
+    const {displayOrder, materials, ...conditions} = config;
+    expect(JSON.parse(text)).toEqual({
+      ...envelope({...conditions, materials: materials.map(({color, ...material}) => material)}),
+      schemaVersion: 3,
+      web: {layout: {positions: []}, displayOrder, materialColors: Object.fromEntries(materials.map(m => [m.id, m.color]))},
+    });
     expect(imported).toEqual(config);
     expect(new Simulation(compileLinearProcess(imported)).runToEnd())
       .toEqual(new Simulation(compileLinearProcess(config)).runToEnd());
     imported.stations[0]!.name = 'Changed';
     expect(config.stations[0]!.name).toBe('Station 1');
+  });
+
+  it('runs the web export through the built CLI with the same results as legacy JSON', () => {
+    const config = createLinearProcess('shared');
+    const exported = exportProcessJson(config, {positions: [{id: 's1', x: 50, y: 200}]});
+    const cli = fileURLToPath(new URL('../../packages/engine/dist/cli.js', import.meta.url));
+    function run(json: string, flags: string[]) {
+      const processResult = spawnSync(process.execPath, [cli, ...flags, '-'], {
+        encoding: 'utf8', input: json, maxBuffer: 64 * 1024 * 1024,
+      });
+      expect(processResult.error).toBeUndefined();
+      expect(processResult.status).toBe(0);
+      return JSON.parse(processResult.stdout);
+    }
+    for (const flags of [[], ['--bottleneck']]) {
+      const legacy = run(JSON.stringify(config), flags);
+      expect(run(exported, flags)).toEqual(legacy);
+      const {web, ...portable} = JSON.parse(exported);
+      expect(run(JSON.stringify(portable), flags)).toEqual(legacy);
+      expect(run(JSON.stringify({...portable, web: {...web, displayOrder: ['s3', 's2', 's1'],
+        materialColors: {raw: 'orange'}, layout: {positions: [{id: 's1', x: 300, y: 50}]}}}), flags)).toEqual(legacy);
+    }
+  });
+
+  it('opens a bare CLI configuration and a portable configuration without web settings', () => {
+    const config = createLinearProcess('cli');
+    expect(parseProcessJson(JSON.stringify(config))).toEqual(config);
+    const {web, ...portable} = JSON.parse(exportProcessJson(config));
+    expect(parseProcessJson(JSON.stringify(portable))).toMatchObject({id: config.id, stations: config.stations});
   });
 
   it('prepares an independent accepted copy with a new configuration ID and stable internal IDs', () => {
@@ -54,7 +90,7 @@ describe('portable process JSON', () => {
     expect(store.list()[0]).toEqual(before[0]);
   });
 
-  it.each(['', '{', 'null', '[]', '42', JSON.stringify(createLinearProcess('unwrapped')),
+  it.each(['', '{', 'null', '[]', '42',
     JSON.stringify({...envelope(), format: 'other'}),
     JSON.stringify({...envelope(), schemaVersion: 2}),
     JSON.stringify({format: 'toc-process', config: createLinearProcess('x')}),

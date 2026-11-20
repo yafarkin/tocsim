@@ -5,6 +5,7 @@ import {financialReport} from './financial-report.js';
 import {flowReport} from './flow-report.js';
 import {investmentReport} from './investment-report.js';
 import {Simulation} from './simulation.js';
+import {parseProcessFile} from './process-file.js';
 export type {EngineRunError, EngineRunResponse, EngineRunResult} from './contract/index.js';
 
 export const RUN_RESULT_SCHEMA_VERSION = 1;
@@ -41,7 +42,7 @@ export function toEngineRunError(error: unknown): EngineRunError {
     && 'en' in error.messages && typeof error.messages.en === 'string') {
     return {
       code: error.code,
-      path: 'path' in error && typeof error.path === 'string' ? error.path : null,
+      path: error.code !== 'json' && 'path' in error && typeof error.path === 'string' ? error.path : null,
       objectId: 'objectId' in error && typeof error.objectId === 'string' ? error.objectId : null,
       messages: {ru: error.messages.ru, en: error.messages.en},
     };
@@ -61,11 +62,8 @@ export function runSimulationSafely(input: unknown): DeepReadonly<EngineRunRespo
 
 export function runSimulationJson(json: string): DeepReadonly<EngineRunResponse> {
   try {
-    return runSimulationSafely(JSON.parse(json));
-  } catch {
-    return freezeData({ok: false, error: {
-      code: 'json', path: null, objectId: null,
-      messages: {ru: 'Входные данные не являются корректным JSON.', en: 'Input is not valid JSON.'},
-    }});
+    return runSimulationSafely(parseProcessFile(json).config);
+  } catch (error) {
+    return freezeData({ok: false, error: toEngineRunError(error)});
   }
 }

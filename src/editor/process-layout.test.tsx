@@ -94,7 +94,7 @@ describe('process canvas layout', () => {
     const source = config();
     expect(parseProcessDocument(JSON.stringify({format: 'toc-process', schemaVersion: 1, config: source})))
       .toEqual({config: source, layout: {positions: []}});
-    expect(() => parseProcessDocument(JSON.stringify({format: 'toc-process', schemaVersion: 3, config: source}))).toThrow();
+    expect(() => parseProcessDocument(JSON.stringify({format: 'toc-process', schemaVersion: 4, config: source}))).toThrow();
   });
   it.each(['ru', 'en'] as const)('renders keyboard instructions, named handles and fixed routes in %s', language => {
     const source = config(), draft = processDraft(source); draft.stations[1]!.name = '<script>name</script>';

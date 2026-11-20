@@ -1,4 +1,4 @@
-import {ConfigError} from '@toc/engine';
+import {ConfigError, parseProcessFile, PROCESS_FILE_VERSION} from '@toc/engine';
 import type {EditorConfig} from '@toc/engine';
 import {compileEditableProcess} from './linear-process';
 import {parseProcessLayout} from './process-layout';
@@ -19,7 +19,17 @@ function checkSize(size: number): void {
 /** Portable configuration and editor layout, without library revision, timestamps or run results. */
 export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = {positions: []}): string {
   compileEditableProcess(config);
-  const text = JSON.stringify({format: 'toc-process', schemaVersion: 2, config, layout: parseProcessLayout(layout, config)}, null, 2);
+  const {displayOrder, materials, ...conditions} = config;
+  const text = JSON.stringify({
+    format: 'toc-process',
+    schemaVersion: PROCESS_FILE_VERSION,
+    config: {...conditions, materials: materials.map(({color, ...material}) => material)},
+    web: {
+      layout: parseProcessLayout(layout, config),
+      displayOrder,
+      materialColors: Object.fromEntries(materials.map(({id, color}) => [id, color])),
+    },
+  }, null, 2);
   checkSize(new TextEncoder().encode(text).byteLength);
   return text;
 }
@@ -27,24 +37,31 @@ export function exportProcessJson(config: EditorConfig, layout: ProcessLayout = 
 /** Preview data retains the source ID. This function never writes to the library. */
 export function parseProcessDocument(text: string): ProcessDocument {
   checkSize(new TextEncoder().encode(text).byteLength);
-  let value: unknown;
-  try { value = JSON.parse(text); }
-  catch { fail('file.json', 'Файл не содержит корректный JSON.', 'The file does not contain valid JSON.'); }
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || !('format' in value) || value.format !== 'toc-process') {
-    fail('file.format', 'Ожидается файл одного процесса toc-process.', 'Expected a single toc-process file.');
-  }
-  if (!('schemaVersion' in value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) {
-    fail('file.schemaVersion', 'Версия файла не поддерживается.', 'The file version is unsupported.');
-  }
-  const allowed = value.schemaVersion === 1 ? ['format', 'schemaVersion', 'config'] : ['format', 'schemaVersion', 'config', 'layout'];
-  if (Object.keys(value).some(key => !allowed.includes(key))) {
-    fail('file', 'Оболочка файла содержит неподдерживаемые поля.', 'The file envelope contains unsupported fields.');
-  }
-  const config: unknown = 'config' in value ? value.config : undefined;
+  const {config, web} = parseProcessFile(text);
   compileEditableProcess(config);
   const source = structuredClone(config) as EditorConfig;
-  const layout = value.schemaVersion === 1 ? {positions: []} : parseProcessLayout('layout' in value ? value.layout : undefined, source);
+  if (web === undefined) return {config: source, layout: {positions: []}};
+  if (!web || typeof web !== 'object' || Array.isArray(web)
+    || Object.keys(web).some(key => !['layout', 'displayOrder', 'materialColors'].includes(key))) {
+    fail('web', 'Некорректные настройки отображения.', 'Invalid presentation settings.');
+  }
+  const layout = 'layout' in web ? parseProcessLayout(web.layout, source) : {positions: []};
+  if ('displayOrder' in web) {
+    // The compiler checks IDs and duplicates against the complete configuration below.
+    source.displayOrder = web.displayOrder as string[];
+  }
+  if ('materialColors' in web) {
+    const colors = web.materialColors;
+    if (!colors || typeof colors !== 'object' || Array.isArray(colors)
+      || Object.entries(colors).some(([id, color]) => typeof color !== 'string' || !color.trim()
+        || !source.materials.some(material => material.id === id))) {
+      fail('web.materialColors', 'Укажите цвета существующих материалов.', 'Specify colors for existing materials.');
+    }
+    for (const material of source.materials) {
+      if (Object.hasOwn(colors, material.id)) material.color = (colors as Record<string, string>)[material.id]!;
+    }
+  }
+  if ('displayOrder' in web) compileEditableProcess(source);
   return {config: source, layout};
 }
 

@@ -9,6 +9,7 @@ export * from './flow-identity.js';
 export * from './flow-report.js';
 export * from './flow-scope.js';
 export * from './investment-report.js';
+export * from './process-file.js';
 export * from './random.js';
 export * from './run.js';
 export * from './simulation.js';

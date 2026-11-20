@@ -52,6 +52,21 @@ const fromJson = runSimulationJson(jsonText);
 
 Входом является [EditorConfig](../packages/engine/src/contract/input/EditorConfig.ts) со `schemaVersion: 1`. Строгая проверка неизвестных полей, ссылок, диапазонов и топологии выполняется прежним `compileConfig`. Количества и деньги во входе задаются строками с точностью до шести знаков, чтобы не использовать двоичное представление десятичных дробей.
 
+## Общий JSON-файл процесса
+
+Веб экспортирует объект `toc-process` со следующими полями.
+
+| Поле | Содержимое |
+| --- | --- |
+| `format` | Строка `toc-process`. |
+| `schemaVersion` | Версия файла, число `3`. |
+| `config` | Поля `EditorConfig` версии 1. Цвета материалов и порядок отображения записываются в `web`. |
+| `web` | Необязательный объект. `layout.positions` содержит координаты узлов, `displayOrder` содержит порядок ID, а `materialColors` хранит цвета по ID материалов. |
+
+CLI читает этот же файл в обычном режиме и с `--bottleneck`. Оба режима используют `config` для расчёта и пропускают `web`. Веб проверяет настройки отображения при импорте. Если раскладка отсутствует, веб размещает узлы автоматически.
+
+Веб и CLI также читают старые оболочки `toc-process` версий 1 и 2 и исходный `EditorConfig` в корне JSON. Функции `runSimulationJson` и `searchBottleneckJson` используют тот же разбор. Объектные функции `compileConfig` и `runSimulation` принимают прежний `EditorConfig`. Импорт в «Мои процессы» применяет текущие ограничения веб-редактора и предел файла 2 МиБ.
+
 ## Результат
 
 [EngineRunResult](../packages/engine/src/contract/output/EngineRunResult.ts) имеет собственный `schemaVersion: 1`:
@@ -130,7 +145,7 @@ cat input.json | node packages/engine/dist/cli.js > result.json
 
 ## Поиск узкого места, задача № 166
 
-Движок экспортирует `searchBottleneck(run, options?)` для проверенного `RunConfig` и `searchBottleneckJson(json)` для входного JSON `EditorConfig`. Веб и CLI используют одну реализацию в [bottleneck-search.ts](../packages/engine/src/bottleneck-search.ts). Прежний модуль в Runner удалён.
+Движок экспортирует `searchBottleneck(run, options?)` для проверенного `RunConfig` и `searchBottleneckJson(json)` для JSON-файла процесса. Веб и CLI используют одну реализацию в [bottleneck-search.ts](../packages/engine/src/bottleneck-search.ts). Прежний модуль в Runner удалён.
 
 ```sh
 node packages/engine/dist/cli.js --bottleneck input.json > bottleneck.json

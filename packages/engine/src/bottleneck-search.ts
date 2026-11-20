@@ -2,6 +2,7 @@ import {compileConfig} from './config.js';
 import type {EditorConfig, RunConfig} from './contract/index.js';
 import {Simulation} from './simulation.js';
 import {toEngineRunError} from './run.js';
+import {parseProcessFile} from './process-file.js';
 import type {BottleneckSearchResponse} from './contract/index.js';
 
 import type {BottleneckSample, BottleneckResult, BottleneckSearchOptions} from './contract/index.js';
@@ -80,16 +81,9 @@ export async function searchBottleneck(run:RunConfig,options:BottleneckSearchOpt
 
 /** Validate JSON and run a complete search; errors use the same envelope as simulation mode. */
 export async function searchBottleneckJson(json: string): Promise<BottleneckSearchResponse> {
-  let input: unknown;
-  try {
-    input = JSON.parse(json);
-  } catch {
-    return {ok: false, error: {code: 'json', path: null, objectId: null,
-      messages: {ru: 'Входные данные не являются корректным JSON.', en: 'Input is not valid JSON.'}}};
-  }
   try {
     // A complete batch needs no UI timer turns and cannot be cancelled by callbacks.
-    const result = await searchBottleneck(compileConfig(input), {yieldTurn: async () => {}});
+    const result = await searchBottleneck(compileConfig(parseProcessFile(json).config), {yieldTurn: async () => {}});
     return {ok: true, result: result!};
   } catch (error) {
     return {ok: false, error: toEngineRunError(error)};

@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {runSimulation} from './run.js';
-import {line} from './test-fixtures.js';
+import {cyclicLine, line} from './test-fixtures.js';
 import {searchBottleneckJson} from './bottleneck-search.js';
 import type {EngineRunResponse} from './run.js';
 
@@ -50,6 +50,24 @@ describe('toc-engine CLI', () => {
     expect(fromStdin.status).toBe(0);
     expect(fromStdin.stdout).toBe(fromFile.stdout);
     expect(fromImplicitStdin.stdout).toBe(fromFile.stdout);
+  });
+
+  it('runs portable and legacy web files with the same finite sources and cyclic plan', async () => {
+    const config = cyclicLine();
+    const input = join(directory, 'process.json');
+    const expected = run(['-'], JSON.stringify(config));
+    expect(expected.status).toBe(0);
+    const {materials, ...conditions} = config;
+    for (const file of [
+      {schemaVersion: 1, config},
+      {schemaVersion: 2, config, layout: {positions: []}},
+      {schemaVersion: 3, config: {...conditions, materials: materials.map(({color, ...material}) => material)}},
+    ]) {
+      await writeFile(input, JSON.stringify({format: 'toc-process', ...file}));
+      const completed = run([input]);
+      expect(completed.status).toBe(0);
+      expect(completed.stdout).toBe(expected.stdout);
+    }
   });
 
   it('reports malformed JSON without a stack trace', () => {
